@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+
+ftp_delete() {
+    [[ $# -eq 4 ]] || usage 3
+
+    HOST="$1"
+    USER="$2"
+    PASS="$3"
+    FILE="$4"
+
+    ftp -inv $HOST <<EOF
+user $USER $PASS
+delete $FILE
+bye
+EOF
+}
+
+ftp_get() {
+    [[ $# -eq 4 ]] || usage 4
+
+    HOST="$1"
+    USER="$2"
+    PASS="$3"
+    SRC="$4"
+    DEST="$(echo "$SRC" | awk -F "/" '{print $NF}')"
+
+    ftp -inv $HOST <<EOF
+user $USER $PASS
+get $SRC $DEST
+bye
+EOF
+}
+
+ftp_upload() {
+    [[ $# -eq 5 ]] || usage 5
+
+    HOST="$1"
+    USER="$2"
+    PASS="$3"
+    SRC="$4"
+    DEST="$5"
+
+    ftp -inv $HOST <<EOF
+user $USER $PASS
+mkdir $(dirname $DEST)
+bin
+put $SRC $DEST
+bye
+EOF
+}
+
+usage() {
+    echo "Usage: ${0/*\//} [OPTIONS] <host> <user> <pass> ..."
+    echo
+    echo "FTP tool for easy scripting"
+    echo
+    echo "Options:"
+    echo "    -d, --delete    Delete file on ftp server"
+    echo "    -g, --get       Get file from ftp server"
+    echo "    -h, --help      Display this help message"
+    echo "    -u, --upload    Upload file to ftp server"
+    echo
+    echo "Examples:"
+    echo "    ftp_util --upload HOST USER PASS file wwwroot/file"
+    echo "    ftp_util --delete HOST USER PASS wwwroot/file"
+    echo "    ftp_util --get HOST USER PASS wwwroot/file"
+    echo
+    exit $1
+}
+
+declare -a args
+unset action
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        "--") shift && args+=("$@") && break ;;
+        "-d"|"--delete") action="delete" ;;
+        "-g"|"--get") action="get" ;;
+        "-h"|"--help") usage 0 ;;
+        "-u"|"--upload") action="upload" ;;
+        *) args+=("$1") ;;
+    esac
+    shift
+done
+[[ -z ${args[@]} ]] || set -- "${args[@]}"
+
+[[ $# -ge 3 ]] || usage 1
+[[ -n $action ]] || usage 2
+
+case "$action" in
+    "delete") ftp_delete $@ ;;
+    "get") ftp_get $@ ;;
+    "upload") ftp_upload $@ ;;
+esac

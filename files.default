@@ -1,0 +1,4 @@
+bin/ikill:$HOME/bin/ikill
+bin/hexcal:$HOME/bin/hexcal
+bin/make_wallpaper:$HOME/bin/make_wallpaper
+bin/update_vim_plugins:$HOME/bin/update_vim_plugins

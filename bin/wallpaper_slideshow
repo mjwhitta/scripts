@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# A script to rotate wallpapers from a specified directory.
+# by Miles Whittaker <mjwhitta@gmail.com>
+#
+# --------------------------------------------------------------------
+# The MIT License (MIT)
+#
+# Copyright (c) 2017 Miles Whittaker
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+# --------------------------------------------------------------------
+
+usage() {
+    echo "Usage: ${0/*\//} [OPTIONS] <directory>"
+    echo
+    echo "Rotate wallpaper using images from specified directory."
+    echo "Currently it uses nitrogen but it could be extended to use"
+    echo "other background setters."
+    echo
+    echo "Options:"
+    echo "    -d, --delay=NUM    Rotate image every NUM secs"
+    echo "                       (default: $delay)"
+    echo "    -h, --help         Display this help message"
+    echo
+    exit $1
+}
+
+declare -a args
+delay="120"
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        "--") shift && args+=("$@") && break ;;
+        "-d"|"--delay") shift; [[ $# -gt 0 ]] || usage 1
+            delay="$1"
+            ;;
+        "-h"|"--help") usage 0 ;;
+        *) args+=("$1") ;;
+    esac
+    shift
+done
+[[ -z ${args[@]} ]] || set -- "${args[@]}"
+
+[[ $# -eq 1 ]] || usage 1
+[[ -d $1 ]] || usage 2
+
+while :; do
+    wallpapers=($(find $1 -mindepth 1 -type f | sort -R))
+    for wallpaper in "${wallpapers[@]}"; do
+        nitrogen --set-scaled --save $wallpaper
+        sleep $delay
+    done; unset wallpaper
+done

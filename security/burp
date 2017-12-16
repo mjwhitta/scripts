@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+# Open first burpsuite jar in $HOME/src
+find $HOME/src -iname "burpsuite_community*.jar" \
+    -exec java -jar {} + -quit

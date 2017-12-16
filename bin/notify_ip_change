@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# A script to notify by email when IP changes.
+# by Miles Whittaker <mjwhitta@gmail.com>
+#
+# --------------------------------------------------------------------
+# The MIT License (MIT)
+#
+# Copyright (c) 2017 Miles Whittaker
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+# --------------------------------------------------------------------
+
+compare_and_notify() {
+    file_new="$1"
+    file_old="$2"
+    if [[ -n $(diff $file_new $file_old) ]]; then
+        cp $file_new $file_old
+        message="IP address changed to $(cat $file_new)"
+        echo "$message"
+        if [[ -n $email ]]; then
+            echo "$message" | mutt -s "New IP address" "$email"
+        fi
+    fi
+}
+
+unique_tmp_file() {
+    echo "/tmp/ip_$(head -c 8 /dev/urandom | xxd -p)"
+}
+
+usage() {
+    echo "Usage: ${0/*\//} [OPTIONS]"
+    echo
+    echo "Detect when IP changes and notify user"
+    echo
+    echo "Options:"
+    echo "    -e, --email=EMAIL    Notify specified email address"
+    echo "    -f, --file=FILE      Compare to IP in specified file"
+    echo "    -h, --helpo          Display this help message"
+    echo "    -i, --ip=IP          Compare to specified IP"
+    echo
+    exit $1
+}
+
+declare -a args
+unset email file ip
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        "--") shift && args+=("$@") && break ;;
+        "-e"|"--email") shift; [[ $# -gt 0 ]] || usage 1
+            email="$1"
+            ;;
+        "-f"|"--file") shift; [[ $# -gt 0 ]] || usage 1
+            file="$1"
+            ;;
+        "-h"|"--help") usage 0 ;;
+        "-i"|"--ip") shift; [[ $# -gt 0 ]] || usage 1
+            ip="$1"
+            ;;
+        *) args+=("$1") ;;
+    esac
+    shift
+done
+[[ -z ${args[@]} ]] || set -- "${args[@]}"
+
+[[ $# -eq 0 ]] || usage 2
+[[ -n $file ]] || [[ -n $ip ]] || usage 3
+[[ -z $file ]] || [[ -f $file ]] || usage 4
+[[ -z $(ip -o a | \grep "tun") ]] || usage 5
+
+tmp_file="$(unique_tmp_file)"
+
+new_ip="$(\curl --connect-timeout 10 -L -s https://ifconfig.us)"
+[[ -z $new_ip ]] && echo "Curl timed-out!" && exit 5
+
+echo "$new_ip" >$tmp_file
+
+if [[ -n $file ]]; then
+    compare_and_notify $tmp_file $file
+elif [[ -n $ip ]]; then
+    cmp_file="$(unique_tmp_file)"
+    echo "$ip" >$cmp_file
+    compare_and_notify $tmp_file $cmp_file
+    rm -f $cmp_file
+fi
+
+rm -f $tmp_file

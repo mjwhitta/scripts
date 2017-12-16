@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+
+link() {
+    echo "[+] Linking directories and files..."
+    for entry in "${files[@]}"; do
+        from="$here/${entry/:*/}"
+        to="$(eval echo "${entry/*:/}")"
+
+        if [[ ! -e $from ]]; then
+            echo "[-] $from does not exist"
+            continue
+        fi
+
+        if [[ -L $to ]]; then
+            already_from="$(\ls -hl $to | awk '{print $NF}')"
+            [[ $already_from != $from ]] || continue
+            echo "[+] Removing symlink $to"
+            rm $to
+        elif [[ -e $to ]] && [[ -z $force ]]; then
+            echo "[+] Moving $to to $to.$backup"
+            mv $to $to.$backup
+        elif [[ -d $to ]]; then
+            echo "[+] Removing directory $to"
+            rm -rf $to
+        elif [[ -f $to ]]; then
+            echo "[+] Removing file $to"
+            rm -f $to
+        else
+            echo "[+] Ensuring $(dirname $to) exists"
+            mkdir -p $(dirname $to)
+        fi
+
+        echo "[+] Symlinking $from to $to"
+        ln -s $from $to
+    done; unset entry
+    echo "[+] done"
+    echo "[+] Successfully linked scripts"
+}
+
+link_status() {
+    for entry in "${files[@]}"; do
+        from="$here/${entry/:*/}"
+        to="$(eval echo "${entry/*:/}")"
+
+        if [[ ! -e $from ]]; then
+            echo "[-] $from does not exist"
+            continue
+        fi
+
+        if [[ -L $to ]]; then
+            already_from="$(\ls -hl $to | awk '{print $NF}')"
+            if [[ $already_from == $from ]]; then
+                echo "[+] $to is linked"
+            else
+                echo "[-] $to is not linked"
+            fi
+        else
+            echo "[-] $to is not linked"
+        fi
+    done; unset entry
+}
+
+unlink() {
+    for entry in "${files[@]}"; do
+        from="$here/${entry/:*/}"
+        to="$(eval echo "${entry/*:/}")"
+
+        if [[ -L $to ]]; then
+            already_from="$(\ls -hl $to | awk '{print $NF}')"
+            if [[ $already_from == $from ]]; then
+                echo "[+] Removing symlink for $to"
+                rm $to
+            else
+                echo "[!] Did not unlink $to as it was not linked"
+            fi
+        fi
+
+        if [[ ! -e $to ]] && [[ -e $to.$backup ]]; then
+            echo "[+] Restoring $to.$backup to $to"
+            mv $to.$backup $to
+        elif [[ -e $to ]] && [[ ! -L $to ]]; then
+            echo "[!] Could not unlink $to as it was not a symlink"
+        fi
+
+        if [[ -e $to.$backup ]]; then
+            echo "[!] Did not restore backup of $to"
+        fi
+    done; unset entry
+
+    echo "[+] Successfully unlinked scripts"
+}
+
+usage() {
+    echo "Usage: ${0/*\//} [OPTIONS] <action>"
+    echo "Options:"
+    echo "    -f, --force    Do not make backups"
+    echo "    -h, --help     Display this help message"
+    echo
+    echo "Actions:"
+    echo "    link"
+    echo "        Back up existing scripts and symlink new scripts"
+    echo "    status"
+    echo "        Show what's linked and what isn't"
+    echo "    unlink"
+    echo "        Remove symlinks and restore old scripts"
+    echo
+    exit $1
+}
+
+declare -a args
+unset force
+backup="scripts.bak"
+here="$(pwd)"
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        "--") shift && args+=("$@") && break ;;
+        "-f"|"--force") force="true" ;;
+        "-h"|"--help") usage 0 ;;
+        *) args+=("$1") ;;
+    esac
+    shift
+done
+[[ -z ${args[@]} ]] || set -- "${args[@]}"
+
+[[ $# -eq 1 ]] || usage 1
+
+declare -a files
+files=($(\grep -Ev "^(\s*#|$)" files.default))
+[[ ! -f files ]] || files=($(\grep -Ev "^(\s*#|$)" files))
+
+case "$1" in
+    "link") link ;;
+    "status") link_status ;;
+    "unlink") unlink ;;
+    *) usage 2 ;;
+esac

@@ -1,0 +1,189 @@
+#!/usr/bin/env bash
+# A script for choosing your host (and more) when opening a terminal.
+# by Miles Whittaker <mjwhitta@gmail.com>
+#
+# --------------------------------------------------------------------
+# The MIT License (MIT)
+#
+# Copyright (c) 2017 Miles Whittaker
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+# --------------------------------------------------------------------
+
+get_choices() {
+    while read h; do
+        echo "$h" | \grep -Eqv "^ *$|^ *#" || continue
+        echo -n "$h" | sed -e "s/ *|.*//g" -e "s/ /_/g"
+        echo -n " . "
+    done <$hosts_file
+    echo -n "norc . "
+    echo -n "quit . "
+}
+
+host_menu() {
+    [[ -e $hosts_file ]] || touch $hosts_file
+    if [[ $(\grep -cEv "^ *$|^#" $hosts_file) -eq 0 ]]; then
+        echo "localhost | $(which_shell)" >>$hosts_file
+    fi
+
+    lines="$(tput lines)"
+    columns="$(tput cols)"
+    let "menu_height = lines - 7"
+    dialog --clear --nook --nocancel --no-shadow \
+        --menu "Choose a host" $lines $columns $menu_height \
+        $(get_choices) 2>/tmp/chost
+    clear
+
+    host="$(cat /tmp/chost)"
+    rm -f /tmp/chost
+    [[ -n $host ]] || host_menu
+}
+
+start_shell() {
+    sh="$(which_shell)"
+    $sh
+}
+
+usage() {
+    echo "Usage: ${0/*\//} [OPTIONS]"
+    echo
+    echo "Automate starting up a new shell"
+    echo
+    echo "Options:"
+    echo "    -c, --config=CONFIG    Use the specified config file"
+    echo "    -h, --help             Display this help message"
+    echo "    -l, --loop             Prompt for new host after exit"
+    echo
+    exit $1
+}
+
+which_shell() {
+    sh="$(awk -F ":" "/$(whoami)/ {print \$NF}" /etc/passwd)"
+    [[ -n $sh ]] && echo -n "$sh" && return
+    [[ -n $SHELL ]] && echo -n "$SHELL" && return
+    if [[ -n $(command -v zsh) ]]; then
+        echo -n "$(command -v zsh)"
+        return
+    fi
+    if [[ -n $(command -v bash) ]]; then
+        echo -n "$(command -v bash)"
+        return
+    fi
+    echo -n "$(command -v sh)"
+}
+
+declare -a args
+hosts_file="$HOME/.config/chost/config"
+unset loop
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        "--") shift && args+=("$@") && break ;;
+        "-c"|"--config") shift; [[ $# -gt 0 ]] || usage 1
+            hosts_file="$1"
+            ;;
+        "-h"|"--help") usage 0 ;;
+        "-l"|"--loop") loop="true" ;;
+        *) args+=("$1") ;;
+    esac
+    shift
+done
+[[ -z ${args[@]} ]] || set -- "${args[@]}"
+
+[[ $# -eq 0 ]] || usage 2
+
+# Ruby
+export GEM_HOME="$HOME/.gem/ruby"
+export GEM_PATH="$GEM_HOME/gems"
+
+# Go
+export GOPATH="$HOME/.go"
+
+# PATH
+# Find dirs that should be in PATH
+unset PTH
+for dir in \
+    $HOME/bin \
+    $HOME/scripts/bin \
+    $HOME/.local/bin \
+    $GEM_HOME/bin \
+    $GOPATH \
+    $GOPATH/bin \
+    /usr/local/bin \
+    /usr/local/sbin \
+    /usr/bin \
+    /usr/sbin \
+    /bin \
+    /sbin \
+    $HOME/Android/Sdk/platform-tools \
+    $HOME/Android/Sdk/tools \
+    $HOME/Android/Ndk \
+    $HOME/.rvm/bin \
+; do
+    [[ ! -d $dir ]] || PTH="$PTH:$dir"
+done
+
+# Find missing from PATH
+for dir in $(echo "$PATH" | sed "s/:/ /g"); do
+    [[ -n $(echo "$PTH" | \grep $dir) ]] || PTH="$PTH:$dir"
+done
+
+# Set PATH
+[[ -z $PTH ]] || export PATH="${PTH/:/}"
+unset dir PTH
+
+# SSH agent
+if [[ -n $(command -v ssh-agent) ]]; then
+    [[ -f $HOME/.ssh/agent/env ]] && . $HOME/.ssh/agent/env >/dev/null
+fi
+
+if [[ -z $(command -v dialog) ]]; then
+    echo "Error, dialog is not installed!"
+    if [[ -n $(command -v apt-get) ]]; then
+        echo "Please run \"sudo apt-get install dialog\""
+    elif [[ -n $(command -v pacman) ]]; then
+        echo "Please run \"sudo pacman -S dialog\""
+    elif [[ -n $(command -v yum) ]]; then
+        echo "Please run \"sudo yum install dialog\""
+    elif [[ -n $(command -v brew) ]]; then
+        echo "Please run \"brew install dialog\""
+    fi
+    exit 3
+fi
+
+mkdir -p $(dirname $hosts_file)
+
+while :; do
+    host_menu
+    case "$host" in
+        "localhost") start_shell ;;
+        "norc") bash --norc ;;
+        "quit") exit 0 ;;
+        *)
+            cmd="$(
+                \grep -E "^ *$host *\|" $hosts_file | sed "s/.*|//g"
+            )"
+            eval $cmd
+            [[ $? -eq 0 ]] || sleep 2
+            ;;
+    esac
+    [[ -n $loop ]] || break
+done

