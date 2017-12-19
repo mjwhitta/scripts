@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
 
-# Open first burpsuite jar in $HOME/src
-find $HOME/src -iname "burpsuite_community*.jar" \
-    -exec java -jar {} + -quit
+cache="$HOME/.cache/burp"
+mkdir -p $cache
+
+[[ -f $cache/burp.json ]] || echo "{}" >$cache/burp.json
+
+# Get burpsuite if missing
+if [[ ! -f $cache/burpsuite_community.jar ]]; then
+    url="https://portswigger.net/burp/releases/download?type=jar"
+    curl -o $cache/burpsuite_community.jar "$url&product=community"
+fi
+
+java -jar $cache/burpsuite_community.jar \
+    --config-file=$cache/burp.json
