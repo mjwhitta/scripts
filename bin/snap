@@ -78,18 +78,39 @@ while [[ $# -gt 0 ]]; do
         "--bottom-left") snap_option="bottom-left" ;;
         "--bottom-right") snap_option="bottom-right" ;;
         "-c"|"--center") snap_option="center" ;;
-        "-f"|"--frame") shift; [[ $# -gt 0 ]] || usage 1
-            frame="$1"
+        "-f"|"--frame"*)
+            case "$1" in
+                "--"*"="*)
+                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
+                    [[ -n $arg ]] || usage 1
+                    ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            frame="$arg"
             ;;
         "-h"|"--help") usage 0 ;;
         "-l"|"--left") snap_option="left" ;;
         "-m"|"--max") snap_option="max" ;;
         "-n"|"--min") snap_option="min" ;;
-        "-o"|"--offset") shift; [[ $# -gt 0 ]] || usage 1
-            offset="$1"
+        "-o"|"--offset"*)
+            case "$1" in
+                "--"*"="*)
+                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
+                    [[ -n $arg ]] || usage 1
+                    ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            offset="$arg"
             ;;
-        "-p"|"--padding") shift; [[ $# -gt 0 ]] || usage 1
-            padding="$1"
+        "-p"|"--padding"*)
+            case "$1" in
+                "--"*"="*)
+                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
+                    [[ -n $arg ]] || usage 1
+                    ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            padding="$arg"
             ;;
         "-r"|"--right") snap_option="right" ;;
         "-t"|"--top") snap_option="top" ;;

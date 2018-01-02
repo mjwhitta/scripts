@@ -53,15 +53,36 @@ unset socks token
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "-a"|"--access") shift; [[ $# -gt 0 ]] || usage 1
-            token="?access_token=$1"
+        "-a"|"--access"*)
+            case "$1" in
+                "--"*"="*)
+                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
+                    [[ -n $arg ]] || usage 1
+                    ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            token="?access_token=$arg"
             ;;
         "-h"|"--help") usage 0 ;;
-        "-o"|"--output") shift; [[ $# -gt 0 ]] || usage 1
-            output="$1"
+        "-o"|"--output"*)
+            case "$1" in
+                "--"*"="*)
+                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
+                    [[ -n $arg ]] || usage 1
+                    ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            output="$arg"
             ;;
-        "-s"|"--socks") shift; [[ $# -gt 0 ]] || usage 1
-            socks="--socks5 $1"
+        "-s"|"--socks"*)
+            case "$1" in
+                "--"*"="*)
+                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
+                    [[ -n $arg ]] || usage 1
+                    ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            socks="--socks5 $arg"
             ;;
         *) args+=("$1") ;;
     esac

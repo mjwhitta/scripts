@@ -50,19 +50,47 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
         "-c"|"--connect") action="connect" ;;
-        "-f"|"--fifo") shift; [[ $# -gt 0 ]] || usage 1
-            fifo="$1"
+        "-f"|"--fifo"*)
+            case "$1" in
+                "--"*"="*)
+                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
+                    [[ -n $arg ]] || usage 1
+                    ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            fifo="$arg"
             ;;
         "-h"|"--help") usage 0 ;;
-        "--host") shift; [[ $# -gt 0 ]] || usage 1
-            host="$1"
+        "--host"*)
+            case "$1" in
+                "--"*"="*)
+                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
+                    [[ -n $arg ]] || usage 1
+                    ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            host="$arg"
             ;;
         "-l"|"--listen") action="listen" ;;
-        "--nc") shift; [[ $# -gt 0 ]] || usage 1
-            nc="$1"
+        "--nc"*)
+            case "$1" in
+                "--"*"="*)
+                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
+                    [[ -n $arg ]] || usage 1
+                    ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            nc="$arg"
             ;;
-        "-p"|"--port") shift; [[ $# -gt 0 ]] || usage 1
-            port="$1"
+        "-p"|"--port"*)
+            case "$1" in
+                "--"*"="*)
+                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
+                    [[ -n $arg ]] || usage 1
+                    ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            port="$arg"
             ;;
         *) args+=("$1") ;;
     esac

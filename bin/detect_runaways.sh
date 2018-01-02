@@ -53,11 +53,25 @@ while [[ $# -gt 0 ]]; do
         "--") shift && args+=("$@") && break ;;
         "-c"|"--count") show_count="true" ;;
         "-h"|"--help") usage 0 ;;
-        "-m"|"--max") shift; [[ $# -gt 0 ]] || usage 1
+        "-m"|"--max"*)
+            case "$1" in
+                "--"*"="*)
+                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
+                    [[ -n $arg ]] || usage 1
+                    ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
             max="$1"
             ;;
-        "-p"|"--proc") shift; [[ $# -gt 0 ]] || usage 1
-            proc="$1"
+        "-p"|"--proc"*)
+            case "$1" in
+                "--"*"="*)
+                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
+                    [[ -n $arg ]] || usage 1
+                    ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            proc="$arg"
             ;;
         *) args+=("$1") ;;
     esac

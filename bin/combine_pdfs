@@ -48,8 +48,15 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
         "-h"|"--help") usage 0 ;;
-        "-t"|"--title") shift; [[ $# -gt 0 ]] || usage 1
-            title="$1"
+        "-t"|"--title"*)
+            case "$1" in
+                "--"*"="*)
+                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
+                    [[ -n $arg ]] || usage 1
+                    ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            title="$arg"
             ;;
         *) args+=("$1") ;;
     esac

@@ -94,15 +94,36 @@ while [[ $# -gt 0 ]]; do
         "--") shift && args+=("$@") && break ;;
         "-h"|"--help") usage 0 ;;
         "-i"|"--info") action="info" ;;
-        "-o"|"--output") shift; [[ $# -gt 0 ]] || usage 1
-            output="$1"
+        "-o"|"--output"*)
+            case "$1" in
+                "--"*"="*)
+                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
+                    [[ -n $arg ]] || usage 1
+                    ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            output="$arg"
             ;;
         "-p"|"--parallel") parallel="true" ;;
-        "-r"|"--resolution") shift; [[ $# -gt 0 ]] || usage 1
-            resolution="$1"
+        "-r"|"--resolution"*)
+            case "$1" in
+                "--"*"="*)
+                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
+                    [[ -n $arg ]] || usage 1
+                    ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            resolution="$arg"
             ;;
-        "-t"|"--threads") shift; [[ $# -gt 0 ]] || usage 1
-            threads="$1"
+        "-t"|"--threads"*)
+            case "$1" in
+                "--"*"="*)
+                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
+                    [[ -n $arg ]] || usage 1
+                    ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            threads="$arg"
             ;;
         *) args+=("$1") ;;
     esac

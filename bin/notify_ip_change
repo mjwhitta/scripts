@@ -65,15 +65,36 @@ unset email file ip
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "-e"|"--email") shift; [[ $# -gt 0 ]] || usage 1
-            email="$1"
+        "-e"|"--email"*)
+            case "$1" in
+                "--"*"="*)
+                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
+                    [[ -n $arg ]] || usage 1
+                    ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            email="$arg"
             ;;
-        "-f"|"--file") shift; [[ $# -gt 0 ]] || usage 1
-            file="$1"
+        "-f"|"--file"*)
+            case "$1" in
+                "--"*"="*)
+                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
+                    [[ -n $arg ]] || usage 1
+                    ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            file="$arg"
             ;;
         "-h"|"--help") usage 0 ;;
-        "-i"|"--ip") shift; [[ $# -gt 0 ]] || usage 1
-            ip="$1"
+        "-i"|"--ip"*)
+            case "$1" in
+                "--"*"="*)
+                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
+                    [[ -n $arg ]] || usage 1
+                    ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            ip="$arg"
             ;;
         *) args+=("$1") ;;
     esac

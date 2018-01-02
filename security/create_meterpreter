@@ -43,12 +43,26 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
         "-h"|"--help") usage 0 ;;
-        "-i"|"--ip") shift; [[ $# -gt 0 ]] || usage 1
-            ip="$1"
+        "-i"|"--ip"*)
+            case "$1" in
+                "--"*"="*)
+                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
+                    [[ -n $arg ]] || usage 1
+                    ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            ip="$arg"
             ;;
         "-l"|"--linux") os="linux/x86" ;;
-        "-p"|"--port") shift; [[ $# -gt 0 ]] || usage 1
-            port="$1"
+        "-p"|"--port"*)
+            case "$1" in
+                "--"*"="*)
+                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
+                    [[ -n $arg ]] || usage 1
+                    ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            port="$arg"
             ;;
         "-w"|"--windows") os="windows" ;;
         *) args+=("$1") ;;
