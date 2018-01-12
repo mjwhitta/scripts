@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-
-# Make it so anyone can run nmap, not just root
-sudo setcap cap_net_raw,cap_net_admin,cap_net_bind_service+eip \
-    /usr/bin/nmap
