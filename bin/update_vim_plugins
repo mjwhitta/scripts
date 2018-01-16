@@ -53,9 +53,11 @@ done
 
 [[ $# -eq 0 ]] || usage 1
 
-mkdir -p $HOME/.vim/plugs
-vim -c :PlugUpgrade -c :q
-[[ $? -ne 0 ]] && exit $?
-rm -f $HOME/.vim/autoload/plug.vim.old
-vim -c :PlugUpdate -c :q -c :q
-exit $?
+if [[ -f $HOME/.vim/autoload/plug.vim ]]; then
+    mkdir -p $HOME/.vim/plugs
+    vim -c :PlugUpgrade -c :q
+    [[ $? -ne 0 ]] && exit $?
+    rm -f $HOME/.vim/autoload/plug.vim.old
+    vim -c :PlugUpdate -c :q -c :q
+    exit $?
+fi
