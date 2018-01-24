@@ -26,14 +26,13 @@ link() {
             echo "[+] Removing file $to"
             rm -f $to
         else
-            echo "[+] Ensuring $(dirname $to) exists"
+            # echo "[+] Ensuring $(dirname $to) exists"
             mkdir -p $(dirname $to)
         fi
 
         echo "[+] Symlinking $from to $to"
         ln -s $from $to
     done; unset entry
-    echo "[+] done"
     echo "[+] Successfully linked scripts"
 }
 
@@ -61,6 +60,7 @@ link_status() {
 }
 
 unlink() {
+    echo "[+] Unlinking directories and files..."
     for entry in "${files[@]}"; do
         from="$here/${entry/:*/}"
         to="$(eval echo "${entry/*:/}")"
@@ -86,7 +86,6 @@ unlink() {
             echo "[!] Did not restore backup of $to"
         fi
     done; unset entry
-
     echo "[+] Successfully unlinked scripts"
 }
 
