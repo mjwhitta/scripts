@@ -45,10 +45,7 @@ while [[ $# -gt 0 ]]; do
         "-h"|"--help") usage 0 ;;
         "-i"|"--ip"*)
             case "$1" in
-                "--"*"="*)
-                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
-                    [[ -n $arg ]] || usage 1
-                    ;;
+                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
                 *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
             esac
             ip="$arg"
@@ -56,10 +53,7 @@ while [[ $# -gt 0 ]]; do
         "-l"|"--linux") os="linux/x86" ;;
         "-p"|"--port"*)
             case "$1" in
-                "--"*"="*)
-                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
-                    [[ -n $arg ]] || usage 1
-                    ;;
+                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
                 *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
             esac
             port="$arg"

@@ -80,10 +80,7 @@ while [[ $# -gt 0 ]]; do
         "-c"|"--center") snap_option="center" ;;
         "-f"|"--frame"*)
             case "$1" in
-                "--"*"="*)
-                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
-                    [[ -n $arg ]] || usage 1
-                    ;;
+                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
                 *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
             esac
             frame="$arg"
@@ -94,20 +91,14 @@ while [[ $# -gt 0 ]]; do
         "-n"|"--min") snap_option="min" ;;
         "-o"|"--offset"*)
             case "$1" in
-                "--"*"="*)
-                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
-                    [[ -n $arg ]] || usage 1
-                    ;;
+                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
                 *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
             esac
             offset="$arg"
             ;;
         "-p"|"--padding"*)
             case "$1" in
-                "--"*"="*)
-                    arg="$(echo "$1" | sed -r "s/[^=]+=//")"
-                    [[ -n $arg ]] || usage 1
-                    ;;
+                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
                 *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
             esac
             padding="$arg"
