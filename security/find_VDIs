@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+
+connection_status() {
+    if [[ -n $(\grep -o "FAIL" $1) ]]; then
+        echo "fail"
+        return
+    fi
+    if [[ -z $(\grep -o "response" $1) ]]; then
+        echo "hung"
+        return
+    fi
+    if [[ -n $(\grep -o "ParseResult" $1) ]]; then
+        echo "success"
+        return
+    fi
+    echo "unknown"
+}
+
+usage() {
+    echo "Usage: ${0/*\//} [OPTIONS] <file1>... [fileN]"
+    echo
+    echo "Find valid VDI endpoints"
+    echo
+    echo "Options:"
+    echo "    -d, --debug           Keep log files for debugging"
+    echo "    -h, --help            Display this help message"
+    echo "    -t, --timeout=SECS    Timeout (default: $timeout)"
+    echo
+    exit $1
+}
+
+declare -a args
+unset debug
+timeout="2"
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        "--") shift && args+=("$@") && break ;;
+        "-d"|"--debug") debug="true" ;;
+        "-h"|"--help") usage 0 ;;
+        "-t"|"--timeout"*)
+            case "$1" in
+                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            timeout="$arg"
+            ;;
+        *) args+=("$1") ;;
+    esac
+    shift
+done
+[[ -z ${args[@]} ]] || set -- "${args[@]}"
+
+[[ $# -gt 0 ]] || usage 2
+
+for file in "$@"; do
+    [[ -f $file ]] || continue
+    while read ip; do
+        log="$(
+            timeout $timeout vmware-view -q -s $ip 2>&1 | \
+            awk '{print $NF}'
+        )"
+        if [[ -n $debug ]]; then
+            mkdir -p logs
+            sed -r "s/[^|]+\| //" $log >logs/$ip.log
+        fi
+        case "$(connection_status $log)" in
+            "fail") ;;
+            "hung"|"success")
+                names=($(nslookup $ip | awk '/name/ {print $NF}'))
+                for name in "${names[@]}"; do
+                    echo "${name%.} | $ip"
+                done
+                ;;
+            *) echo "Unknown - Look at logs for $ip" >&2 ;;
+        esac
+    done <$file
+done
