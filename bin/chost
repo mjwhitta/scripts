@@ -160,7 +160,7 @@ if [[ -n $(command -v ssh-agent) ]]; then
 fi
 
 if [[ -z $(command -v dialog) ]]; then
-    echo "Error, dialog is not installed!"
+    echo "dialog is not installed"
     if [[ -n $(command -v apt-get) ]]; then
         echo "Please run \"sudo apt-get install dialog\""
     elif [[ -n $(command -v pacman) ]]; then

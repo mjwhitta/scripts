@@ -122,16 +122,20 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -z ${args[@]} ]] || set -- "${args[@]}"
 
-[[ $# -ge 1 ]] || usage 1
+[[ $# -ge 1 ]] || usage 2
 
 if [[ -z $(command -v convert) ]]; then
-    echo "Install imagemagick!"
-    exit 2
+    echo "imagemagick is not installed"
+    exit 3
 fi
 
-if [[ -n $parallel ]] && [[ -z $(command -v parallel) ]]; then
-    echo "Parallel is not installed, falling back to default behavior"
-    unset parallel
+if [[ -n $parallel ]]; then
+    if [[ -z $(command -v parallel) ]] ||
+       [[ -z $(command -v env_parallel.bash) ]]
+    then
+        echo "Parallel is not installed, using default behavior"
+        unset parallel
+    fi
 fi
 
 mkdir -p $output
