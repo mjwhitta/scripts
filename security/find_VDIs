@@ -109,4 +109,4 @@ for file in "$@"; do
         fi
         let "count += 1"
     done <$file
-done | column -s "|" -t | tee $output
+done | column -s "|" -t | tee -a $output
