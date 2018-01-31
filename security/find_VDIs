@@ -40,19 +40,6 @@ connection_status() {
     echo "unknown"
 }
 
-main() {
-    for file in "$@"; do
-        [[ -f $file ]] || continue
-        while read ip; do
-            if [[ -z $web ]]; then
-                check_vmware_viewer "$ip"
-            else
-                check_web "$ip"
-            fi
-        done <$file
-    done | column -s "|" -t
-}
-
 name_lookup() {
     local -a names=($(nslookup $ip | awk '/name/ {print $NF}'))
     for name in "${names[@]}"; do
@@ -109,8 +96,13 @@ done
 
 [[ $# -gt 0 ]] || usage 2
 
-if [[ -z $output ]]; then
-    main $@
-else
-    main $@ | tee $output
-fi
+for file in "$@"; do
+    [[ -f $file ]] || continue
+    while read ip; do
+        if [[ -z $web ]]; then
+            check_vmware_viewer "$ip"
+        else
+            check_web "$ip"
+        fi
+    done <$file
+done | column -s "|" -t | tee $output
