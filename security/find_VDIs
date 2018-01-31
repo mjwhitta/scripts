@@ -101,7 +101,7 @@ let "count = 1"
 for file in "$@"; do
     [[ -f $file ]] || continue
     while read ip; do
-        echo -en "$count / $total\r" >&2
+        echo -en "[$count/$total]                              \r" >&2
         if [[ -z $web ]]; then
             check_vmware_viewer "$ip"
         else

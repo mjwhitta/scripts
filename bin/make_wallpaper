@@ -41,7 +41,7 @@ operate_on() {
                 -e "s/[^A-Za-z0-9]+/_/g"
             )_$resolution.png"
             if [[ -f $output/$name ]]; then
-                echo -e "\r[-] $output/$name already exists!"
+                echo -e "[-] $output/$name already exists!"
                 return
             fi
             if [[ -n $bgcolor ]]; then
@@ -143,7 +143,7 @@ else
     let "count = 1"
     let "total = ${#images[@]}"
     for image in "${images[@]}"; do
-        echo -en "\r$count/$total"
+        echo -en "[$count/$total]                              \r" >&2
         operate_on $image
         let "count += 1"
     done; unset image
