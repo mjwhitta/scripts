@@ -96,13 +96,17 @@ done
 
 [[ $# -gt 0 ]] || usage 2
 
+total="$(cat $@ 2>/dev/null | wc -l)"
+let "count = 1"
 for file in "$@"; do
     [[ -f $file ]] || continue
     while read ip; do
+        echo -en "$count / $total\r" >&2
         if [[ -z $web ]]; then
             check_vmware_viewer "$ip"
         else
             check_web "$ip"
         fi
+        let "count += 1"
     done <$file
 done | column -s "|" -t | tee $output
