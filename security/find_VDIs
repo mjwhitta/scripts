@@ -18,7 +18,8 @@ check_vmware_viewer() {
 
 check_web() {
     local found="$(
-        curl -kLs "https://$1/$index" | \grep -i -m 1 "vmware horizon"
+        curl --connect-timeout $timeout -kLs "https://$1/$index" | \
+        \grep -i -m 1 "vmware horizon"
     )"
     [[ -z $found ]] || name_lookup "$1"
 }
