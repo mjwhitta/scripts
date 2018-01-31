@@ -1,5 +1,28 @@
 #!/usr/bin/env bash
 
+check_vmware_viewer() {
+    local log="$(
+        timeout $timeout vmware-view -q -s $1 2>&1 | \
+        awk '{print $NF}'
+    )"
+    if [[ -n $debug ]]; then
+        mkdir -p logs
+        sed -r "s/[^|]+\| //" $log >logs/$1.log
+    fi
+    case "$(connection_status $log)" in
+        "fail") ;;
+        "hung"|"success") name_lookup "$1" ;;
+        *) echo "Unknown - Look at logs for $1" >&2 ;;
+    esac
+}
+
+check_web() {
+    local found="$(
+        curl -kLs "https://$1/$index" | \grep -i -m 1 "vmware horizon"
+    )"
+    [[ -z $found ]] || name_lookup "$1"
+}
+
 connection_status() {
     if [[ -n $(\grep -o "FAIL" $1) ]]; then
         echo "fail"
@@ -16,13 +39,25 @@ connection_status() {
     echo "unknown"
 }
 
+main() {
+    for file in "$@"; do
+        [[ -f $file ]] || continue
+        while read ip; do
+            if [[ -z $web ]]; then
+                check_vmware_viewer "$ip"
+            else
+                check_web "$ip"
+            fi
+        done <$file
+    done | column -s "|" -t
+}
+
 name_lookup() {
     local -a names=($(nslookup $ip | awk '/name/ {print $NF}'))
     for name in "${names[@]}"; do
         echo "${name%.} | $ip"
-    done
+    done; unset name
 }
-
 
 usage() {
     echo "Usage: ${0/*\//} [OPTIONS] <file1>... [fileN]"
@@ -32,6 +67,7 @@ usage() {
     echo "Options:"
     echo "    -d, --debug           Keep log files for debugging"
     echo "    -h, --help            Display this help message"
+    echo "    -o, --output=FILE     Write output to a file"
     echo "    -t, --timeout=SECS    Timeout (default: $timeout)"
     echo "    -w, --web             Scrape web instead of trying to"
     echo "                          connect"
@@ -40,7 +76,7 @@ usage() {
 }
 
 declare -a args
-unset debug web
+unset debug output web
 index="portal/webclient/index.html"
 timeout="2"
 
@@ -49,6 +85,13 @@ while [[ $# -gt 0 ]]; do
         "--") shift && args+=("$@") && break ;;
         "-d"|"--debug") debug="true" ;;
         "-h"|"--help") usage 0 ;;
+        "-o"|"--output"*)
+            case "$1" in
+                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            output="$arg"
+            ;;
         "-t"|"--timeout"*)
             case "$1" in
                 "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
@@ -65,29 +108,8 @@ done
 
 [[ $# -gt 0 ]] || usage 2
 
-for file in "$@"; do
-    [[ -f $file ]] || continue
-    while read ip; do
-        if [[ -z $web ]]; then
-            log="$(
-                timeout $timeout vmware-view -q -s $ip 2>&1 | \
-                awk '{print $NF}'
-            )"
-            if [[ -n $debug ]]; then
-                mkdir -p logs
-                sed -r "s/[^|]+\| //" $log >logs/$ip.log
-            fi
-            case "$(connection_status $log)" in
-                "fail") ;;
-                "hung"|"success") name_lookup "$ip" ;;
-                *) echo "Unknown - Look at logs for $ip" >&2 ;;
-            esac
-        else
-            found="$(
-                curl -kLs "https://$ip/$index" | \
-                \grep -i -m 1 "vmware horizon"
-            )"
-            [[ -z $found ]] || name_lookup "$ip"
-        fi
-    done <$file
-done | column -s "|" -t
+if [[ -z $output ]]; then
+    main $@
+else
+    main $@ | tee $output
+fi
