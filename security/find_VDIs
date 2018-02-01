@@ -12,14 +12,14 @@ check_vmware_viewer() {
     case "$(connection_status $log)" in
         "fail") ;;
         "hung"|"success") name_lookup "$1" ;;
-        *) echo "Unknown - Look at logs for $1" >&2 ;;
+        *) warn "Unknown - Look at logs for $1" >&2 ;;
     esac
 }
 
 check_web() {
     local found="$(
-        curl --connect-timeout $timeout -kLs "https://$1/$index" | \
-        \grep -i -m 1 "vmware horizon"
+        curl --connect-timeout $timeout -kL --max-time $timeout -s \
+        "https://$1/$index" | \grep -i -m 1 "vmware horizon"
     )"
     [[ -z $found ]] || name_lookup "$1"
 }
@@ -40,10 +40,14 @@ connection_status() {
     echo "unknown"
 }
 
+err() { echo -e "\e[31m[!] $@\e[0m"; }
+
+info() { echo -e "\e[32m[+] $@\e[0m"; }
+
 name_lookup() {
-    local -a names=($(nslookup $ip | awk '/name/ {print $NF}'))
+    local -a names=($(nslookup $1 | awk '/name/ {print $NF}'))
     for name in "${names[@]}"; do
-        echo "${name%.} | $ip"
+        echo "${name%.}    $1"
     done; unset name
 }
 
@@ -56,6 +60,10 @@ usage() {
     echo "    -d, --debug           Keep log files for debugging"
     echo "    -h, --help            Display this help message"
     echo "    -o, --output=FILE     Write output to a file"
+    echo "    -p, --parallel        Run using parallel"
+    echo "    --threads=NUM         Use the specied number of threads"
+    echo "                          if running in parallel (default:"
+    echo "                          $threads)"
     echo "    -t, --timeout=SECS    Timeout (default: $timeout)"
     echo "    -w, --web             Scrape web instead of trying to"
     echo "                          connect"
@@ -63,9 +71,12 @@ usage() {
     exit $1
 }
 
+warn() { echo -e "\e[33m[-] $@\e[0m"; }
+
 declare -a args
-unset debug output web
+unset debug output parallel web
 index="portal/webclient/index.html"
+threads="32"
 timeout="2"
 
 while [[ $# -gt 0 ]]; do
@@ -79,6 +90,14 @@ while [[ $# -gt 0 ]]; do
                 *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
             esac
             output="$arg"
+            ;;
+        "-p"|"--parallel") parallel="true" ;;
+        "--threads"*)
+            case "$1" in
+                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            threads="$arg"
             ;;
         "-t"|"--timeout"*)
             case "$1" in
@@ -96,11 +115,30 @@ done
 
 [[ $# -gt 0 ]] || usage 2
 
-total="$(cat $@ 2>/dev/null | wc -l)"
-let "count = 1"
-for file in "$@"; do
-    [[ -f $file ]] || continue
-    while read ip; do
+if [[ -n $parallel ]]; then
+    if [[ -z $(command -v parallel) ]] ||
+       [[ -z $(command -v env_parallel.bash) ]]
+    then
+        warn "Parallel is not installed, using default behavior"
+        unset parallel
+    fi
+fi
+
+declare -a ips
+ips=($(cat $@ 2>/dev/null))
+let "total = ${#ips[@]}"
+
+if [[ -n $parallel ]]; then
+    source $(command -v env_parallel.bash)
+    info "$total jobs to run"
+    if [[ -z $web ]]; then
+        env_parallel -P $threads check_vmware_viewer {} ::: ${ips[@]}
+    else
+        env_parallel -P $threads check_web {} ::: ${ips[@]}
+    fi | tee -a $output
+else
+    let "count = 1"
+    for ip in "${ips[@]}"; do
         echo -en "[$count/$total]                              \r" >&2
         if [[ -z $web ]]; then
             check_vmware_viewer "$ip"
@@ -108,5 +146,5 @@ for file in "$@"; do
             check_web "$ip"
         fi
         let "count += 1"
-    done <$file
-done | column -s "|" -t | tee -a $output
+    done | tee -a $output; unset ip
+fi
