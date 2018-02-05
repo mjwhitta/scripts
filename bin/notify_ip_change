@@ -100,7 +100,7 @@ done
 
 tmp_file="$(unique_tmp_file)"
 
-new_ip="$(\curl --connect-timeout 10 -L -s https://ifconfig.us)"
+new_ip="$(curl --connect-timeout 7 -kL -m 7 -s https://icanhazip.com)"
 [[ -z $new_ip ]] && echo "Curl timed-out!" && exit 5
 
 echo "$new_ip" >$tmp_file
