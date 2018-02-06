@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# A script to notify by email when IP changes.
+# A script to update a dynamic DNS entry using Google Domains API.
 # by Miles Whittaker <mjwhitta@gmail.com>
 #
 # --------------------------------------------------------------------
@@ -28,49 +28,44 @@
 # SOFTWARE.
 # --------------------------------------------------------------------
 
-compare_and_notify() {
-    file_new="$1"
-    file_old="$2"
-    if [[ -n $(diff $file_new $file_old) ]]; then
-        cp $file_new $file_old
-        message="IP address changed to $(cat $file_new)"
-        echo "$message"
-        if [[ -n $email ]]; then
-            echo "$message" | mutt -s "New IP address" "$email"
-        fi
-    fi
-}
-
-unique_tmp_file() {
-    echo "/tmp/ip_$(head -c 8 /dev/urandom | xxd -p)"
+update_dns() {
+    local creds="$username:$password"
+    local query="hostname=$domain&myip=$1"
+    curl -kLs "https://$creds@domains.google.com/nic/update?$query"
 }
 
 usage() {
     echo "Usage: ${0/*\//} [OPTIONS]"
     echo
-    echo "Detect when IP changes and notify user"
+    echo "Detect when IP changes and update dynamic DNS entry using"
+    echo "Google Domains API"
     echo
     echo "Options:"
-    echo "    -e, --email=EMAIL    Notify specified email address"
-    echo "    -f, --file=FILE      Compare to IP in specified file"
-    echo "    -h, --helpo          Display this help message"
-    echo "    -i, --ip=IP          Compare to specified IP"
+    echo "    -d, --domain=DOMAIN    Domain entry to update"
+    echo "    -f, --file=FILE        Compare to IP in specified file"
+    echo "    -h, --helpo            Display this help message"
+    echo "    -i, --ip=IP            Compare to specified IP"
+    echo "    -p, --pass=PASSWD      Password for API"
+    echo "    --url=URL              URL that returns just an IP"
+    echo "                           (default: $ip_url)"
+    echo "    -u, --user=USER        Username for API"
     echo
     exit $1
 }
 
 declare -a args
-unset email file ip
+unset domain file old_ip password username
+ip_url="https://icanhazip.com"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "-e"|"--email"*)
+        "-d"|"--domain"*)
             case "$1" in
                 "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
                 *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
             esac
-            email="$arg"
+            domain="$arg"
             ;;
         "-f"|"--file"*)
             case "$1" in
@@ -85,7 +80,28 @@ while [[ $# -gt 0 ]]; do
                 "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
                 *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
             esac
-            ip="$arg"
+            old_ip="$arg"
+            ;;
+        "-p"|"--pass"*)
+            case "$1" in
+                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            password="$arg"
+            ;;
+        "--url"*)
+            case "$1" in
+                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            ip_url="$arg"
+            ;;
+        "-u"|"--user"*)
+            case "$1" in
+                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            username="$arg"
             ;;
         *) args+=("$1") ;;
     esac
@@ -93,25 +109,18 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -z ${args[@]} ]] || set -- "${args[@]}"
 
+# Validate options
 [[ $# -eq 0 ]] || usage 2
-[[ -n $file ]] || [[ -n $ip ]] || usage 3
-[[ -z $file ]] || [[ -f $file ]] || usage 4
-[[ -z $(ip -o a | \grep "tun") ]] || usage 5
+[[ -n $domain ]] || usage 3
+[[ -n $password ]] || usage 4
+[[ -n $username ]] || usage 5
 
-tmp_file="$(unique_tmp_file)"
+# Get data
+[[ -z $file ]] || [[ ! -f $file ]] || old_ip="$(head -n 1 $file)"
+new_ip="$(curl --connect-timeout 7 -kL -m 7 -s "$ip_url")"
 
-new_ip="$(curl --connect-timeout 7 -kL -m 7 -s https://icanhazip.com)"
-[[ -z $new_ip ]] && echo "Curl timed-out!" && exit 5
-
-echo "$new_ip" >$tmp_file
-
-if [[ -n $file ]]; then
-    compare_and_notify $tmp_file $file
-elif [[ -n $ip ]]; then
-    cmp_file="$(unique_tmp_file)"
-    echo "$ip" >$cmp_file
-    compare_and_notify $tmp_file $cmp_file
-    rm -f $cmp_file
+# Compare and update
+if [[ -z $old_ip ]] || [[ $new_ip != $old_ip ]]; then
+    echo "$new_ip" | tee $file
+    update_dns "$new_ip"
 fi
-
-rm -f $tmp_file
