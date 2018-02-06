@@ -42,9 +42,11 @@ usage() {
     echo
     echo "Options:"
     echo "    -d, --domain=DOMAIN    Domain entry to update"
+    echo "    -e, --external         Use external IP (default)"
     echo "    -f, --file=FILE        Compare to IP in specified file"
     echo "    -h, --helpo            Display this help message"
-    echo "    -i, --ip=IP            Compare to specified IP"
+    echo "    -i, --iface=IFACE      Use internal IP (default $iface)"
+    echo "    --ip=IP                Compare to specified IP"
     echo "    -p, --pass=PASSWD      Password for API"
     echo "    --url=URL              URL that returns just an IP"
     echo "                           (default: $ip_url)"
@@ -55,6 +57,8 @@ usage() {
 
 declare -a args
 unset domain file old_ip password username
+external="true"
+iface="$(ip -o a | awk '!/\slo\s/ && /inet\s/ {print $2; exit}')"
 ip_url="https://icanhazip.com"
 
 while [[ $# -gt 0 ]]; do
@@ -67,6 +71,7 @@ while [[ $# -gt 0 ]]; do
             esac
             domain="$arg"
             ;;
+        "-e"|"--external") external="true" ;;
         "-f"|"--file"*)
             case "$1" in
                 "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
@@ -75,7 +80,15 @@ while [[ $# -gt 0 ]]; do
             file="$arg"
             ;;
         "-h"|"--help") usage 0 ;;
-        "-i"|"--ip"*)
+        "-i"|"--iface"*)
+            case "$1" in
+                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            iface="$arg"
+            unset external
+            ;;
+        "--ip"*)
             case "$1" in
                 "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
                 *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
@@ -114,10 +127,16 @@ done
 [[ -n $domain ]] || usage 3
 [[ -n $password ]] || usage 4
 [[ -n $username ]] || usage 5
+[[ -n $external ]] || [[ -n $iface ]] || usage 6
 
 # Get data
 [[ -z $file ]] || [[ ! -f $file ]] || old_ip="$(head -n 1 $file)"
-new_ip="$(curl --connect-timeout 7 -kL -m 7 -s "$ip_url")"
+if [[ -n $external ]]; then
+    new_ip="$(curl --connect-timeout 7 -kL -m 7 -s "$ip_url")"
+else
+    new_ip="$(ip -o a | awk "/$iface\s+inet\s/ {print \$4}")"
+    new_ip="${new_ip%/*}"
+fi
 
 # Compare and update
 if [[ -z $old_ip ]] || [[ $new_ip != $old_ip ]]; then
