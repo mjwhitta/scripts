@@ -1,9 +1,41 @@
 #!/usr/bin/env bash
 
+usage() {
+    echo "Usage: ${0/*\//} [OPTIONS]"
+    echo
+    echo "Run the community edition of BurpSuite"
+    echo
+    echo "Options:"
+    echo "    -c, --clear-cache    Redownload newest BurpSuite"
+    echo "    -h, --help           Display this help message"
+    echo
+    exit $1
+}
+
+declare -a args
+unset clear
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        "--") shift && args+=("$@") && break ;;
+        "-c"|"--clear-cache") clear="true" ;;
+        "-h"|"--help") usage 0 ;;
+        *) args+=("$1") ;;
+    esac
+    shift
+done
+[[ -z ${args[@]} ]] || set -- "${args[@]}"
+
+[[ $# -eq 0 ]] || usage 1
+
 cache="$HOME/.cache/burp"
 mkdir -p $cache
 
+# Ensure json config exists
 [[ -f $cache/burp.json ]] || echo "{}" >$cache/burp.json
+
+# Clear cached BurpSuite if requested
+[[ -z $clear ]] || rm -f $cache/burpsuite_community.jar
 
 # Get burpsuite if missing
 if [[ ! -f $cache/burpsuite_community.jar ]]; then
