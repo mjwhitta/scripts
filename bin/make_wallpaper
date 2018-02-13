@@ -28,6 +28,10 @@
 # SOFTWARE.
 # --------------------------------------------------------------------
 
+err() { echo -e "\e[31m[!] $@\e[0m"; }
+
+info() { echo -e "\e[32m[+] $@\e[0m"; }
+
 operate_on() {
     [[ -f $1 ]] || return
     bgcolor="$(
@@ -41,16 +45,19 @@ operate_on() {
                 -e "s/[^A-Za-z0-9]+/_/g"
             )_$resolution.png"
             if [[ -f $output/$name ]]; then
-                echo -e "[-] $output/$name already exists!"
+                warn "$output/$name already exists!"
                 return
             fi
             if [[ -n $bgcolor ]]; then
+                info "Creating $output/$name"
                 convert $1 -background $bgcolor -gravity center \
                     -resize $resolution -extent $resolution \
                     $output/$name
+            else
+                err "Couldn't create $output/$name"
             fi
             ;;
-        "info") echo "$bgcolor" ;;
+        "info") info "$bgcolor" ;;
     esac
 }
 
@@ -81,6 +88,8 @@ usage() {
     echo
     exit $1
 }
+
+warn() { echo -e "\e[33m[-] $@\e[0m"; }
 
 declare -a args
 unset parallel
@@ -125,7 +134,7 @@ done
 [[ $# -ge 1 ]] || usage 2
 
 if [[ -z $(command -v convert) ]]; then
-    echo "imagemagick is not installed"
+    err "imagemagick is not installed"
     exit 3
 fi
 
@@ -133,19 +142,22 @@ if [[ -n $parallel ]]; then
     if [[ -z $(command -v parallel) ]] ||
        [[ -z $(command -v env_parallel.bash) ]]
     then
-        echo "Parallel is not installed, using default behavior"
+        warn "Parallel is not installed, using default behavior"
         unset parallel
     fi
 fi
 
 mkdir -p $output
+
+declare -a images=($@)
+let "total = ${#images[@]}"
+
 if [[ -n $parallel ]]; then
     source $(command -v env_parallel.bash)
-    env_parallel --eta -P $threads operate_on {} ::: $@
+    info "$total jobs to run"
+    env_parallel -P $threads operate_on {} ::: ${images[@]}
 else
-    images=($@)
     let "count = 1"
-    let "total = ${#images[@]}"
     for image in "${images[@]}"; do
         echo -en "[$count/$total]                              \r" >&2
         operate_on $image
