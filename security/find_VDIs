@@ -124,8 +124,7 @@ if [[ -n $parallel ]]; then
     fi
 fi
 
-declare -a ips
-ips=($(cat $@ 2>/dev/null))
+declare -a ips=($(cat $@ 2>/dev/null))
 let "total = ${#ips[@]}"
 
 if [[ -n $parallel ]]; then
