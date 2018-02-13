@@ -1,39 +1,43 @@
 #!/usr/bin/env bash
 
+err() { echo -e "\e[31m[!] $@\e[0m"; }
+
+info() { echo -e "\e[32m[+] $@\e[0m"; }
+
 link() {
-    echo "[+] Linking directories and files..."
+    info "Linking directories and files..."
     for entry in "${files[@]}"; do
         from="$here/${entry/:*/}"
         to="$(eval echo "${entry/*:/}")"
 
         if [[ ! -e $from ]]; then
-            echo "[-] $from does not exist"
+            warn "$from does not exist"
             continue
         fi
 
         if [[ -L $to ]]; then
             already_from="$(\ls -hl $to | awk '{print $NF}')"
             [[ $already_from != $from ]] || continue
-            echo "[+] Removing symlink $to"
+            info "Removing symlink $to"
             rm $to
         elif [[ -e $to ]] && [[ -z $force ]]; then
-            echo "[+] Moving $to to $to.$backup"
+            info "Moving $to to $to.$backup"
             mv $to $to.$backup
         elif [[ -d $to ]]; then
-            echo "[+] Removing directory $to"
+            info "Removing directory $to"
             rm -rf $to
         elif [[ -f $to ]]; then
-            echo "[+] Removing file $to"
+            info "Removing file $to"
             rm -f $to
         else
-            # echo "[+] Ensuring $(dirname $to) exists"
+            # info "Ensuring $(dirname $to) exists"
             mkdir -p $(dirname $to)
         fi
 
-        echo "[+] Symlinking $from to $to"
+        info "Symlinking $from to $to"
         ln -s $from $to
     done; unset entry
-    echo "[+] Successfully linked scripts"
+    info "Successfully linked scripts"
 }
 
 link_status() {
@@ -42,25 +46,25 @@ link_status() {
         to="$(eval echo "${entry/*:/}")"
 
         if [[ ! -e $from ]]; then
-            echo "[-] $from does not exist"
+            warn "$from does not exist"
             continue
         fi
 
         if [[ -L $to ]]; then
             already_from="$(\ls -hl $to | awk '{print $NF}')"
             if [[ $already_from == $from ]]; then
-                echo "[+] $to is linked"
+                info "$to is linked"
             else
-                echo "[-] $to is not linked"
+                warn "$to is not linked"
             fi
         else
-            echo "[-] $to is not linked"
+            warn "$to is not linked"
         fi
     done; unset entry
 }
 
 unlink() {
-    echo "[+] Unlinking directories and files..."
+    info "Unlinking directories and files..."
     for entry in "${files[@]}"; do
         from="$here/${entry/:*/}"
         to="$(eval echo "${entry/*:/}")"
@@ -68,25 +72,25 @@ unlink() {
         if [[ -L $to ]]; then
             already_from="$(\ls -hl $to | awk '{print $NF}')"
             if [[ $already_from == $from ]]; then
-                echo "[+] Removing symlink for $to"
+                info "Removing symlink for $to"
                 rm $to
             else
-                echo "[!] Did not unlink $to as it was not linked"
+                err "Did not unlink $to as it was not linked"
             fi
         fi
 
         if [[ ! -e $to ]] && [[ -e $to.$backup ]]; then
-            echo "[+] Restoring $to.$backup to $to"
+            info "Restoring $to.$backup to $to"
             mv $to.$backup $to
         elif [[ -e $to ]] && [[ ! -L $to ]]; then
-            echo "[!] Could not unlink $to as it was not a symlink"
+            err "Could not unlink $to as it was not a symlink"
         fi
 
         if [[ -e $to.$backup ]]; then
-            echo "[!] Did not restore backup of $to"
+            err "Did not restore backup of $to"
         fi
     done; unset entry
-    echo "[+] Successfully unlinked scripts"
+    info "Successfully unlinked scripts"
 }
 
 usage() {
@@ -105,6 +109,8 @@ usage() {
     echo
     exit $1
 }
+
+warn() { echo -e "\e[33m[-] $@\e[0m"; }
 
 declare -a args
 unset force
