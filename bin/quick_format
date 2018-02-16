@@ -37,7 +37,6 @@ usage() {
     echo "Options:"
     echo "    -h, --help           Display this help message"
     echo "    -l, --label=LABEL    Set the partition label"
-    echo "    -y, --yes            Remove existing signatures"
     echo
     exit $1
 }
@@ -56,7 +55,6 @@ while [[ $# -gt 0 ]]; do
             esac
             lbl="-L $arg"
             ;;
-        "-y"|"--yes") yes="Y" ;;
         *) args+=("$1") ;;
     esac
     shift
@@ -64,21 +62,26 @@ done
 [[ -z ${args[@]} ]] || set -- "${args[@]}"
 
 [[ $# -eq 1 ]] || usage 2
+
+while read dev; do
+    sudo wipefs --all --force $dev
+    err="$?"
+    [[ $err -eq 0 ]] || exit $err
+done < <(lsblk --list --paths $1 | awk '!/NAME/ {print $1}' | sort -r)
+
 dev="$1"
 
 sed -e "s/\s*\([\+0-9a-zA-Z]*\).*/\1/" <<EOF | sudo fdisk $dev
-  o    # clear the in memory partition table
-  n    # new partition
-  p    # primary partition
-  1    # partition number 1
+    o  # clear the in memory partition table
+    n  # new partition
+    p  # primary partition
+    1  # partition number 1
        # default - start at beginning of disk
        # default - extend partition to end of disk
-  $yes # remove existing signature
-  a    # make a partition bootable
-  p    # print the in-memory partition table
-  w    # write the partition table and exit
+    a  # make a partition bootable
+    p  # print the in-memory partition table
+    w  # write the partition table and exit
 EOF
-
 err="$?"
 [[ $err -eq 0 ]] || exit $err
 
