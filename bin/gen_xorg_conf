@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+
+usage() {
+    echo "Usage: ${0/*\//} [OPTIONS] <WxH>"
+    echo
+    echo "Use xrandr and cvt to generate a valid config for"
+    echo "/etc/X11/xorg.conf.d/"
+    echo
+    echo "Options:"
+    echo "    -h, --help    Display this help message"
+    echo
+    exit $1
+}
+
+declare -a args
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        "--") shift && args+=("$@") && break ;;
+        "-h"|"--help") usage 0 ;;
+        *) args+=("$1") ;;
+    esac
+    shift
+done
+[[ -z ${args[@]} ]] || set -- "${args[@]}"
+
+[[ $# -eq 1 ]] || usage 1
+
+for exe in cvt perl xrandr; do
+    if [[ -z $(command -v $exe) ]]; then
+        echo "$exe is not installed"
+        exit 2
+    fi
+done; unset exe
+
+display="$(
+    xrandr | perl -lne '/^(\S+) connected primary/ && print $1'
+)"
+modeline="$(
+    cvt ${1/x/ } | tail -n 1 | sed -r "s/^Modeline |\"|_60\.00//g"
+)"
+name="$(echo "$modeline" | awk '{print $1}')"
+
+echo "Section \"Monitor\""
+echo "    Identifier \"$display\""
+echo "    Modeline $(echo "$modeline" | sed -r "s/^(\S+)/\"\1\"/")"
+echo "    Option \"PreferredMode\" \"$name\""
+echo "EndSection"
