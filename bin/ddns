@@ -44,6 +44,7 @@ usage() {
     echo "    -d, --domain=DOMAIN    Domain entry to update"
     echo "    -e, --external         Use external IP (default)"
     echo "    -f, --file=FILE        Compare to IP in specified file"
+    echo "    --force                Update even if IP hasn't changed"
     echo "    -h, --helpo            Display this help message"
     echo "    -i, --iface=IFACE      Use internal IP (default $iface)"
     echo "    --ip=IP                Compare to specified IP"
@@ -56,7 +57,7 @@ usage() {
 }
 
 declare -a args
-unset domain file old_ip password username
+unset domain file force old_ip password username
 external="true"
 iface="$(ip -o a | awk '!/\slo\s/ && /inet\s/ {print $2; exit}')"
 ip_url="https://icanhazip.com"
@@ -79,6 +80,7 @@ while [[ $# -gt 0 ]]; do
             esac
             file="$arg"
             ;;
+        "--force") force="true" ;;
         "-h"|"--help") usage 0 ;;
         "-i"|"--iface"*)
             case "$1" in
@@ -139,7 +141,10 @@ else
 fi
 
 # Compare and update
-if [[ -z $old_ip ]] || [[ $new_ip != $old_ip ]]; then
+if [[ -n $force ]] ||
+   [[ -z $old_ip ]] ||
+   [[ $new_ip != $old_ip ]]
+then
     echo "$new_ip" | tee $file
     update_dns "$new_ip"
 fi
