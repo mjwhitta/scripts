@@ -34,16 +34,25 @@ usage() {
     echo "Extremely simple ping sweep that also does an nslookup"
     echo
     echo "Options:"
-    echo "    -h, --help    Display this help message"
+    echo "    -d, --dns=IP    Use the specified DNS server"
+    echo "    -h, --help      Display this help message"
     echo
     exit $1
 }
 
 declare -a args
+unset dns
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
+        "-d"|"--dns"*)
+            case "$1" in
+                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            dns="$arg"
+            ;;
         "-h"|"--help") usage 0 ;;
         *) args+=("$1") ;;
     esac
@@ -62,7 +71,7 @@ for subnet in "$@"; do
             while read name; do
                 echo "$subnet.$ip  $name"
             done < <(
-                nslookup $subnet.$ip | awk '/name =/ {print $NF}'
+                nslookup $subnet.$ip $dns | awk '/name =/ {print $NF}'
             )
         fi
     done; unset ip
