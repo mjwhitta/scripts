@@ -46,7 +46,9 @@ usage() {
     echo "    -f, --file=FILE        Compare to IP in specified file"
     echo "    --force                Update even if IP hasn't changed"
     echo "    -h, --helpo            Display this help message"
-    echo "    -i, --iface=IFACE      Use internal IP (default $iface)"
+    echo "    -i, --internal         Use internal IP"
+    echo "    --iface=IFACE          Use specified interface"
+    echo "                           (default: $iface)"
     echo "    --ip=IP                Compare to specified IP"
     echo "    -p, --pass=PASSWD      Password for API"
     echo "    --url=URL              URL that returns just an IP"
@@ -58,6 +60,7 @@ usage() {
 
 declare -a args
 unset domain file force old_ip password username
+curl_cmd="curl --connect-timeout 7 -kLm 7 -s"
 external="true"
 iface="$(ip -o a | awk '!/\slo\s/ && /inet\s/ {print $2; exit}')"
 ip_url="https://icanhazip.com"
@@ -82,13 +85,13 @@ while [[ $# -gt 0 ]]; do
             ;;
         "--force") force="true" ;;
         "-h"|"--help") usage 0 ;;
-        "-i"|"--iface"*)
+        "-i"|"--internal") unset external ;;
+        "--iface"*)
             case "$1" in
                 "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
                 *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
             esac
             iface="$arg"
-            unset external
             ;;
         "--ip"*)
             case "$1" in
@@ -127,14 +130,14 @@ done
 # Validate options
 [[ $# -eq 0 ]] || usage 2
 [[ -n $domain ]] || usage 3
-[[ -n $password ]] || usage 4
-[[ -n $username ]] || usage 5
-[[ -n $external ]] || [[ -n $iface ]] || usage 6
+[[ -n $iface ]] || usage 4
+[[ -n $password ]] || usage 5
+[[ -n $username ]] || usage 6
 
 # Get data
 [[ -z $file ]] || [[ ! -f $file ]] || old_ip="$(head -n 1 $file)"
 if [[ -n $external ]]; then
-    new_ip="$(curl --connect-timeout 7 -kL -m 7 -s "$ip_url")"
+    new_ip="$($curl_cmd --interface $iface "$ip_url")"
 else
     new_ip="$(ip -o a | awk "/$iface\s+inet\s/ {print \$4}")"
     new_ip="${new_ip%/*}"
