@@ -36,7 +36,7 @@ operate_on() {
     [[ -f $1 ]] || return
     bgcolor="$(
         convert $1 -depth 8 +dither -format %c histogram:info: | \
-        sort -n | tail -n 1 | \grep -Eo "#[A-Fa-f0-9]{6}"
+        sort -n | tail -n 1 | grep -Eo "#[A-Fa-f0-9]{6}"
     )"
     case "$action" in
         "convert")

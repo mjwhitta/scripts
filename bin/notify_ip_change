@@ -96,7 +96,7 @@ done
 [[ $# -eq 0 ]] || usage 2
 [[ -n $file ]] || [[ -n $ip ]] || usage 3
 [[ -z $file ]] || [[ -f $file ]] || usage 4
-[[ -z $(ip -o a | \grep "tun") ]] || usage 5
+[[ -z $(ip -o a | grep "tun") ]] || usage 5
 
 tmp_file="$(unique_tmp_file)"
 

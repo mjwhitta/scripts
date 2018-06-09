@@ -89,7 +89,7 @@ done; unset dir
 
 # Find missing from PATH
 for dir in $(echo "$PATH" | sed "s|:| |g"); do
-    [[ -n $(echo "$PTH" | \grep $dir) ]] || PTH="$PTH:$dir"
+    [[ -n $(echo "$PTH" | grep $dir) ]] || PTH="$PTH:$dir"
 done; unset dir
 
 # Set PATH

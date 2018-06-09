@@ -22,7 +22,7 @@ check_bin() {
         return
     fi
 
-    if [[ -z $(file $file | \grep -i "elf") ]]; then
+    if [[ -z $(file $file | grep -i "elf") ]]; then
         echo "File $1 is not an ELF file"
         return
     fi
@@ -79,17 +79,17 @@ check_kernel() {
 
     if [[ -f $HOME/proc_config.txt ]]; then
         config_file="$HOME/proc_config.txt"
-        config="$(cat $config_file 2>/dev/null | \grep -Ev "^ *#")"
+        config="$(cat $config_file 2>/dev/null | grep -Ev "^ *#")"
         config_file="/proc/config.gz"
     elif [[ -f /proc/config.gz ]]; then
         config_file="/proc/config.gz"
-        config="$(zcat $config_file 2>/dev/null | \grep -Ev "^ *#")"
+        config="$(zcat $config_file 2>/dev/null | grep -Ev "^ *#")"
     elif [[ -f /boot/config-$(uname -r) ]]; then
         config_file="/boot/config-$(uname -r)"
-        config="$(cat $config_file 2>/dev/null | \grep -Ev "^ *#")"
+        config="$(cat $config_file 2>/dev/null | grep -Ev "^ *#")"
     elif [[ -f ${KBUILD_OUTPUT:-/usr/src/linux}/.config ]]; then
         config="${KBUILD_OUTPUT:-/usr/src/linux}/.config_file"
-        config="$(cat $config_file 2>/dev/null | \grep -Ev "^ *#")"
+        config="$(cat $config_file 2>/dev/null | grep -Ev "^ *#")"
     else
         if [[ -n $color ]]; then
             echo -e "\e[31mKernel config not found\e[0m"
@@ -372,7 +372,7 @@ fi
 
 if [[ -n $procs ]]; then
     for bin in $(
-        \ps -e -o cmd | awk '{print $1}' | \
+        ps -e -o cmd | awk '{print $1}' | \
         xargs which -- 2>/dev/null | sort -u
     ); do
         check_bin $bin

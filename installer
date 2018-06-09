@@ -16,7 +16,7 @@ link() {
         fi
 
         if [[ -L $to ]]; then
-            already_from="$(\ls -hl $to | awk '{print $NF}')"
+            already_from="$(ls -hl $to | awk '{print $NF}')"
             [[ $already_from != $from ]] || continue
             info "Removing symlink $to"
             rm $to
@@ -51,7 +51,7 @@ link_status() {
         fi
 
         if [[ -L $to ]]; then
-            already_from="$(\ls -hl $to | awk '{print $NF}')"
+            already_from="$(ls -hl $to | awk '{print $NF}')"
             if [[ $already_from == $from ]]; then
                 info "$to is linked"
             else
@@ -70,7 +70,7 @@ unlink() {
         to="$(eval echo "${entry/*:/}")"
 
         if [[ -L $to ]]; then
-            already_from="$(\ls -hl $to | awk '{print $NF}')"
+            already_from="$(ls -hl $to | awk '{print $NF}')"
             if [[ $already_from == $from ]]; then
                 info "Removing symlink for $to"
                 rm $to
@@ -131,8 +131,8 @@ done
 [[ $# -eq 1 ]] || usage 1
 
 declare -a files
-files=($(\grep -Ev "^(\s*#|$)" files.default))
-[[ ! -f files ]] || files=($(\grep -Ev "^(\s*#|$)" files))
+files=($(grep -Ev "^(\s*#|$)" files.default))
+[[ ! -f files ]] || files=($(grep -Ev "^(\s*#|$)" files))
 
 case "$1" in
     "link") link ;;

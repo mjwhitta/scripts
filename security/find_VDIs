@@ -19,21 +19,21 @@ check_vmware_viewer() {
 check_web() {
     local found="$(
         curl --connect-timeout $timeout -kL --max-time $timeout -s \
-        "https://$1/$index" | \grep -i -m 1 "vmware horizon"
+        "https://$1/$index" | grep -i -m 1 "vmware horizon"
     )"
     [[ -z $found ]] || name_lookup "$1"
 }
 
 connection_status() {
-    if [[ -n $(\grep -o "FAIL" $1) ]]; then
+    if [[ -n $(grep -o "FAIL" $1) ]]; then
         echo "fail"
         return
     fi
-    if [[ -z $(\grep -o "response" $1) ]]; then
+    if [[ -z $(grep -o "response" $1) ]]; then
         echo "hung"
         return
     fi
-    if [[ -n $(\grep -o "ParseResult" $1) ]]; then
+    if [[ -n $(grep -o "ParseResult" $1) ]]; then
         echo "success"
         return
     fi

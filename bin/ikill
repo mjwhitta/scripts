@@ -59,8 +59,8 @@ done
 
 # Get list of processes matching pattern
 processes="$(
-    \ps -o pid,command -u $(whoami) | \grep -Ev "(grep|${0/*\//})" | \
-    \grep -i $1
+    ps -o pid,command -u $(whoami) | grep -Ev "(grep|${0/*\//})" | \
+    grep -i $1
 )"
 
 [[ -n $processes ]] || exit 0

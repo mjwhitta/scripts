@@ -89,4 +89,4 @@ while read c p; do
     else
         [[ $c -ge $max ]] && killall $p
     fi
-done < <(\ps -e -o comm | tail -n +2 | sort | uniq -c | sort -n -r)
+done < <(ps -e -o comm | tail -n +2 | sort | uniq -c | sort -n -r)

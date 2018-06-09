@@ -161,7 +161,7 @@ previous="$(
 )"
 
 # Remove old entry and remove any maximized attributes
-cat $snap_hist 2>/dev/null | \grep -v "$wid-$wpid" >$snap_hist
+cat $snap_hist 2>/dev/null | grep -v "$wid-$wpid" >$snap_hist
 wmctrl -r :ACTIVE: -b remove,maximized_vert,maximized_horz
 
 if [[ -z $previous ]]; then

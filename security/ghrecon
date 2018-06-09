@@ -89,14 +89,14 @@ github="https://github.com/api/v3"
 curl="curl -s $socks"
 
 for username in $(
-    $curl "$github/users$token" | \grep "login" | \
+    $curl "$github/users$token" | grep "login" | \
     awk -F "\"" '{print $4}' | sort
 ); do
     # Get all gists
-    $curl "$github/users/$username/gists$token" | \grep "git_pull" | \
+    $curl "$github/users/$username/gists$token" | grep "git_pull" | \
         awk -F "\"" '{print $4}'
 
     # Get all repos
     $curl "$github/users/$username/repos$token" | \
-        \grep "clone_url" | awk -F "\"" '{print $4}'
+        grep "clone_url" | awk -F "\"" '{print $4}'
 done | tee $output

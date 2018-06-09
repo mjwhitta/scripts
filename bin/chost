@@ -30,7 +30,7 @@
 
 get_choices() {
     while read h; do
-        echo "$h" | \grep -Eqv "^ *$|^ *#" || continue
+        echo "$h" | grep -Eqv "^ *$|^ *#" || continue
         echo -n "$h" | sed -e "s/ *|.*//g" -e "s/ /_/g"
         echo -n " . "
     done <$hosts_file
@@ -40,7 +40,7 @@ get_choices() {
 
 host_menu() {
     [[ -e $hosts_file ]] || touch $hosts_file
-    if [[ $(\grep -cEv "^ *$|^#" $hosts_file) -eq 0 ]]; then
+    if [[ $(grep -cEv "^ *$|^#" $hosts_file) -eq 0 ]]; then
         echo "localhost | $(which_shell)" >>$hosts_file
     fi
 
@@ -147,7 +147,7 @@ done
 
 # Find missing from PATH
 for dir in $(echo "$PATH" | sed "s/:/ /g"); do
-    [[ -n $(echo "$PTH" | \grep $dir) ]] || PTH="$PTH:$dir"
+    [[ -n $(echo "$PTH" | grep $dir) ]] || PTH="$PTH:$dir"
 done
 
 # Set PATH
@@ -183,7 +183,7 @@ while :; do
         "quit") exit 0 ;;
         *)
             cmd="$(
-                \grep -E "^ *$host *\|" $hosts_file | sed "s/.*|//g"
+                grep -E "^ *$host *\|" $hosts_file | sed "s/.*|//g"
             )"
             eval $cmd
             [[ $? -eq 0 ]] || sleep 2
