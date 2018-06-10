@@ -137,7 +137,7 @@ let "g = 0"
 [[ $padding -eq 0 ]] || padded="true"
 
 # Wait for lock file to go away
-for i in $(seq 1 20); do
+for i in {1..20}; do
     [[ -f ${snap_hist}.lock ]] || break
     sleep 0.1
 done

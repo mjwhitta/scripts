@@ -65,7 +65,7 @@ done
 trap exit SIGINT
 
 for subnet in "$@"; do
-    for ip in $(seq 1 254); do
+    for ip in {1..254}; do
         while read name; do
             echo "$subnet.$ip  $name"
         done < <(
