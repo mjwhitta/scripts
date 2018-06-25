@@ -40,7 +40,7 @@ def parse(args)
     info = "Encrypt or decrypte using Caesar Cipher"
 
     parser = OptionParser.new do |opts|
-        opts.summary_width = 32
+        opts.summary_width = 16
 
         opts.banner =
             "Usage: #{File.basename($0)} [OPTIONS] <key> <file>"
@@ -53,7 +53,7 @@ def parse(args)
 
         opts.on("", "OPTIONS")
 
-        opts.on("-d", "--decrypt", "Decrypt ciphertext)") do
+        opts.on("-d", "--decrypt", "Decrypt ciphertext") do
             options["action"] = "decrypt"
         end
 
