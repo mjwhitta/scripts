@@ -20,12 +20,13 @@ class Exit
     EXTRA_ARGUMENTS = 4
     EXCEPTION = 5
     AMBIGUOUS_ARGUMENT = 6
+    FILE_DOES_NOT_EXIST = 7
 end
 
 def get_passphrase
-    print "Enter passphrase: "
+    $stderr.print "Enter passphrase: "
     passwd = STDIN.noecho(&:gets)
-    puts
+    $stderr.puts
     return passwd.chomp
 end
 
@@ -117,6 +118,11 @@ def parse(args)
     end
 
     options["file"] = Pathname.new(args[0]).expand_path
+
+    if (!options["file"].exist?)
+        puts parser
+        exit Exit::FILE_DOES_NOT_EXIST
+    end
 
     return options
 end
