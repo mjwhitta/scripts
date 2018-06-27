@@ -22,8 +22,8 @@ class Exit
     AMBIGUOUS_ARGUMENT = 6
 end
 
-def get_password
-    print "Enter password: "
+def get_passphrase
+    print "Enter passphrase: "
     passwd = STDIN.noecho(&:gets)
     puts
     return passwd.chomp
@@ -33,7 +33,7 @@ def parse(args)
     options = Hash.new
     options["action"] = Action::ENCRYPT
     options["armor"] = false
-    options["password"] = nil
+    options["passphrase"] = nil
     options["verbose"] = false
 
     info = [
@@ -42,7 +42,7 @@ def parse(args)
     ].join(" ")
 
     parser = OptionParser.new do |opts|
-        opts.summary_width = 24
+        opts.summary_width = 18
 
         opts.banner = "Usage: #{File.basename($0)} [OPTIONS] <file>"
 
@@ -58,7 +58,7 @@ def parse(args)
             options["armor"] = true
         end
 
-        opts.on("-d", "--decrypt", "Decrypt file)") do
+        opts.on("-d", "--decrypt", "Decrypt file") do
             options["action"] = Action::DECRYPT
         end
 
@@ -73,10 +73,10 @@ def parse(args)
 
         opts.on(
             "-p",
-            "--password=PASSWD",
-            "Use specified password"
+            "--pass=PASS",
+            "Use specified passphrase"
         ) do |passwd|
-            options["password"] = passwd
+            options["passphrase"] = passwd
         end
 
         opts.on(
@@ -121,7 +121,7 @@ def parse(args)
     return options
 end
 
-def process(action, password, file, armor)
+def process(action, passphrase, file, armor)
     # Open file and initialize some variables
     f = File.open(file, "r")
     processed = Array.new
@@ -140,7 +140,7 @@ def process(action, password, file, armor)
         end
 
         # Bootstrap seed is MD5 of passphrase
-        bootstrap_seed = Digest::MD5.hexdigest(password)
+        bootstrap_seed = Digest::MD5.hexdigest(passphrase)
 
         # Determine how large time value is
         timesize = Time.new.strftime(timeformat).length
@@ -150,7 +150,7 @@ def process(action, password, file, armor)
         time = xor(f.readpartial(timesize), r.bytes(timesize))
     when Action::ENCRYPT
         # Bootstrap seed is MD5 of passphrase
-        bootstrap_seed = Digest::MD5.hexdigest(password)
+        bootstrap_seed = Digest::MD5.hexdigest(passphrase)
 
         # Get current time to create crypto seed
         time = Time.new.strftime(timeformat)
@@ -211,7 +211,7 @@ end
 begin
     processed = process(
         options["action"],
-        options["password"] || get_password,
+        options["passphrase"] || get_passphrase,
         options["file"],
         options["armor"]
     )
