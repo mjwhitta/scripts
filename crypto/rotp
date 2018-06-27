@@ -34,6 +34,7 @@ def parse(args)
     options = Hash.new
     options["action"] = Action::ENCRYPT
     options["armor"] = false
+    options["output"] = nil
     options["passphrase"] = nil
     options["verbose"] = false
 
@@ -43,7 +44,7 @@ def parse(args)
     ].join(" ")
 
     parser = OptionParser.new do |opts|
-        opts.summary_width = 18
+        opts.summary_width = 20
 
         opts.banner = "Usage: #{File.basename($0)} [OPTIONS] <file>"
 
@@ -70,6 +71,14 @@ def parse(args)
         opts.on("-h", "--help", "Display this help message") do
             puts opts
             exit Exit::GOOD
+        end
+
+        opts.on(
+            "-o",
+            "--output=FILE",
+            "Write encrypted data to specified file"
+        ) do |file|
+            options["output"] = file
         end
 
         opts.on(
@@ -124,14 +133,25 @@ def parse(args)
         exit Exit::FILE_DOES_NOT_EXIST
     end
 
+    ext = "rotp"
+    ext = "asc" if (options["armor"])
+    options["output"] ||= "#{options["file"]}.#{ext}"
+
     return options
 end
 
 def process(action, passphrase, file, armor)
     # Open file and initialize some variables
     f = File.open(file, "r")
+    md5 = Digest::MD5.hexdigest(passphrase)
     processed = Array.new
-    timeformat = "%F_%T.%N_%P"
+
+    # Needs to be something long that changes often
+    timeformat = "%N" * 8
+
+    # Bootstrap seed is MD5 of passphrase
+    bootstrap_seed = md5.unpack("Q*").join.to_i
+    r = Random.new(bootstrap_seed)
 
     case action
     when Action::DECRYPT
@@ -145,32 +165,24 @@ def process(action, passphrase, file, armor)
             f = StringIO.open(Base64.decode64(lines.join) + "\n")
         end
 
-        # Bootstrap seed is MD5 of passphrase
-        bootstrap_seed = Digest::MD5.hexdigest(passphrase)
-
         # Determine how large time value is
         timesize = Time.new.strftime(timeformat).length
 
-        # Decrypt initial crypto time using bootstrap seed with PRNG
-        r = Random.new(bootstrap_seed.to_i)
+        # Decrypt initial encryption time
         time = xor(f.readpartial(timesize), r.bytes(timesize))
     when Action::ENCRYPT
-        # Bootstrap seed is MD5 of passphrase
-        bootstrap_seed = Digest::MD5.hexdigest(passphrase)
-
         # Get current time to create crypto seed
         time = Time.new.strftime(timeformat)
 
-        # Encrypt current time using bootstrap seed with PRNG
-        r = Random.new(bootstrap_seed.to_i)
+        # Encrypt current time
         processed.push(xor(time, r.bytes(time.length)))
     end
 
     # Crypto seed is MD5 of passphrase XOR'd with current time
-    crypto_seed = xor(bootstrap_seed, time)
+    crypto_seed = xor(md5, time).unpack("Q*").join.to_i
+    r = Random.new(crypto_seed)
 
     # Encrypt/decrypt file contents using crypto seed with PRNG
-    r = Random.new(crypto_seed.to_i)
     loop do
         byte = f.readpartial(1)
         break if (f.eof?)
@@ -225,9 +237,7 @@ begin
     when Action::DECRYPT
         puts processed
     when Action::ENCRYPT
-        ext = "rotp"
-        ext = "asc" if (options["armor"])
-        File.open("#{options["file"]}.#{ext}", "w") do |f|
+        File.open(options["output"], "w") do |f|
             f.write(processed)
             f.write("\n")
         end
