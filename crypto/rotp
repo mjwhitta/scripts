@@ -171,6 +171,8 @@ end
 def process(action, passphrase, file, armor)
     # Open file and initialize some variables
     f = File.open(file, "r")
+    footer = "-----END ROTP MESSAGE-----"
+    header = "-----BEGIN ROTP MESSAGE-----"
     processed = Array.new
     pdigest = Digest::SHA256.hexdigest(passphrase)
     timeformat = "%F_%T.%N_%P"
@@ -181,9 +183,8 @@ def process(action, passphrase, file, armor)
 
     case action
     when Action::DECRYPT
-        if (armor)
-            # TODO autodetect and base64 decode
-
+        case f.pread(header.length, 0)
+        when header
             # Read file and strip BEGIN and END lines
             lines = f.readlines
             lines.delete_at(0)
@@ -229,9 +230,9 @@ def process(action, passphrase, file, armor)
     when Action::ENCRYPT
         if (armor)
             output = [
-                "-----BEGIN ROTP MESSAGE-----",
+                header,
                 Base64.encode64(processed.join).chomp,
-                "-----END ROTP MESSAGE-----",
+                footer
             ].join("\n")
         end
     end
