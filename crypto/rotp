@@ -29,7 +29,7 @@
 # --------------------------------------------------------------------
 
 require "base64"
-require "digest/md5"
+require "digest/sha2"
 require "io/console"
 require "io/wait"
 require "optparse"
@@ -171,19 +171,19 @@ end
 def process(action, passphrase, file, armor)
     # Open file and initialize some variables
     f = File.open(file, "r")
-    md5 = Digest::MD5.hexdigest(passphrase)
     processed = Array.new
+    pdigest = Digest::SHA256.hexdigest(passphrase)
+    timeformat = "%F_%T.%N_%P"
 
-    # Needs to be something long that changes often
-    timeformat = "%N" * 8
-
-    # Bootstrap seed is MD5 of passphrase
-    bootstrap_seed = md5.unpack("Q*").join.to_i
+    # Bootstrap seed is SHA256 of passphrase
+    bootstrap_seed = pdigest.unpack("Q*").join.to_i
     r = Random.new(bootstrap_seed)
 
     case action
     when Action::DECRYPT
         if (armor)
+            # TODO autodetect and base64 decode
+
             # Read file and strip BEGIN and END lines
             lines = f.readlines
             lines.delete_at(0)
@@ -194,20 +194,22 @@ def process(action, passphrase, file, armor)
         end
 
         # Determine how large time value is
-        timesize = Time.new.strftime(timeformat).length
+        time = Time.new.strftime(timeformat)
+        timesize = Digest::SHA256.hexdigest(time).length
 
-        # Decrypt initial encryption time
-        time = xor(f.readpartial(timesize), r.bytes(timesize))
+        # Decrypt initial encryption time SHA256
+        tdigest = xor(f.readpartial(timesize), r.bytes(timesize))
     when Action::ENCRYPT
         # Get current time to create crypto seed
         time = Time.new.strftime(timeformat)
+        tdigest = Digest::SHA256.hexdigest(time)
 
-        # Encrypt current time
-        processed.push(xor(time, r.bytes(time.length)))
+        # Encrypt current time SHA256
+        processed.push(xor(tdigest, r.bytes(tdigest.length)))
     end
 
-    # Crypto seed is MD5 of passphrase XOR'd with current time
-    crypto_seed = xor(md5, time).unpack("Q*").join.to_i
+    # Crypto seed is SHA256 of passphrase XOR'd with current time
+    crypto_seed = xor(pdigest, tdigest).unpack("Q*").join.to_i
     r = Random.new(crypto_seed)
 
     # Encrypt/decrypt file contents using crypto seed with PRNG
