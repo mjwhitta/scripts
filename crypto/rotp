@@ -183,8 +183,7 @@ def process(action, passphrase, file, armor)
 
     case action
     when Action::DECRYPT
-        case f.pread(header.length, 0)
-        when header
+        if (armor || (f.pread(header.length, 0) == header))
             # Read file and strip BEGIN and END lines
             lines = f.readlines
             lines.delete_at(0)
