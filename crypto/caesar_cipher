@@ -42,19 +42,37 @@ class Exit
     AMBIGUOUS_ARGUMENT = 6
 end
 
-def decrement_by(key, char)
-    return increment_by(26 - key, char)
+def decrement_by(key, char, nums)
+    total = 26
+    total += 10 if (nums)
+    return increment_by(total - key, char, nums)
 end
 
-def increment_by(key, char)
+def increment_by(key, char, nums)
     key.times do
         case char
+        when /[0-8]/
+            if (nums)
+                char.next!
+            end
+        when "9"
+            if (nums)
+                char = "a"
+            end
         when /[A-Ya-y]/
             char.next!
         when "Z"
-            char = "A"
+            if (nums)
+                char = "0"
+            else
+                char = "A"
+            end
         when "z"
-            char = "a"
+            if (nums)
+                char = "0"
+            else
+                char = "a"
+            end
         end
     end
     return char
@@ -63,6 +81,7 @@ end
 def parse(args)
     options = Hash.new
     options["action"] = "encrypt"
+    options["numbers"] = false
     options["verbose"] = false
 
     info = "Encrypt or decrypte using Caesar Cipher"
@@ -92,6 +111,10 @@ def parse(args)
         opts.on("-h", "--help", "Display this help message") do
             puts opts
             exit Exit::GOOD
+        end
+
+        opts.on("-n", "--numbers", "Key space includes numbers") do
+            options["numbers"] = true
         end
 
         opts.on(
@@ -137,18 +160,39 @@ def parse(args)
     return options
 end
 
-def process(action, key, filename)
+def process(filename, options)
+    action = options["action"]
+    key = options["key"]
+    nums = options["numbers"]
     File.open(filename, "r") do |f|
         f.readlines.each do |line|
             line.chomp!
             line.chars.each do |char|
                 case char
-                when /[A-Za-z]/
+                when /[A-Z]/
                     case action
                     when "decrypt"
-                        print decrement_by(key, char)
+                        print decrement_by(key, char, nums).upcase
                     when "encrypt"
-                        print increment_by(key, char)
+                        print increment_by(key, char, nums).upcase
+                    end
+                when /[a-z]/
+                    case action
+                    when "decrypt"
+                        print decrement_by(key, char, nums).downcase
+                    when "encrypt"
+                        print increment_by(key, char, nums).downcase
+                    end
+                when /[0-9]/
+                    if (nums)
+                        case action
+                        when "decrypt"
+                            print decrement_by(key, char, nums)
+                        when "encrypt"
+                            print increment_by(key, char, nums)
+                        end
+                    else
+                        print char
                     end
                 else
                     print char
@@ -157,10 +201,6 @@ def process(action, key, filename)
             puts
         end
     end
-    # case action
-    # when "decrypt"
-    # when "encrypt"
-    # end
 end
 
 begin
@@ -173,7 +213,7 @@ end
 begin
     filename = Pathname.new(options["file"]).expand_path
     if (filename.exist?)
-        process(options["action"], options["key"], filename)
+        process(filename, options)
     else
         puts "#{options["file"]} does not exist"
     end
