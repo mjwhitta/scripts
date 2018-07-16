@@ -4,7 +4,7 @@ clean() { rm -f $script; exit 0; }
 
 err() { echo -e "\e[31m[!] $@\e[0m"; }
 
-info() { echo -e "\e[37m[+] $@\e[0m"; }
+info() { echo -e "\e[37m[=] $@\e[0m"; }
 
 usage() {
     echo "Usage: ${0/*\//} [OPTIONS] <host/ip>"
