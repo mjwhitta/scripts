@@ -316,7 +316,9 @@ usage() {
     [[ $1 -ne 0 ]] || logo
     echo "Usage: ${0/*\//} [OPTIONS] <host/ip>[:port]"
     echo
-    echo "Simple bash version of DirBuster or dirb"
+    echo "Simple bash script to enumerate directories and files on a"
+    echo "webserver. It's like Mega Man, DirBuster and dirb had a"
+    echo "baby."
     echo
     echo "Options:"
     echo "    -h, --help           Display this help message"
@@ -327,7 +329,10 @@ usage() {
     local default="(default: $threads)"
     echo "    -t, --threads=NUM    Use the specied number of threads"
     echo "                         if running in parallel $default"
-    echo "    --test               Temporary for testing"
+    echo "    --test               Temporary for testing, simulate"
+    echo "                         output but do nothing"
+    echo "    --timeout=SECS       Use specified timeout with curl"
+    echo "                         (default: none)"
     echo
     exit $1
 }
@@ -335,7 +340,7 @@ usage() {
 warn() { echo -en "\e[33m" >&2; echo -e "[-] $@\e[0m"; }
 
 declare -a args
-unset parallel test wordlist
+unset parallel test timeout wordlist
 list="directory-list-2.3-medium.txt"
 dirbuster="$(
     find -O3 /usr -maxdepth 4 -name "dirbuster" -type d -print -quit \
@@ -369,6 +374,13 @@ while [[ $# -gt 0 ]]; do
             threads="$arg"
             ;;
         "--test") test="true" ;;
+        "--timeout"*)
+            case "$1" in
+                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
+                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+            esac
+            timeout="--connect-timeout $arg --max-time $arg"
+            ;;
         *) args+=("$1") ;;
     esac
     shift
@@ -388,7 +400,7 @@ if [[ -n $parallel ]] && [[ -z $(command -v parallel) ]]; then
     unset parallel
 fi
 
-script="/tmp/${0/*\//}"
+script="/tmp/${0/*\//}.parallel"
 trap clean SIGINT
 
 cat >$script <<EOF
@@ -403,7 +415,7 @@ if [[ x"$test" != "x" ]]; then
     [[ \$rand -ne 7 ]] || info "\$1/"
 else
     data="\$(
-        curl -Iks "http://$1/\$1" | \
+        curl $timeout -Iks "http://$1/\$1" | \
         awk '/^(HTTP\/1|Content-Length)/ {print \$2}'
     )"
     if [[ -n \$data ]] &&
