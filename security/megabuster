@@ -338,7 +338,8 @@ declare -a args
 unset parallel test wordlist
 list="directory-list-2.3-medium.txt"
 dirbuster="$(
-    find -O3 /usr -name "dirbuster" -type d -print -quit 2>/dev/null
+    find -O3 /usr -maxdepth 4 -name "dirbuster" -type d -print -quit \
+    2>/dev/null
 )"
 threads="32"
 
