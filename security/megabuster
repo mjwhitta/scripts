@@ -315,7 +315,7 @@ logo() {
 
 usage() {
     [[ $1 -ne 0 ]] || logo
-    echo "Usage: ${0/*\//} [OPTIONS] <host/ip>[:port][/path]"
+    echo "Usage: ${0/*\//} [OPTIONS] <host/ip>[:port][/path][?query]"
     echo
     echo "Simple bash script to enumerate directories and files on a"
     echo "webserver. It's like Mega Man, DirBuster and dirb had a"
