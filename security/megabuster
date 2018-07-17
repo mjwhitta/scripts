@@ -314,7 +314,7 @@ logo() {
 
 usage() {
     [[ $1 -ne 0 ]] || logo
-    echo "Usage: ${0/*\//} [OPTIONS] <host/ip>[:port]"
+    echo "Usage: ${0/*\//} [OPTIONS] <host/ip>[:port][/path]"
     echo
     echo "Simple bash script to enumerate directories and files on a"
     echo "webserver. It's like Mega Man, DirBuster and dirb had a"
@@ -398,6 +398,11 @@ logo
 if [[ -n $parallel ]] && [[ -z $(command -v parallel) ]]; then
     warn "Parallel is not installed, using default behavior"
     unset parallel
+fi
+
+if [[ -n $parallel ]] && [[ ! -f $HOME/.parallel/will-cite ]]; then
+    mkdir -p $HOME/.parallel
+    parallel --citation
 fi
 
 script="/tmp/${0/*\//}.parallel"
