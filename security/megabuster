@@ -310,7 +310,6 @@ logo() {
     echo -en "[0m\e[48;5;033m\e[38;5;232m▄\e[0m\e[0m\e[48;5;232m" >&2
     echo -e "\e[38;5;232m▄\e[0m\e[0m" >&2
     echo >&2
-    echo >&2
 }
 
 usage() {
