@@ -314,7 +314,7 @@ logo() {
 
 usage() {
     [[ $1 -ne 0 ]] || logo
-    echo "Usage: ${0/*\//} [OPTIONS] <host/ip>"
+    echo "Usage: ${0/*\//} [OPTIONS] <host/ip>[:port]"
     echo
     echo "Simple bash version of DirBuster or dirb"
     echo
