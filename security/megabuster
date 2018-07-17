@@ -446,6 +446,8 @@ fi
 EOF
 chmod 700 $script
 
+info "Processing dataset for jobs"
+
 declare -a dataset=($(cat $wordlist | grep -Ev "^( *#.*)?$"))
 if [[ -z ${dataset[@]} ]]; then
     err "No dataset provided"
@@ -483,6 +485,7 @@ if [[ $total -gt 0 ]]; then
 
             let "left -= increment"
             let "marker += increment"
+            echo -en "\e[1A\e[K"
         done
     else
         let "count = 1"
