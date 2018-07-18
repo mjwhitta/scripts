@@ -1,0 +1,182 @@
+#!/usr/bin/env bash
+# A script for making some iptables commands easier.
+# by Miles Whittaker <mjwhitta@gmail.com>
+#
+# --------------------------------------------------------------------
+# The MIT License (MIT)
+#
+# Copyright (c) 2018 Miles Whittaker
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+# --------------------------------------------------------------------
+
+function fw() {
+    if [[ -z $(command -v iptables) ]]; then
+        echo "iptables is not installed"
+        return 3
+    fi
+
+    fw_cleanup() {
+        unset action all arg args chain help tbl tbls
+        unset -f fw_cleanup fw_clear fw_close fw_list fw_open fw_reset
+        unset -f fw_usage
+    }
+
+    fw_clear() {
+        # Ignore Docker as those should be managed by docker.service
+
+        # Save Docker rules
+        sudo iptables-save | grep -Ei "^\*|^commit$|docker" \
+            >/tmp/fw.docker.rules
+
+        for tbl in "${tbls[@]}"; do
+            while read -r chain; do
+                sudo iptables -t $tbl -P $chain ACCEPT
+            done < <(sudo iptables -S -t $tbl | awk '/-P/ {print $2}')
+            sudo iptables -t $tbl -F
+            while read -r chain; do
+                sudo iptables -t $tbl -X $chain
+            done < <(sudo iptables -S -t $tbl | awk '/-N/ {print $2}')
+        done
+
+        # Restore Docker rules
+        sudo iptables-restore </tmp/fw.docker.rules
+        rm -f /tmp/fw.docker.rules
+    }
+
+    fw_close() {
+        sudo iptables -D INPUT -p tcp --dport $1 -j ACCEPT
+        sudo iptables -D INPUT -p udp --dport $1 -j ACCEPT
+    }
+
+    fw_list() {
+        for tbl in "${tbls[@]}"; do
+            echo "### $tbl ###"
+            # Ignore Docker
+            if [[ $# -eq 0 ]]; then
+                sudo iptables -S -t $tbl | grep -iv "docker"
+            else
+                sudo iptables -S -t $tbl
+            fi
+        done
+    }
+
+    fw_open() {
+        sudo iptables -I INPUT -p tcp --dport $1 -j ACCEPT
+        sudo iptables -I INPUT -p udp --dport $1 -j ACCEPT
+    }
+
+    fw_reset() {
+        if [[ -f /etc/iptables/iptables.rules ]]; then
+            fw_clear
+            sudo iptables-restore -n </etc/iptables/iptables.rules
+        fi
+    }
+
+    fw_usage() {
+        echo "Usage: fw [OPTIONS]"
+        echo
+        echo "Makes some iptables commands easier"
+        echo
+        echo "Options:"
+        echo "    -a, --all           Include Docker rules in output"
+        echo "    -h, --help          Display this help message"
+        echo "    -c, --close=PORT    Close a previously opened port"
+        echo "    --clear             Clear iptables rules"
+        echo "    -l, --list          List iptables rules (default"
+        echo "                        behavior)"
+        echo "    -o, --open=PORT     Open a port"
+        echo "    -r, --reset         Restore default iptables rules"
+        echo
+        fw_cleanup
+    }
+
+    declare -a args tbls
+    unset all help
+    action="list"
+    tbls=($(lsmod | perl -lne '/^iptable_(\S+)/ && print $1' | sort))
+    case "${tbls}" in
+        *"filter"*) ;;
+        *) tbls=("filter" ${tbls[@]})
+    esac
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            "--") shift && args+=("$@") && break ;;
+            "-a"|"--all") all="true" ;;
+            "-c"|"--close"*)
+                case "$1" in
+                    "--"*"="*)
+                        arg="${1#*=}"
+                        [[ -z $arg ]] && fw_usage && return 1
+                        ;;
+                    *)
+                        shift; [[ $# -eq 0 ]] && fw_usage && return 1
+                        arg="$1"
+                        ;;
+                esac
+                action="close"
+                port="$arg"
+                ;;
+            "--clear") action="clear" ;;
+            "-h"|"--help") help="true" ;;
+            "-l"|"--list") action="list" ;;
+            "-o"|"--open"*)
+                case "$1" in
+                    "--"*"="*)
+                        arg="${1#*=}"
+                        [[ -z $arg ]] && fw_usage && return 1
+                        ;;
+                    *)
+                        shift; [[ $# -eq 0 ]] && fw_usage && return 1
+                        arg="$1"
+                        ;;
+                esac
+                action="open"
+                port="$arg"
+                ;;
+            "-r"|"--reset") action="reset" ;;
+            *) args+=("$1") ;;
+        esac
+        shift
+    done
+    [[ -z ${args[@]} ]] || set -- "${args[@]}"
+
+    [[ -n $help ]] && fw_usage && return 0
+    [[ $# -gt 0 ]] && fw_usage && return 2
+
+    case "$action" in
+        "close") fw_close $port ;;
+        "clear") fw_clear ;;
+        "list") fw_list $all ;;
+        "open") fw_open $port ;;
+        "reset") fw_reset ;;
+    esac
+
+    fw_cleanup
+}
+
+if [[ -n ${BASH_SOURCE[0]} ]]; then
+    case "$0" in
+        *"bash") ;;
+        *) fw "$@" ;;
+    esac
+fi

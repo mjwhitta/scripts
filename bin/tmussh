@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# A clusterssh like script for tmux.
+# by Miles Whittaker <mjwhitta@gmail.com>
+#
+# --------------------------------------------------------------------
+# The MIT License (MIT)
+#
+# Copyright (c) 2018 Miles Whittaker
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+# --------------------------------------------------------------------
+
+function tmussh() {
+    tmussh_cleanup() {
+        unset args current_pane delay help hosts interactive
+        unset keep_localhost window wname
+        unset -f tmussh_cleanup tmussh_usage
+    }
+
+    tmussh_usage() {
+        echo "Usage: tmussh [OPTIONS] [cmd]"
+        echo
+        echo "Open connections to multiple hosts using tmux and ssh."
+        echo "If a command is specified, it will run that command on"
+        echo "each host."
+        echo
+        echo "Options:"
+        echo "    -d, --delay=SECS     Wait for specified time after"
+        echo "                         connecting (default: $delay)"
+        echo "    --host=HOST          Specify host to connect to"
+        echo "                         (can be used more than once)"
+        echo "    -h, --help           Display this help message"
+        echo "    -i, --interactive    Do not close connection"
+        echo "                         (default: true if no cmd)"
+        echo "    -w, --window         Run in new tmux window"
+        echo
+        tmussh_cleanup
+    }
+
+    declare -a args hosts
+    unset help interactive keep_localhost window
+    delay="3"
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            "--") shift && args+=("$@") && break ;;
+            "-d"|"--delay"*)
+                case "$1" in
+                    "--"*"="*)
+                        arg="${1#*=}"
+                        [[ -z $arg ]] && tmussh_usage && return 1
+                        ;;
+                    *)
+                        shift
+                        [[ $# -eq 0 ]] && tmussh_usage && return 1
+                        arg="$1"
+                        ;;
+                esac
+                delay="$arg"
+                ;;
+            "-h"|"--help") help="true" ;;
+            "--host"*)
+                case "$1" in
+                    "--"*"="*)
+                        arg="${1#*=}"
+                        [[ -z $arg ]] && tmussh_usage && return 1
+                        ;;
+                    *)
+                        shift
+                        [[ $# -eq 0 ]] && tmussh_usage && return 1
+                        arg="$1"
+                        ;;
+                esac
+                hosts+=("$arg")
+                ;;
+            "-i"|"--interactive") interactive="true" ;;
+            "-w"|"--window") window="true" ;;
+            *) args+=("$1") ;;
+        esac
+        shift
+    done
+    [[ -z ${args[@]} ]] || set -- "${args[@]}"
+
+    [[ -n $help ]] && tmussh_usage && return 0
+
+    wname="tmussh_$(head -c 4 /dev/urandom | xxd -p)"
+    [[ -z $window ]] || tmux new-window -n $wname
+
+    current_pane="$(tmux display -p "#{pane_id}")"
+    for host in "${hosts[@]}"; do
+        case "$host" in
+            "localhost") keep_localhost="true" ;;
+            *) tmux split-window -h "ssh $host" ;;
+        esac
+    done
+    [[ -n $keep_localhost ]] || tmux kill-pane -t $current_pane
+
+    [[ -z $window ]] || tmux select-pane -t 0
+    tmux select-layout tiled
+    tmux set-option -w synchronize-panes on
+
+    if [[ $# -gt 0 ]]; then
+        sleep $delay
+        tmux send-keys "$@"
+        if [[ -z $interactive ]]; then
+            tmux send-keys "exit"
+            tmux set-option -w synchronize-panes off
+        fi
+    fi
+
+    tmussh_cleanup
+}
+
+if [[ -n ${BASH_SOURCE[0]} ]]; then
+    case "$0" in
+        *"bash") ;;
+        *) tmussh "$@" ;;
+    esac
+fi

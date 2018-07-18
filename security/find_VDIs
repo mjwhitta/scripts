@@ -60,7 +60,7 @@ usage() {
     echo "    -d, --debug           Keep log files for debugging"
     echo "    -h, --help            Display this help message"
     echo "    -o, --output=FILE     Write output to a file"
-    echo "    -p, --parallel        Run using parallel"
+    echo "    -p, --parallel        Run using parallel (if installed)"
     echo "    --threads=NUM         Use the specied number of threads"
     echo "                          if running in parallel (default:"
     echo "                          $threads)"

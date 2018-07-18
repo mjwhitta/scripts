@@ -3,11 +3,11 @@ install or uninstall my scripts:
 
 #### Clone
 
-Put scripts in `$HOME/scripts`:
+Put scripts in `$HOME/.scripts`:
 
 ```
-$ git clone git@gitlab.com:mjwhitta/scripts.git $HOME/scripts
-$ cd $HOME/scripts
+$ git clone git@gitlab.com:mjwhitta/scripts.git $HOME/.scripts
+$ cd $HOME/.scripts
 ```
 
 #### Install
@@ -37,4 +37,4 @@ $ ./installer unlink
 #### Configure
 
 To configure, simply copy `files.default` to `files` and comment or
-delete the entries you don't want.
+delete the entries you don't want. Add other scripts you might want.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# A script that wraps rofi with env stuff (useful for keybindings).
+# A script for summarizing nmap results.
 # by Miles Whittaker <mjwhitta@gmail.com>
 #
 # --------------------------------------------------------------------
@@ -29,77 +29,70 @@
 # --------------------------------------------------------------------
 
 usage() {
-    echo "Usage: ${0/*\//} [OPTIONS]"
+    echo "Usage: ${0/*\//} [OPTIONS] [host1]... [hostN]"
     echo
-    echo "Wrapper for rofi"
+    echo "Searches for *.nmap files and greps for open ports"
     echo
     echo "Options:"
     echo "    -h, --help    Display this help message"
-    echo "    -s, --ssh     Start SSH tab"
     echo
     exit $1
 }
 
 declare -a args
-tab="run"
+unset help
+hosts="."
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "-h"|"--help") usage 0 ;;
-        "-s"|"--ssh") tab="ssh" ;;
+        "-h"|"--help") help="true" ;;
         *) args+=("$1") ;;
     esac
     shift
 done
 [[ -z ${args[@]} ]] || set -- "${args[@]}"
 
-[[ $# -eq 0 ]] || usage 2
+[[ -z $help ]] || usage 0
+[[ $# -eq 0 ]] || hosts="$@"
 
-# Ruby
-export GEM_HOME="$HOME/.gem/ruby"
-export GEM_PATH="$GEM_HOME/gems"
+# Hosts with open ports
+unset found oldfile
+while read -r line; do
+    match="${line/*:/}"
+    newfile="$(dirname ${line/:*/})"
+    found="true"
 
-# Go
-export GOPATH="$HOME/.go"
+    if [[ $newfile != $oldfile ]]; then
+        [[ -z $oldfile ]] || echo
+        echo "# $newfile"
+    fi
+    echo "$match"
 
-# PATH
-# Find dirs that should be in PATH
-unset PTH
-for dir in \
-    $HOME/bin \
-    $HOME/.local/bin \
-    $GEM_HOME/bin \
-    $GOPATH \
-    $GOPATH/bin \
-    /usr/local/bin \
-    /usr/local/sbin \
-    /usr/bin \
-    /usr/sbin \
-    /bin \
-    /sbin \
-    $HOME/Android/Sdk/platform-tools \
-    $HOME/Android/Sdk/tools \
-    $HOME/Android/Ndk \
-    $HOME/.rvm/bin \
-; do
-    [[ ! -d $dir ]] || PTH="$PTH:$dir"
-done; unset dir
+    oldfile="$newfile"
+done < <(
+    LC_ALL=C find $hosts -type f -name "*.nmap" -exec \
+    grep -EHIis "[0-9]+\/.*open.*" {} +
+) #| sed -r "s/# \.\//# /" # Piping to sed breaks output
 
-# Find missing from PATH
-for dir in $(echo "$PATH" | sed "s|:| |g"); do
-    [[ -n $(echo "$PTH" | grep $dir) ]] || PTH="$PTH:$dir"
-done; unset dir
+[[ -z $found ]] || echo
 
-# Set PATH
-[[ -z $PTH ]] || export PATH="${PTH/:/}"
-unset PTH
+# Host with no open ports
+unset oldfile
+while read -r line; do
+    newfile="$(dirname ${line/:*/})"
 
-# SSH agent
-if [[ -n $(command -v ssh-agent) ]]; then
-    [[ -f $HOME/.ssh/agent/env ]] && . $HOME/.ssh/agent/env >/dev/null
-fi
+    if [[ $newfile != $oldfile ]]; then
+        [[ -z $oldfile ]] || echo
+        echo "# $newfile"
+        echo "No open ports"
+        echo
+    fi
 
-[[ -z $(command -v rofi) ]] && echo "Please install rofi" && exit 1
+    oldfile="$newfile"
+done < <(
+    LC_ALL=C find $hosts -type f -name "*.nmap" -exec \
+    grep -EHIiLs "[0-9]+\/.*open.*" {} +
+) #| sed -r "s/# \.\//# /" # Piping to sed breaks output
 
-rofi -show $tab
+echo -en "\e[1A\e[K"

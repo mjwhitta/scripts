@@ -327,7 +327,7 @@ usage() {
     echo "                         (default: $list"
     echo "                         from $dirbuster)"
     echo "    --nocolor            Don't colorize output"
-    echo "    -p, --parallel       Run using parallel"
+    echo "    -p, --parallel       Run using parallel (if installed)"
     local default="(default: $threads)"
     echo "    -t, --threads=NUM    Use the specied number of threads"
     echo "                         if running in parallel $default"

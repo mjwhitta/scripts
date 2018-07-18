@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# A script to make wallpapers from given images (or at least attempt).
+# A convenience script for updating all git repos under a directory.
 # by Miles Whittaker <mjwhitta@gmail.com>
 #
 # --------------------------------------------------------------------
@@ -35,20 +35,14 @@ err() { [[ -z $clr ]] || echo -en "\e[31m"; echo -e "[!] $@\e[0m"; }
 info() { [[ -z $clr ]] || echo -en "\e[37m"; echo -e "[=] $@\e[0m"; }
 
 usage() {
-    echo "Usage: ${0/*\//} [OPTIONS] <image1>... [imageN]"
+    echo "Usage: ${0/*\//} [OPTIONS] <dir>"
     echo
-    echo "Create a wallpaper from an image"
+    echo "Update git repos under specified directory"
     echo
     echo "Options:"
     echo "    -h, --help           Display this help message"
-    echo "    -i, --info           Display background color that"
-    echo "                         would be used"
     echo "    --nocolor            Don't colorize output"
-    echo "    -o, --output=DIR     Save to the specified directory"
-    echo "                         (default: $output)"
     echo "    -p, --parallel       Run using parallel (if installed)"
-    echo "    -r, --res=WxH        Use the specified resolution"
-    echo "                         (default: $resolution)"
     local default="(default: $threads)"
     echo "    -t, --threads=NUM    Use the specied number of threads"
     echo "                         if running in parallel $default"
@@ -60,33 +54,15 @@ warn() { [[ -z $clr ]] || echo -en "\e[33m"; echo -e "[-] $@\e[0m"; }
 
 declare -a args
 unset help parallel
-action="convert"
 clr="true"
-output="."
-resolution="1920x1080"
 threads="32"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "-h"|"--help") usage 0 ;;
-        "-i"|"--info") action="info" ;;
+        "-h"|"--help") help="true" ;;
         "--nocolor") unset clr ;;
-        "-o"|"--output"*)
-            case "$1" in
-                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-            esac
-            output="$arg"
-            ;;
         "-p"|"--parallel") parallel="true" ;;
-        "-r"|"--resolution"*)
-            case "$1" in
-                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-            esac
-            resolution="$arg"
-            ;;
         "-t"|"--threads"*)
             case "$1" in
                 "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
@@ -103,8 +79,8 @@ done
 [[ -z $help ]] || usage 0
 [[ $# -ge 1 ]] || usage 2
 
-if [[ -z $(command -v convert) ]]; then
-    err "imagemagick is not installed"
+if [[ -z $(command -v git) ]]; then
+    err "git is not installed"
     exit 3
 fi
 
@@ -135,46 +111,52 @@ warn() {
 $([[ -z $clr ]] || echo "    echo -en \"\\e[33m\"")
     echo -e "\\r[-] \$@\\e[0m\\e[K"
 }
-[[ -f \$1 ]] || exit 1
-bgcolor="\$(
-    convert \$1 -depth 8 +dither -format %c histogram:info: | \
-    sort -n | tail -n 1 | grep -Eo "#[A-Fa-f0-9]{6}"
-)"
-case "$action" in
-    "convert")
-        name="\$(
-            basename \$1 | sed -r -e "s/\..+//g" \
-            -e "s/[^A-Za-z0-9]+/_/g"
-        )_$resolution.png"
-        if [[ -f $output/\$name ]]; then
-            warn "$output/\$name already exists!"
-            exit 1
+if [[ -n \$(git -C \$1 config remote.origin.url) ]]; then
+    stash="\$(
+        git -C \$1 status --porcelain | grep -Es "^[^#?]{2}"
+    )"
+    if [[ -n \$stash ]]; then
+        warn "\$1: stashing changes"
+        git -C \$1 stash &>/dev/null
+        if [[ \$? -ne 0 ]]; then
+            err "\$1: error ocurred while stashing"
+            exit
         fi
-        if [[ -n \$bgcolor ]]; then
-            info "Creating $output/\$name"
-            convert \$1 -background \$bgcolor -gravity center \
-                -resize $resolution -extent $resolution \
-                $output/\$name
-        else
-            err "Couldn't create $output/\$name"
+    fi
+
+    info "\$1: pulling changes"
+    git -C \$1 pull -r &>/dev/null
+    if [[ \$? -ne 0 ]]; then
+        err "\$1: error ocurred while pulling"
+        exit
+    fi
+
+    if [[ -n \$stash ]]; then
+        warn "\$1: restoring changes"
+        git -C \$1 stash pop &>/dev/null
+        if [[ \$? -ne 0 ]]; then
+            err "\$1: error ocurred while unstashing"
+            exit
         fi
-        ;;
-    "info") info "\$bgcolor" ;;
-esac
+    fi
+else
+    warn "\$1: no remote origin"
+fi
 EOF
 chmod 700 $script
 
 info "Processing dataset for jobs"
 
-declare -a dataset=($@)
+declare -a dataset=($(
+    find -L $1 -ipath "*archived*" -prune -o -type d \
+    -name ".git" -exec dirname {} + 2>/dev/null
+))
 let "total = ${#dataset[@]}"
 
 if [[ $total -eq 0 ]]; then
     err "No dataset provided"
     exit 3
 fi
-
-mkdir -p $output
 
 info "$total jobs to run"
 if [[ -n $parallel ]]; then
