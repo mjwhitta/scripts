@@ -318,10 +318,12 @@ usage() {
     echo "Usage: ${0/*\//} [OPTIONS] <host/ip>[:port][/path][?query]"
     echo
     echo "Simple bash script to enumerate directories and files on a"
-    echo "webserver. It's like Mega Man, DirBuster and dirb had a"
-    echo "baby."
+    echo "webserver. MegaBuster is like Mega Man, DirBuster and dirb"
+    echo "had a baby!"
     echo
     echo "Options:"
+    echo "    -d, --directories    Only search for directories"
+    echo "    -f, --files          Only search for files"
     echo "    -h, --help           Display this help message"
     echo "    -l, --list=LIST      Use the specified wordlist"
     echo "                         (default: $list"
@@ -343,23 +345,43 @@ warn() { [[ -z $clr ]] || echo -en "\e[33m"; echo -e "[-] $@\e[0m"; }
 
 declare -a args
 unset help parallel test timeout wordlist
+cache="$HOME/.cache/megabuster/dirbuster.list"
 clr="true"
-dirbuster="$(
-    find -O3 /usr -maxdepth 4 -name "dirbuster" -type d -print -quit \
-    2>/dev/null
-)"
-list="directory-list-2.3-medium.txt"
+directories="true"
+files="true"
 threads="32"
 
-if [[ -n $dirbuster ]]; then
-    wordlist="$(
-        find $dirbuster -name "$list" -type f -print -quit 2>/dev/null
+# Check cache first
+mkdir -p $(dirname $cache)
+if [[ -f $cache ]]; then
+    wordlist="$(cat $cache)"
+else
+    # If not cached, find and cache
+
+    # Find dirbuster directory
+    dirbuster="$(
+        find -O3 /usr -maxdepth 4 -name "dirbuster" -type d -print \
+        -quit 2>/dev/null
     )"
+    list="directory-list-2.3-medium.txt"
+
+    # If dirbuster was found, find the list
+    if [[ -n $dirbuster ]]; then
+        wordlist="$(
+            find $dirbuster -name "$list" -type f -print -quit \
+            2>/dev/null
+        )"
+
+        # Cache location of list
+        echo "$wordlist" >$cache
+    fi
 fi
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
+        "-d"|"--directories") unset files ;;
+        "-f"|"--files") unset directories ;;
         "-h"|"--help") help="true" ;;
         "-l"|"--list"*)
             case "$1" in
@@ -393,9 +415,13 @@ done
 
 [[ -z $help ]] || usage 0
 [[ $# -eq 1 ]] || usage 2
-if [[ ! -f $wordlist ]]; then
-    echo "Wordlist does not exist"
+if [[ -z $directories ]] && [[ -z $files ]]; then
+    err "Not searching for files? Not searching for directories?"
     exit 3
+fi
+if [[ ! -f $wordlist ]]; then
+    err "Wordlist does not exist"
+    exit 4
 fi
 
 logo
@@ -415,6 +441,17 @@ trap clean SIGINT
 
 cat >$script <<EOF
 #!/usr/bin/env bash
+check() {
+    data="\$(
+        curl $timeout -Iks "http://$1/\$1" | \
+        awk '/^(HTTP\/1|Content-Length)/ {print \$2}'
+    )"
+    if [[ -n \$data ]] &&
+       [[ \$(echo "\$data" | head -n 1) -ne 404 ]]
+    then
+        info "\$1 (\$data)"
+    fi
+}
 # err() {
 # $([[ -z $clr ]] || echo "    echo -en \"\\e[31m\"")
 #     echo -e "\\r[!] \$@\\e[0m\\e[K"
@@ -427,21 +464,18 @@ $([[ -z $clr ]] || echo "    echo -en \"\\e[32m\"")
 # $([[ -z $clr ]] || echo "    echo -en \"\\e[33m\"")
 #     echo -e "\\r[-] \$@\\e[0m\\e[K"
 # }
-if [[ x"$test" != "x" ]]; then
-    let "rand = RANDOM % 50"
-    [[ \$rand -ne 7 ]] || info "\$1"
-    let "rand = RANDOM % 50"
-    [[ \$rand -ne 7 ]] || info "\$1/"
-else
-    data="\$(
-        curl $timeout -Iks "http://$1/\$1" | \
-        awk '/^(HTTP\/1|Content-Length)/ {print \$2}'
-    )"
-    if [[ -n \$data ]] &&
-       [[ \$(echo "\$data" | head -n 1) -ne 404 ]]
-    then
-        info "\$1 (\$data)"
+if [[ "x$test" != "x" ]]; then
+    if [[ "x$files" != "x" ]]; then
+        let "rand = RANDOM % 50"
+        [[ \$rand -ne 7 ]] || info "\$1"
     fi
+    if [[ "x$directories" != "x" ]]; then
+        let "rand = RANDOM % 50"
+        [[ \$rand -ne 7 ]] || info "\$1/"
+    fi
+else
+    [[ "x$files" == "x" ]] || check "\$1"
+    [[ "x$directories" == "x" ]] || check "\$1/"
 fi
 EOF
 chmod 700 $script
@@ -453,7 +487,7 @@ let "total = ${#dataset[@]}"
 
 if [[ $total -eq 0 ]]; then
     err "No dataset provided"
-    exit 4
+    exit 5
 fi
 
 if [[ -n $parallel ]]; then
