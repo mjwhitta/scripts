@@ -379,8 +379,8 @@ json="$cache/megabuster.json"
 parallel="true"
 threads="32"
 
-# Create cache directories
-mkdir -p $cache $(dirname $dcache)
+# Create dcache directory
+mkdir -p $(dirname $dcache)
 
 # Check cache first
 if [[ -f $dcache ]]; then
@@ -473,6 +473,9 @@ round="0"
 
 # Resume functionality only works with parallel
 if [[ -n $parallel ]]; then
+    # Ensure resume directory exists
+    mkdir -p $cache
+
     # Check for resume file
     if [[ -f $json ]] && [[ -z $resume ]]; then
         warn "Resume file found"
