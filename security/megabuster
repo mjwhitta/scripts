@@ -510,7 +510,7 @@ cat >$script <<EOF
 check() {
     data="\$(
         curl $timeout -Iks "http${tls:+s}://$host/\$1" | \\
-        awk '/^(HTTP\/1|Content-Length)/ {print \$2}'
+        awk '/^HTTP\// {print \$2}'
     )"
     if [[ -n \$data ]] &&
        [[ \$(echo "\$data" | head -n 1) -ne 404 ]]
