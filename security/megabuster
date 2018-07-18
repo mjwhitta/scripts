@@ -2,7 +2,11 @@
 
 clean() { rm -f $script; exit 0; }
 
-err() { [[ -z $clr ]] || echo -en "\e[31m"; echo -e "[!] $@\e[0m"; }
+err() {
+    [[ -z $clr ]] || echo -en "\e[31m"
+    echo -e "[!] ${@:2}\e[0m"
+    exit $1
+}
 
 info() { [[ -z $clr ]] || echo -en "\e[37m"; echo -e "[=] $@\e[0m"; }
 
@@ -313,6 +317,13 @@ logo() {
     echo
 }
 
+read_resume_file() {
+    host="$(cat $cache | jq -cMrS ".host")"
+    rfile="$(cat $cache | jq -cMrS ".resume")"
+    rround="$(cat $cache | jq -cMrS ".round")"
+    simulate="$(cat $cache | jq -cMrS ".simulate")"
+}
+
 usage() {
     [[ $1 -ne 0 ]] || logo
     echo "Usage: ${0/*\//} [OPTIONS] <host/ip>[:port][/path][?query]"
@@ -329,12 +340,13 @@ usage() {
     echo "                         (default: $list"
     echo "                         from $dirbuster)"
     echo "    --nocolor            Don't colorize output"
-    echo "    -p, --parallel       Run using parallel (if installed)"
+    # echo "    -p, --parallel       Run using parallel (if installed)"
+    echo "    -r, --resume         Resume from a previous run"
+    echo "    -s, --simulate       Temporary for testing, simulate"
+    echo "                         output but do nothing"
     local default="(default: $threads)"
     echo "    -t, --threads=NUM    Use the specied number of threads"
     echo "                         if running in parallel $default"
-    echo "    --test               Temporary for testing, simulate"
-    echo "                         output but do nothing"
     echo "    --timeout=SECS       Use specified timeout with curl"
     echo "                         (default: none)"
     echo
@@ -343,18 +355,35 @@ usage() {
 
 warn() { [[ -z $clr ]] || echo -en "\e[33m"; echo -e "[-] $@\e[0m"; }
 
+write_resume_file() {
+    cat >$cache <<EOF
+{
+  "host": "$host",
+  "resume": "$rfile",
+  "round": "${1:-0}",
+  "simulate": "$simulate"
+}
+EOF
+}
+
 declare -a args
-unset help parallel test timeout wordlist
-cache="$HOME/.cache/megabuster/dirbuster.list"
+unset help resume simulate timeout wordlist
+cache="megabuster.resume"
+cachedir="$HOME/.cache/megabuster"
 clr="true"
+dcache="$cachedir/dirbuster.list"
 directories="true"
 files="true"
+jcache="$cachedir/joblogs"
+parallel="true"
 threads="32"
 
+# Create cache directory structure
+mkdir -p $(dirname $dcache)/joblogs
+
 # Check cache first
-mkdir -p $(dirname $cache)
-if [[ -f $cache ]]; then
-    wordlist="$(cat $cache)"
+if [[ -f $dcache ]]; then
+    wordlist="$(cat $dcache)"
 else
     # If not cached, find and cache
 
@@ -373,7 +402,7 @@ else
         )"
 
         # Cache location of list
-        echo "$wordlist" >$cache
+        echo "$wordlist" >$dcache
     fi
 fi
 
@@ -391,7 +420,9 @@ while [[ $# -gt 0 ]]; do
             wordlist="$arg"
             ;;
         "--nocolor") unset clr ;;
-        "-p"|"--parallel") parallel="true" ;;
+        # "-p"|"--parallel") parallel="true" ;;
+        "-r"|"--resume") resume="--resume" ;;
+        "-s"|"--simulate") simulate="true" ;;
         "-t"|"--threads"*)
             case "$1" in
                 "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
@@ -399,7 +430,6 @@ while [[ $# -gt 0 ]]; do
             esac
             threads="$arg"
             ;;
-        "--test") test="true" ;;
         "--timeout"*)
             case "$1" in
                 "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
@@ -413,37 +443,72 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -z ${args[@]} ]] || set -- "${args[@]}"
 
+# Check for valid params and missing dependencies
 [[ -z $help ]] || usage 0
-[[ $# -eq 1 ]] || usage 2
+[[ $# -eq 1 ]] || [[ -n $resume ]] || usage 2
+for dep in curl jq; do
+    [[ -n $(command -v $dep) ]] || err 3 "$dep is not installed"
+done; unset dep
 if [[ -z $directories ]] && [[ -z $files ]]; then
-    err "Not searching for files? Not searching for directories?"
-    exit 3
+    err 4 "Not searching for files? Not searching for directories?"
 fi
-if [[ ! -f $wordlist ]]; then
-    err "Wordlist does not exist"
-    exit 4
-fi
+[[ -f $wordlist ]] || err 5 "Wordlist does not exist"
 
-logo
-
+# Determine parallel situation
 if [[ -n $parallel ]] && [[ -z $(command -v parallel) ]]; then
-    warn "Parallel is not installed, using default behavior"
+    warn "Parallel is not installed, using slow uncached behavior"
     unset parallel
 fi
 
+# Cite if needed
 if [[ -n $parallel ]] && [[ ! -f $HOME/.parallel/will-cite ]]; then
     mkdir -p $HOME/.parallel
     parallel --citation
 fi
 
+host="$1"
+rfile="$jcache/$(head -c 8 /dev/urandom | xxd -p).resume"
+round="0"
+
+# Resume functionality only works with parallel
+if [[ -n $parallel ]]; then
+    # Check for resume file
+    if [[ -f $cache ]] && [[ -z $resume ]]; then
+        warn "Resume file found"
+        while :; do
+            # Prompt whether to overwrite or resume
+            read -n 1 -p "Would you like to resume [y/n/q]: " ans
+            echo
+
+            case "$ans" in
+                "n") write_resume_file; break ;;
+                "q") exit 0 ;;
+                "y") read_resume_file; break ;;
+                *) echo "Invalid response, try again!" ;;
+            esac
+        done
+    elif [[ -f $cache ]]; then
+        read_resume_file
+    elif [[ -n $resume ]]; then
+        err 6 "No resume file found in current directory"
+    else
+        write_resume_file
+    fi
+fi
+
+# Display logo
+logo
+
+# Script used by parallel
 script="/tmp/${0/*\//}.parallel"
 trap clean SIGINT
 
 cat >$script <<EOF
 #!/usr/bin/env bash
+
 check() {
     data="\$(
-        curl $timeout -Iks "http://$1/\$1" | \
+        curl $timeout -Iks "http://$host/\$1" | \\
         awk '/^(HTTP\/1|Content-Length)/ {print \$2}'
     )"
     if [[ -n \$data ]] &&
@@ -452,23 +517,22 @@ check() {
         info "\$1 (\$data)"
     fi
 }
-# err() {
-# $([[ -z $clr ]] || echo "    echo -en \"\\e[31m\"")
-#     echo -e "\\r[!] \$@\\e[0m\\e[K"
-# }
-info() {
-$([[ -z $clr ]] || echo "    echo -en \"\\e[32m\"")
-    echo -e "\\r[+] \$@\\e[0m\\e[K"
-}
-# warn() {
-# $([[ -z $clr ]] || echo "    echo -en \"\\e[33m\"")
-#     echo -e "\\r[-] \$@\\e[0m\\e[K"
-# }
-if [[ "x$test" != "x" ]]; then
+
+# err() {$([[ -z $clr ]] || echo " echo -en \"\\e[31m\";") \
+echo -e "\\r[!] \$@\\e[0m\\e[K"; }
+
+info() {$([[ -z $clr ]] || echo " echo -en \"\\e[32m\";") \
+echo -e "\\r[+] \$@\\e[0m\\e[K"; }
+
+# warn() {$([[ -z $clr ]] || echo " echo -en \"\\e[33m\";") \
+echo -e "\\r[-] \$@\\e[0m\\e[K"; }
+
+if [[ "x$simulate" != "x" ]]; then
     if [[ "x$files" != "x" ]]; then
         let "rand = RANDOM % 50"
         [[ \$rand -ne 7 ]] || info "\$1"
     fi
+
     if [[ "x$directories" != "x" ]]; then
         let "rand = RANDOM % 50"
         [[ \$rand -ne 7 ]] || info "\$1/"
@@ -485,10 +549,7 @@ info "Processing dataset for jobs"
 declare -a dataset=($(cat $wordlist | grep -Ev "^( *#.*)?$"))
 let "total = ${#dataset[@]}"
 
-if [[ $total -eq 0 ]]; then
-    err "No dataset provided"
-    exit 5
-fi
+[[ $total -ne 0 ]] || err 7 "No dataset provided"
 
 if [[ -n $parallel ]]; then
     # Math
@@ -500,7 +561,6 @@ if [[ -n $parallel ]]; then
     )"
     [[ $maxdata -lt 5000 ]] || let "maxdata -= 5000"
     let "remainder = total % maxdata"
-    round="0"
     let "rounds = total / maxdata"
     [[ $remainder -eq 0 ]] || let "rounds += 1"
 
@@ -509,17 +569,25 @@ if [[ -n $parallel ]]; then
     [[ $rounds -eq 1 ]] || info "Splitting into $rounds rounds"
     while [[ $left -gt 0 ]]; do
         let "round += 1"
-        [[ $rounds -eq 1 ]] || warn "Round $round"
+        [[ $round == $rround ]] && unset rround
 
         increment="$left"
         [[ $left -lt $maxdata ]] || let "increment = $maxdata - 1"
 
-        parallel --bar --lb -P $threads -r $script {} ::: \
-            ${dataset[@]:$marker:$increment}
+        if [[ -z $rround ]]; then
+            write_resume_file $round
+
+            [[ $rounds -eq 1 ]] || warn "Round $round"
+
+            parallel --bar --joblog ${resume:++}$rfile --lb \
+                -P $threads -r $resume \
+                $script {} ::: ${dataset[@]:$marker:$increment}
+            unset resume
+        fi
 
         let "left -= increment"
         let "marker += increment"
-        echo -en "\e[1A\e[K"
+        [[ -n $rround ]] || echo -en "\e[1A\e[K"
     done
 else
     let "count = 1"
