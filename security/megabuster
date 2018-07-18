@@ -318,10 +318,9 @@ logo() {
 }
 
 read_resume_file() {
-    host="$(cat $cache | jq -cMrS ".host")"
-    rfile="$(cat $cache | jq -cMrS ".resume")"
-    rround="$(cat $cache | jq -cMrS ".round")"
-    simulate="$(cat $cache | jq -cMrS ".simulate")"
+    host="$(cat $json | jq -cMrS ".host")"
+    rround="$(cat $json | jq -cMrS ".round")"
+    simulate="$(cat $json | jq -cMrS ".simulate")"
 }
 
 usage() {
@@ -356,10 +355,9 @@ usage() {
 warn() { [[ -z $clr ]] || echo -en "\e[33m"; echo -e "[-] $@\e[0m"; }
 
 write_resume_file() {
-    cat >$cache <<EOF
+    cat >$json <<EOF
 {
   "host": "$host",
-  "resume": "$rfile",
   "round": "${1:-0}",
   "simulate": "$simulate"
 }
@@ -369,17 +367,17 @@ EOF
 declare -a args
 unset help resume simulate timeout wordlist
 cache="megabuster.resume"
-cachedir="$HOME/.cache/megabuster"
 clr="true"
-dcache="$cachedir/dirbuster.list"
+dcache="$HOME/.cache/megabuster/dirbuster.list"
 directories="true"
 files="true"
-jcache="$cachedir/joblogs"
+joblog="$cache/joblog.txt"
+json="$cache/megabuster.json"
 parallel="true"
 threads="32"
 
-# Create cache directory structure
-mkdir -p $(dirname $dcache)/joblogs
+# Create cache directories
+mkdir -p $cache $(dirname $dcache)
 
 # Check cache first
 if [[ -f $dcache ]]; then
@@ -467,13 +465,12 @@ if [[ -n $parallel ]] && [[ ! -f $HOME/.parallel/will-cite ]]; then
 fi
 
 host="$1"
-rfile="$jcache/$(head -c 8 /dev/urandom | xxd -p).resume"
 round="0"
 
 # Resume functionality only works with parallel
 if [[ -n $parallel ]]; then
     # Check for resume file
-    if [[ -f $cache ]] && [[ -z $resume ]]; then
+    if [[ -f $json ]] && [[ -z $resume ]]; then
         warn "Resume file found"
         while :; do
             # Prompt whether to overwrite or resume
@@ -483,11 +480,11 @@ if [[ -n $parallel ]]; then
             case "$ans" in
                 "n") write_resume_file; break ;;
                 "q") exit 0 ;;
-                "y") read_resume_file; break ;;
+                "y") read_resume_file; resume="--resume"; break ;;
                 *) echo "Invalid response, try again!" ;;
             esac
         done
-    elif [[ -f $cache ]]; then
+    elif [[ -f $json ]]; then
         read_resume_file
     elif [[ -n $resume ]]; then
         err 6 "No resume file found in current directory"
@@ -579,7 +576,7 @@ if [[ -n $parallel ]]; then
 
             [[ $rounds -eq 1 ]] || warn "Round $round"
 
-            parallel --bar --joblog ${resume:++}$rfile --lb \
+            parallel --bar --joblog ${resume:++}$joblog --lb \
                 -P $threads -r $resume \
                 $script {} ::: ${dataset[@]:$marker:$increment}
             unset resume
@@ -598,4 +595,5 @@ else
     done; unset data
 fi
 
+rm -rf $cache
 clean
