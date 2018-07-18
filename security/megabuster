@@ -333,8 +333,8 @@ usage() {
     echo "had a baby!"
     echo
     echo "Options:"
-    echo "    -d, --directories    Only search for directories"
-    echo "    -f, --files          Only search for files"
+    # echo "    -d, --directories    Only search for directories"
+    # echo "    -f, --files          Only search for files"
     echo "    -h, --help           Display this help message"
     echo "    -l, --list=LIST      Use the specified wordlist"
     echo "                         (default: $list"
@@ -372,8 +372,8 @@ unset help resume simulate timeout tls wordlist
 cache="megabuster.resume"
 clr="true"
 dcache="$HOME/.cache/megabuster/dirbuster.list"
-directories="true"
-files="true"
+# directories="true"
+# files="true"
 joblog="$cache/joblog.txt"
 json="$cache/megabuster.json"
 parallel="true"
@@ -410,8 +410,8 @@ fi
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "-d"|"--directories") unset files ;;
-        "-f"|"--files") unset directories ;;
+        # "-d"|"--directories") unset files ;;
+        # "-f"|"--files") unset directories ;;
         "-h"|"--help") help="true" ;;
         "-l"|"--list"*)
             case "$1" in
@@ -451,10 +451,10 @@ done
 for dep in curl jq; do
     [[ -n $(command -v $dep) ]] || err 3 "$dep is not installed"
 done; unset dep
-if [[ -z $directories ]] && [[ -z $files ]]; then
-    err 4 "Not searching for files? Not searching for directories?"
-fi
-[[ -f $wordlist ]] || err 5 "Wordlist does not exist"
+[[ -f $wordlist ]] || err 4 "Wordlist does not exist"
+# if [[ -z $directories ]] && [[ -z $files ]]; then
+#     err 5 "Not searching for files? Not searching for directories?"
+# fi
 
 # Determine parallel situation
 if [[ -n $parallel ]] && [[ -z $(command -v parallel) ]]; then
@@ -529,18 +529,10 @@ echo -e "\\r[+] \$@\\e[0m\\e[K"; }
 echo -e "\\r[-] \$@\\e[0m\\e[K"; }
 
 if [[ "x$simulate" != "x" ]]; then
-    if [[ "x$files" != "x" ]]; then
-        let "rand = RANDOM % 50"
-        [[ \$rand -ne 7 ]] || info "\$1"
-    fi
-
-    if [[ "x$directories" != "x" ]]; then
-        let "rand = RANDOM % 50"
-        [[ \$rand -ne 7 ]] || info "\$1/"
-    fi
+    let "rand = RANDOM % 50"
+    [[ \$rand -ne 7 ]] || info "\$1"
 else
-    [[ "x$files" == "x" ]] || check "\$1"
-    [[ "x$directories" == "x" ]] || check "\$1/"
+    check "\$1"
 fi
 EOF
 chmod 700 $script
