@@ -318,9 +318,10 @@ logo() {
 }
 
 read_resume_file() {
-    host="$(cat $json | jq -cMrS ".host")"
-    rround="$(cat $json | jq -cMrS ".round")"
-    simulate="$(cat $json | jq -cMrS ".simulate")"
+    host="$(cat $json | jq -cMrS ".host" | sed "s/null//")"
+    rround="$(cat $json | jq -cMrS ".round" | sed "s/null//")"
+    simulate="$(cat $json | jq -cMrS ".simulate" | sed "s/null//")"
+    tls="$(cat $json | jq -cMrS ".tls" | sed "s/null//")"
 }
 
 usage() {
@@ -348,6 +349,7 @@ usage() {
     echo "                         if running in parallel $default"
     echo "    --timeout=SECS       Use specified timeout with curl"
     echo "                         (default: none)"
+    echo "    --tls                Use TLS connection (https)"
     echo
     exit $1
 }
@@ -359,13 +361,14 @@ write_resume_file() {
 {
   "host": "$host",
   "round": "${1:-0}",
-  "simulate": "$simulate"
+  "simulate": "$simulate",
+  "tls": "$tls"
 }
 EOF
 }
 
 declare -a args
-unset help resume simulate timeout wordlist
+unset help resume simulate timeout tls wordlist
 cache="megabuster.resume"
 clr="true"
 dcache="$HOME/.cache/megabuster/dirbuster.list"
@@ -435,6 +438,7 @@ while [[ $# -gt 0 ]]; do
             esac
             timeout="--connect-timeout $arg --max-time $arg"
             ;;
+        "--tls") tls="true" ;;
         *) args+=("$1") ;;
     esac
     shift
@@ -505,7 +509,7 @@ cat >$script <<EOF
 
 check() {
     data="\$(
-        curl $timeout -Iks "http://$host/\$1" | \\
+        curl $timeout -Iks "http${tls:+s}://$host/\$1" | \\
         awk '/^(HTTP\/1|Content-Length)/ {print \$2}'
     )"
     if [[ -n \$data ]] &&
