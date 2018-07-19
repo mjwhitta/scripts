@@ -2,13 +2,9 @@
 
 clean() { rm -f $script; exit 0; }
 
-err() {
-    [[ -z $clr ]] || echo -en "\e[31m"
-    echo -e "[!] ${@:2}\e[0m"
-    exit $1
-}
+err() { echo -e "${clr:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
 
-info() { [[ -z $clr ]] || echo -en "\e[37m"; echo -e "[=] $@\e[0m"; }
+info() { echo -e "${clr:+\e[37m}[=] $@\e[0m"; }
 
 logo() {
     [[ -n $clr ]] || return
@@ -317,6 +313,16 @@ logo() {
     echo
 }
 
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+    esac
+    echo "$arg"
+    return $shift
+}
+
 read_resume_file() {
     host="$(cat $json | jq -cMrS ".host" | sed "s/null//")"
     rround="$(cat $json | jq -cMrS ".round" | sed "s/null//")"
@@ -354,7 +360,7 @@ usage() {
     exit $1
 }
 
-warn() { [[ -z $clr ]] || echo -en "\e[33m"; echo -e "[-] $@\e[0m"; }
+warn() { echo -e "${clr:+\e[33m}[-] $@\e[0m"; }
 
 write_resume_file() {
     cat >$json <<EOF
@@ -413,29 +419,14 @@ while [[ $# -gt 0 ]]; do
         # "-d"|"--directories") unset files ;;
         # "-f"|"--files") unset directories ;;
         "-h"|"--help") help="true" ;;
-        "-l"|"--list"*)
-            case "$1" in
-                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-            esac
-            wordlist="$arg"
-            ;;
+        "-l"|"--list"*) wordlist="$(long_opt $@)" || shift ;;
         "--nocolor") unset clr ;;
         # "-p"|"--parallel") parallel="true" ;;
         "-r"|"--resume") resume="--resume" ;;
         "-s"|"--simulate") simulate="true" ;;
-        "-t"|"--threads"*)
-            case "$1" in
-                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-            esac
-            threads="$arg"
-            ;;
-        "--timeout"*)
-            case "$1" in
-                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-            esac
+        "-t"|"--threads"*) threads="$(long_opt $@)" || shift ;;
+        "--threads"*)
+            arg="$(long_opt $@)" || shift
             timeout="--connect-timeout $arg --max-time $arg"
             ;;
         "--tls") tls="true" ;;
@@ -522,14 +513,11 @@ check() {
     fi
 }
 
-# err() {$([[ -z $clr ]] || echo " echo -en \"\\e[31m\";") \
-echo -e "\\r[!] \$@\\e[0m\\e[K"; }
+# err() { echo -e "\r${clr:+\e[31m}[!] \${@:2}\e[0m\e[K"; exit \$1; }
 
-info() {$([[ -z $clr ]] || echo " echo -en \"\\e[32m\";") \
-echo -e "\\r[+] \$@\\e[0m\\e[K"; }
+info() { echo -e "\r${clr:+\e[32m}[+] \$@\e[0m\e[K"; }
 
-# warn() {$([[ -z $clr ]] || echo " echo -en \"\\e[33m\";") \
-echo -e "\\r[-] \$@\\e[0m\\e[K"; }
+# warn() { echo -e "\r${clr:+\e[33m}[-] \$@\e[0m\e[K"; }
 
 if [[ "x$simulate" != "x" ]]; then
     let "rand = RANDOM % 50"
