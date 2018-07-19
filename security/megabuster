@@ -389,8 +389,10 @@ threads="32"
 mkdir -p $(dirname $dcache)
 
 # Check cache first
+list="directory-list-2.3-medium.txt"
 if [[ -f $dcache ]]; then
     wordlist="$(cat $dcache)"
+    dirbuster="$(dirname $wordlist)"
 else
     # If not cached, find and cache
 
@@ -399,7 +401,6 @@ else
         find -O3 /usr -maxdepth 4 -name "dirbuster" -type d -print \
         -quit 2>/dev/null
     )"
-    list="directory-list-2.3-medium.txt"
 
     # If dirbuster was found, find the list
     if [[ -n $dirbuster ]]; then
@@ -472,7 +473,7 @@ if [[ -n $parallel ]]; then
         warn "Resume file found"
         while :; do
             # Prompt whether to overwrite or resume
-            read -n 1 -p "Would you like to resume [y/n/q]: " ans
+            read -n 1 -p "Would you like to resume [y/n/q]: " -s ans
             echo
 
             case "$ans" in
