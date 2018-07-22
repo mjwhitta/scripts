@@ -35,18 +35,21 @@ usage() {
     echo
     echo "Options:"
     echo "    -h, --help    Display this help message"
+    echo "    --nocolor     Disable colorized output"
     echo
     exit $1
 }
 
 declare -a args
 unset help
+clr="true"
 hosts="."
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
         "-h"|"--help") help="true" ;;
+        "--nocolor") unset clr ;;
         *) args+=("$1") ;;
     esac
     shift
@@ -57,42 +60,42 @@ done
 [[ $# -eq 0 ]] || hosts="$@"
 
 # Hosts with open ports
-unset found oldfile
+unset found oldhost
 while read -r line; do
     match="${line/*:/}"
-    newfile="$(dirname ${line/:*/})"
+    newhost="$(dirname ${line/:*/})"
     found="true"
 
-    if [[ $newfile != $oldfile ]]; then
-        [[ -z $oldfile ]] || echo
-        echo "# $newfile"
+    if [[ $newhost != $oldhost ]]; then
+        [[ -z $oldhost ]] || echo
+        echo -e "${clr:+\e[37m}# ${newhost/.\//}\e[0m"
     fi
     echo "$match"
 
-    oldfile="$newfile"
+    oldhost="$newhost"
 done < <(
     LC_ALL=C find $hosts -type f -name "*.nmap" -exec \
-    grep -EHIis "[0-9]+\/.*open.*" {} +
-) #| sed -r "s/# \.\//# /" # Piping to sed breaks output
+    grep -EHIis "[0-9]+\/.*open.*" {} + | sort
+)
 
 [[ -z $found ]] || echo
 
 # Host with no open ports
-unset oldfile
+unset oldhost
 while read -r line; do
-    newfile="$(dirname ${line/:*/})"
+    newhost="$(dirname ${line/:*/})"
 
-    if [[ $newfile != $oldfile ]]; then
-        [[ -z $oldfile ]] || echo
-        echo "# $newfile"
+    if [[ $newhost != $oldhost ]]; then
+        [[ -z $oldhost ]] || echo
+        echo -e "${clr:+\e[37m}# ${newhost/.\//}\e[0m"
         echo "No open ports"
         echo
     fi
 
-    oldfile="$newfile"
+    oldhost="$newhost"
 done < <(
     LC_ALL=C find $hosts -type f -name "*.nmap" -exec \
-    grep -EHIiLs "[0-9]+\/.*open.*" {} +
-) #| sed -r "s/# \.\//# /" # Piping to sed breaks output
+    grep -EHIiLs "[0-9]+\/.*open.*" {} + | sort
+)
 
 echo -en "\e[1A\e[K"
