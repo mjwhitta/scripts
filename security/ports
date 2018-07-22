@@ -75,7 +75,7 @@ while read -r line; do
     oldhost="$newhost"
 done < <(
     LC_ALL=C find $hosts -type f -name "*.nmap" -exec \
-    grep -EHIis "[0-9]+\/.*open.*" {} + | sort
+    grep -EHIis "[0-9]+\/.*open.*" {} + | sort -k 1,1 -k 2,2n -t ":"
 )
 
 [[ -z $found ]] || echo
@@ -95,7 +95,7 @@ while read -r line; do
     oldhost="$newhost"
 done < <(
     LC_ALL=C find $hosts -type f -name "*.nmap" -exec \
-    grep -EHIiLs "[0-9]+\/.*open.*" {} + | sort
+    grep -EHIiLs "[0-9]+\/.*open.*" {} + | sort -k 1,1 -k 2,2n -t ":"
 )
 
 echo -en "\e[1A\e[K"
