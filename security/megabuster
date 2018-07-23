@@ -51,9 +51,11 @@ cache_default_lists() {
 
 clean() { rm -f $script; exit 0; }
 
-err() { echo -e "${clr:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
+err() { echo -e "${clr:+\e[31m}[!] $@\e[0m"; }
 
-info() { echo -e "${clr:+\e[37m}[=] $@\e[0m"; }
+errx() { echo -e "${clr:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
+
+info() { echo -e "${clr:+\e[37m}[*] $@\e[0m"; }
 
 logo() {
     [[ -n $clr ]] || return
@@ -567,7 +569,7 @@ usage() {
     echo "    -h, --help           Display this help message"
     echo "    -l, --list=LIST      Use the specified wordlist (can be"
     echo "                         used more than once)"
-    echo "    --nocolor            Don't colorize output"
+    echo "    --nocolor            Disable colorized output"
     echo "    -r, --resume         Resume from a previous run"
     echo "    -s, --simulate       Temporary for testing, simulate"
     echo "                         output but do nothing"
@@ -723,7 +725,9 @@ check() {
     fi
 }
 
-# err() { echo -e "\r${clr:+\e[31m}[!] \${@:2}\e[0m\e[K"; exit \$1; }
+# err() { echo -e "\r${clr:+\e[31m}[!] \$@\e[0m\e[K"; }
+
+# errx() { echo -e "\r${clr:+\e[31m}[!] \${@:2}\e[0m\e[K"; exit \$1; }
 
 info() { echo -e "\r${clr:+\e[32m}[+] \$@\e[0m\e[K"; }
 
@@ -746,8 +750,9 @@ declare -a dataset=($(
 ))
 let "total = ${#dataset[@]}"
 
-[[ $total -ne 0 ]] || err 7 "No dataset provided"
+[[ $total -ne 0 ]] || errx 7 "No dataset provided"
 
+info "$total jobs to run"
 if [[ -n $parallel ]]; then
     # Math
     left="$total"
@@ -762,7 +767,6 @@ if [[ -n $parallel ]]; then
     [[ $remainder -eq 0 ]] || let "rounds += 1"
 
     # Loop thru rounds
-    info "$total jobs to run"
     [[ $rounds -eq 1 ]] || info "Splitting into $rounds rounds"
     while [[ $left -gt 0 ]]; do
         let "round += 1"
@@ -789,7 +793,8 @@ if [[ -n $parallel ]]; then
 else
     let "count = 1"
     for data in "${dataset[@]}"; do
-        echo -en "\r[$count/$total]\e[K" >&2
+        echo -e "\r\e[K"
+        echo -en "${clr:+\e[37m}[$count/$total]\e[0m\e[K\e[1A" >&2
         $script "$data"
         let "count += 1"
     done; unset data
