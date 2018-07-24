@@ -49,16 +49,16 @@ cache_default_lists() {
     touch $dcache
 }
 
-clean() { rm -f $script; exit 0; }
+clean() { [[ -z $script ]] || rm -f $script; rm -rf $cache; exit $1; }
 
-err() { echo -e "${clr:+\e[31m}[!] $@\e[0m"; }
+err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
 
-errx() { echo -e "${clr:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
+errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; clean $1; }
 
-info() { echo -e "${clr:+\e[37m}[*] $@\e[0m"; }
+info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
 
 logo() {
-    [[ -n $clr ]] || return
+    [[ -n $color ]] || return
     [[ -n $(command -v tput) ]] || return
     [[ $(tput cols) -ge 81 ]] || return
     echo
@@ -583,7 +583,7 @@ usage() {
     exit $1
 }
 
-warn() { echo -e "${clr:+\e[33m}[-] $@\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
 
 write_resume_file() {
     cat >$json <<EOF
@@ -599,7 +599,7 @@ EOF
 declare -a args
 unset append dlists help recache resume simulate timeout tls wordlists
 cache="megabuster.resume"
-clr="true"
+color="true"
 dcache="$HOME/.cache/megabuster/default_list.locations"
 joblog="$cache/joblog.txt"
 json="$cache/megabuster.json"
@@ -614,11 +614,11 @@ while [[ $# -gt 0 ]]; do
         "-c"|"--cache") recache="true" ;;
         "-h"|"--help") help="true" ;;
         "-l"|"--list"*) wordlists+=($(long_opt $@)) || shift ;;
-        "--nocolor") unset clr ;;
+        "--nocolor") unset color ;;
         "-r"|"--resume") resume="--resume" ;;
         "-s"|"--simulate") simulate="true" ;;
         "-t"|"--threads"*) threads="$(long_opt $@)" || shift ;;
-        "--threads"*)
+        "--timeout"*)
             arg="$(long_opt $@)" || shift
             timeout="--connect-timeout $arg --max-time $arg"
             ;;
@@ -633,7 +633,7 @@ done
 [[ -z $help ]] || usage 0
 [[ $# -eq 1 ]] || [[ -n $recache$resume$simulate ]] || usage 2
 for dep in curl jq; do
-    [[ -n $(command -v $dep) ]] || err 3 "$dep is not installed"
+    [[ -n $(command -v $dep) ]] || errx 3 "$dep is not installed"
 done; unset dep
 
 # If defaults lists are not cached, find and cache
@@ -660,7 +660,7 @@ done; unset wordlist
 
 # Determine parallel situation
 if [[ -n $parallel ]] && [[ -z $(command -v parallel) ]]; then
-    warn "Parallel is not installed, using slow uncached behavior"
+    warn "Parallel is not installed, defaulting to single-threaded"
     unset parallel
 fi
 
@@ -725,13 +725,13 @@ check() {
     fi
 }
 
-# err() { echo -e "\r${clr:+\e[31m}[!] \$@\e[0m\e[K"; }
+err() { echo -e "\r${color:+\e[31m}[!] \$@\e[0m\e[K"; }
 
-# errx() { echo -e "\r${clr:+\e[31m}[!] \${@:2}\e[0m\e[K"; exit \$1; }
+errx() { echo -e "\r${color:+\e[31m}[!] \${@:2}\e[0m\e[K"; exit \$1; }
 
-info() { echo -e "\r${clr:+\e[32m}[+] \$@\e[0m\e[K"; }
+info() { echo -e "\r${color:+\e[32m}[+] \$@\e[0m\e[K"; }
 
-# warn() { echo -e "\r${clr:+\e[33m}[-] \$@\e[0m\e[K"; }
+warn() { echo -e "\r${color:+\e[33m}[-] \$@\e[0m\e[K"; }
 
 if [[ "x$simulate" != "x" ]]; then
     let "rand = RANDOM % 50"
@@ -793,12 +793,11 @@ if [[ -n $parallel ]]; then
 else
     let "count = 1"
     for data in "${dataset[@]}"; do
-        echo -e "\r\e[K"
-        echo -en "${clr:+\e[37m}[$count/$total]\e[0m\e[K\e[1A" >&2
+        echo -e "\r\e[K" >&2
+        echo -en "${color:+\e[37m}[$count/$total]\e[0m\e[K\e[1A" >&2
         $script "$data"
         let "count += 1"
     done; unset data
 fi
 
-rm -rf $cache
 clean

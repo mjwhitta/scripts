@@ -28,6 +28,10 @@
 # SOFTWARE.
 # --------------------------------------------------------------------
 
+err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
+
+errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
+
 get_choices() {
     while read h; do
         echo "$h" | grep -Eqv "^ *$|^ *#" || continue
@@ -57,6 +61,18 @@ host_menu() {
     [[ -n $host ]] || host_menu
 }
 
+info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+    esac
+    echo "$arg"
+    return $shift
+}
+
 start_shell() {
     sh="$(which_shell)"
     $sh
@@ -71,9 +87,12 @@ usage() {
     echo "    -c, --config=CONFIG    Use the specified config file"
     echo "    -h, --help             Display this help message"
     echo "    -l, --loop             Prompt for new host after exit"
+    echo "    --nocolor              Disable colorized output"
     echo
     exit $1
 }
+
+warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
 
 which_shell() {
     sh="$(awk -F ":" "/$(whoami)/ {print \$NF}" /etc/passwd)"
@@ -91,20 +110,16 @@ which_shell() {
 }
 
 declare -a args
+unset help loop
+color="true"
 hosts_file="$HOME/.config/chost/config"
-unset loop
 
+# Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "-c"|"--config"*)
-            case "$1" in
-                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-            esac
-            hosts_file="$arg"
-            ;;
-        "-h"|"--help") usage 0 ;;
+        "-c"|"--config"*) hosts_file="$(long_opt $@)" || shift ;;
+        "-h"|"--help") help="true" ;;
         "-l"|"--loop") loop="true" ;;
         *) args+=("$1") ;;
     esac
@@ -112,6 +127,7 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -z ${args[@]} ]] || set -- "${args[@]}"
 
+[[ -z $help ]] || usage 0
 [[ $# -eq 0 ]] || usage 2
 
 # Ruby
@@ -121,23 +137,29 @@ export GEM_PATH="$GEM_HOME/gems"
 # Go
 export GOPATH="$HOME/.go"
 
+# Perl
+export PERL_LOCAL_LIB_ROOT="$HOME/.cpan/perl5"
+
 # PATH
 # Find dirs that should be in PATH
 unset PTH
 for dir in \
     $HOME/bin \
-    $HOME/.local/bin \
     $GEM_HOME/bin \
+    $HOME/.local/bin \
     $GOPATH \
     $GOPATH/bin \
+    $PERL_LOCAL_LIB_ROOT/bin \
     /usr/local/bin \
     /usr/local/sbin \
     /usr/bin \
     /usr/sbin \
     /bin \
     /sbin \
+    /usr/bin/core_perl \
     $HOME/Android/Sdk/platform-tools \
     $HOME/Android/Sdk/tools \
+    $HOME/Android/Sdk/tools/bin \
     $HOME/Android/Ndk \
     $HOME/.rvm/bin \
 ; do
@@ -153,23 +175,24 @@ done
 [[ -z $PTH ]] || export PATH="${PTH/:/}"
 unset dir PTH
 
+if [[ -z $(command -v dialog) ]]; then
+    err "dialog is not installed"
+    if [[ -n $(command -v apt-get) ]]; then
+        errx 3 "Please run \"sudo apt-get install dialog\""
+    elif [[ -n $(command -v brew) ]]; then
+        errx 3 "Please run \"brew install dialog\""
+    elif [[ -n $(command -v dnf) ]]; then
+        errx 3 "Please run \"sudo dnf install dialog\""
+    elif [[ -n $(command -v pacman) ]]; then
+        errx 3 "Please run \"sudo pacman -S dialog\""
+    elif [[ -n $(command -v yum) ]]; then
+        errx 3 "Please run \"sudo yum install dialog\""
+    fi
+fi
+
 # SSH agent
 if [[ -n $(command -v ssh-agent) ]]; then
     [[ -f $HOME/.ssh/agent/env ]] && . $HOME/.ssh/agent/env >/dev/null
-fi
-
-if [[ -z $(command -v dialog) ]]; then
-    echo "dialog is not installed"
-    if [[ -n $(command -v apt-get) ]]; then
-        echo "Please run \"sudo apt-get install dialog\""
-    elif [[ -n $(command -v pacman) ]]; then
-        echo "Please run \"sudo pacman -S dialog\""
-    elif [[ -n $(command -v yum) ]]; then
-        echo "Please run \"sudo yum install dialog\""
-    elif [[ -n $(command -v brew) ]]; then
-        echo "Please run \"brew install dialog\""
-    fi
-    exit 3
 fi
 
 mkdir -p $(dirname $hosts_file)

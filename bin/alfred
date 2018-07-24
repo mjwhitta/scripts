@@ -28,6 +28,22 @@
 # SOFTWARE.
 # --------------------------------------------------------------------
 
+err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
+
+errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
+
+info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+    esac
+    echo "$arg"
+    return $shift
+}
+
 usage() {
     echo "Usage: ${0/*\//} [OPTIONS]"
     echo
@@ -35,18 +51,25 @@ usage() {
     echo
     echo "Options:"
     echo "    -h, --help    Display this help message"
+    echo "    --nocolor     Disable colorized output"
     echo "    -s, --ssh     Start SSH tab"
     echo
     exit $1
 }
 
+warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
+
 declare -a args
+unset help
+color="true"
 tab="run"
 
+# Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "-h"|"--help") usage 0 ;;
+        "-h"|"--help") help="true" ;;
+        "--nocolor") unset color ;;
         "-s"|"--ssh") tab="ssh" ;;
         *) args+=("$1") ;;
     esac
@@ -54,7 +77,8 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -z ${args[@]} ]] || set -- "${args[@]}"
 
-[[ $# -eq 0 ]] || usage 2
+[[ -z $help ]] || usage 0
+[[ $# -eq 0 ]] || usage 1
 
 # Ruby
 export GEM_HOME="$HOME/.gem/ruby"
@@ -63,23 +87,29 @@ export GEM_PATH="$GEM_HOME/gems"
 # Go
 export GOPATH="$HOME/.go"
 
+# Perl
+export PERL_LOCAL_LIB_ROOT="$HOME/.cpan/perl5"
+
 # PATH
 # Find dirs that should be in PATH
 unset PTH
 for dir in \
     $HOME/bin \
-    $HOME/.local/bin \
     $GEM_HOME/bin \
+    $HOME/.local/bin \
     $GOPATH \
     $GOPATH/bin \
+    $PERL_LOCAL_LIB_ROOT/bin \
     /usr/local/bin \
     /usr/local/sbin \
     /usr/bin \
     /usr/sbin \
     /bin \
     /sbin \
+    /usr/bin/core_perl \
     $HOME/Android/Sdk/platform-tools \
     $HOME/Android/Sdk/tools \
+    $HOME/Android/Sdk/tools/bin \
     $HOME/Android/Ndk \
     $HOME/.rvm/bin \
 ; do
@@ -95,11 +125,11 @@ done; unset dir
 [[ -z $PTH ]] || export PATH="${PTH/:/}"
 unset PTH
 
+[[ -z $(command -v rofi) ]] && errx 2 "Please install rofi"
+
 # SSH agent
 if [[ -n $(command -v ssh-agent) ]]; then
     [[ -f $HOME/.ssh/agent/env ]] && . $HOME/.ssh/agent/env >/dev/null
 fi
-
-[[ -z $(command -v rofi) ]] && echo "Please install rofi" && exit 1
 
 rofi -show $tab
