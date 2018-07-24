@@ -34,7 +34,7 @@ err() { echo -e "${clr:+\e[31m}[!] $@\e[0m"; }
 
 errx() { echo -e "${clr:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
 
-info() { echo -e "${clr:+\e[37m}[=] $@\e[0m"; }
+info() { echo -e "${clr:+\e[37m}[*] $@\e[0m"; }
 
 long_opt() {
     local arg shift="0"
@@ -47,7 +47,7 @@ long_opt() {
 }
 
 usage() {
-    echo "Usage: ${0/*\//} [OPTIONS] <dir>"
+    echo "Usage: ${0/*\//} [OPTIONS] <dir1>... [dirN]"
     echo
     echo "Update git repos under specified directory"
     echo
@@ -69,6 +69,7 @@ clr="true"
 parallel="true"
 threads="32"
 
+# Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
@@ -89,7 +90,7 @@ done
 
 # Determine parallel situation
 if [[ -n $parallel ]] && [[ -z $(command -v parallel) ]]; then
-    warn "Parallel is not installed, using default behavior"
+    warn "Parallel is not installed, falling back to single-threaded"
     unset parallel
 fi
 
@@ -151,7 +152,7 @@ chmod 700 $script
 info "Processing dataset for jobs"
 
 declare -a dataset=($(
-    find -L $1 -ipath "*archived*" -prune -o -type d \
+    find -L $@ -ipath "*archived*" -prune -o -type d \
     -name ".git" -exec dirname {} + 2>/dev/null
 ))
 let "total = ${#dataset[@]}"
