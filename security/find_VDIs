@@ -1,54 +1,23 @@
 #!/usr/bin/env bash
 
-check_vmware_viewer() {
-    local log="$(
-        timeout $timeout vmware-view -q -s $1 2>&1 | \
-        awk '{print $NF}'
-    )"
-    if [[ -n $debug ]]; then
-        mkdir -p logs
-        sed -r "s/[^|]+\| //" $log >logs/$1.log
-    fi
-    case "$(connection_status $log)" in
-        "fail") ;;
-        "hung"|"success") name_lookup "$1" ;;
-        *) warn "Unknown - Look at logs for $1" >&2 ;;
+clean() { [[ -z $script ]] || rm -f $script; exit $1; }
+
+err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
+
+errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; clean $1; }
+
+good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
+
+info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
     esac
-}
-
-check_web() {
-    local found="$(
-        curl --connect-timeout $timeout -kL --max-time $timeout -s \
-        "https://$1/$index" | grep -i -m 1 "vmware horizon"
-    )"
-    [[ -z $found ]] || name_lookup "$1"
-}
-
-connection_status() {
-    if [[ -n $(grep -o "FAIL" $1) ]]; then
-        echo "fail"
-        return
-    fi
-    if [[ -z $(grep -o "response" $1) ]]; then
-        echo "hung"
-        return
-    fi
-    if [[ -n $(grep -o "ParseResult" $1) ]]; then
-        echo "success"
-        return
-    fi
-    echo "unknown"
-}
-
-err() { echo -e "\e[31m[!] $@\e[0m"; }
-
-info() { echo -e "\e[32m[+] $@\e[0m"; }
-
-name_lookup() {
-    local -a names=($(nslookup $1 | awk '/name/ {print $NF}'))
-    for name in "${names[@]}"; do
-        echo "${name%.}    $1"
-    done; unset name
+    echo "$arg"
+    return $shift
 }
 
 usage() {
@@ -59,11 +28,11 @@ usage() {
     echo "Options:"
     echo "    -d, --debug           Keep log files for debugging"
     echo "    -h, --help            Display this help message"
+    echo "    --nocolor             Disable colorized output"
     echo "    -o, --output=FILE     Write output to a file"
-    echo "    -p, --parallel        Run using parallel (if installed)"
-    echo "    --threads=NUM         Use the specied number of threads"
-    echo "                          if running in parallel (default:"
-    echo "                          $threads)"
+    local default="(default: $threads)"
+    echo "        --threads=NUM     Use the specied number of threads"
+    echo "                          if running in parallel $default"
     echo "    -t, --timeout=SECS    Timeout (default: $timeout)"
     echo "    -w, --web             Scrape web instead of trying to"
     echo "                          connect"
@@ -71,41 +40,26 @@ usage() {
     exit $1
 }
 
-warn() { echo -e "\e[33m[-] $@\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
 
 declare -a args
-unset debug output parallel web
+unset debug help output web
+color="true"
 index="portal/webclient/index.html"
+parallel="true"
 threads="32"
 timeout="2"
 
+# Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
         "-d"|"--debug") debug="true" ;;
-        "-h"|"--help") usage 0 ;;
-        "-o"|"--output"*)
-            case "$1" in
-                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-            esac
-            output="$arg"
-            ;;
-        "-p"|"--parallel") parallel="true" ;;
-        "--threads"*)
-            case "$1" in
-                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-            esac
-            threads="$arg"
-            ;;
-        "-t"|"--timeout"*)
-            case "$1" in
-                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-            esac
-            timeout="$arg"
-            ;;
+        "-h"|"--help") help="true" ;;
+        "--nocolor") unset color ;;
+        "-o"|"--output"*) output="$(long_opt $@)" || shift ;;
+        "--threads"*) threads="$(long_opt $@)" || shift ;;
+        "-t"|"--timeout"*) timeout="$(long_opt $@)" || shift ;;
         "-w"|"--web") web="true" ;;
         *) args+=("$1") ;;
     esac
@@ -113,37 +67,138 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -z ${args[@]} ]] || set -- "${args[@]}"
 
+# Check for valid params and missing dependencies
+[[ -z $help ]] || usage 0
 [[ $# -gt 0 ]] || usage 2
+for dep in curl nslookup vmware-view; do
+    [[ -n $(command -v $dep) ]] || errx 3 "$dep is not installed"
+done; unset dep
 
-if [[ -n $parallel ]]; then
-    if [[ -z $(command -v parallel) ]] ||
-       [[ -z $(command -v env_parallel.bash) ]]
-    then
-        warn "Parallel is not installed, using default behavior"
-        unset parallel
-    fi
+# Determine parallel situation
+if [[ -n $parallel ]] && [[ -z $(command -v parallel) ]]; then
+    warn "Parallel is not installed, defaulting to single-threaded"
+    unset parallel
 fi
 
-declare -a ips=($(cat $@ 2>/dev/null))
-let "total = ${#ips[@]}"
+# Cite if needed
+if [[ -n $parallel ]] && [[ ! -f $HOME/.parallel/will-cite ]]; then
+    mkdir -p $HOME/.parallel
+    parallel --citation
+fi
 
-if [[ -n $parallel ]]; then
-    source $(command -v env_parallel.bash)
-    info "$total jobs to run"
-    if [[ -z $web ]]; then
-        env_parallel -P $threads check_vmware_viewer {} ::: ${ips[@]}
+# Script used by parallel
+script="/tmp/${0/*\//}.parallel"
+trap clean SIGINT
+
+cat >$script <<EOF
+#!/usr/bin/env bash
+
+check_vmware_viewer() {
+    local log="\$(
+        timeout $timeout vmware-view -q -s \$1 2>&1 | \
+        awk '{print \$NF}'
+    )"
+    if [[ "x$debug" != "x" ]]; then
+        mkdir -p logs
+        sed -r "s/[^|]+\| //" \$log >logs/\$1.log
+    fi
+    case "\$(connection_status \$log)" in
+        "fail") ;;
+        "hung"|"success") name_lookup "\$1" ;;
+        *) warn "Unknown - Look at logs for \$1" >&2 ;;
+    esac
+}
+
+check_web() {
+    local found="\$(
+        curl --connect-timeout $timeout -kL --max-time $timeout -s \
+        "https://\$1/$index" | grep -i -m 1 "vmware horizon"
+    )"
+    [[ -z \$found ]] || name_lookup "\$1"
+}
+
+connection_status() {
+    if [[ -n \$(grep -o "FAIL" \$1) ]]; then
+        echo "fail"
+    elif [[ -z \$(grep -o "response" \$1) ]]; then
+        echo "hung"
+    elif [[ -n \$(grep -o "ParseResult" \$1) ]]; then
+        echo "success"
     else
-        env_parallel -P $threads check_web {} ::: ${ips[@]}
-    fi | tee -a $output
+        echo "unknown"
+    fi
+}
+
+err() { echo -e "\r${color:+\e[31m}[!] \$@\e[0m\e[K"; }
+
+errx() { echo -e "\r${color:+\e[31m}[!] \${@:2}\e[0m\e[K"; exit \$1; }
+
+good() { echo -e "\r${color:+\e[32m}[+] \$@\e[0m\e[K"; }
+
+info() { echo -e "\r${color:+\e[37m}[*] \$@\e[0m\e[K"; }
+
+name_lookup() {
+    local -a names=(\$(nslookup \$1 | awk '/name/ {print \$NF}'))
+    for name in "\${names[@]}"; do
+        good "\${name%.}    \$1"
+    done; unset name
+}
+
+warn() { echo -e "\r${color:+\e[33m}[-] \$@\e[0m\e[K"; }
+
+if [[ "x$web" != "x" ]]; then
+    check_web \$1
+else
+    check_vmware_viewer \$1
+fi
+EOF
+chmod 700 $script
+
+info "Processing dataset for jobs"
+
+declare -a dataset=($(cat $@ 2>/dev/null))
+let "total = ${#dataset[@]}"
+
+[[ $total -ne 0 ]] || errx 4 "No dataset provided"
+
+info "$total jobs to run"
+if [[ -n $parallel ]]; then
+    # Math
+    left="$total"
+    marker="0"
+    maxdata="$(
+        parallel -r --show-limit </dev/null | \
+        awk '/Maximal used/ {print $NF; exit}'
+    )"
+    let "remainder = total % maxdata"
+    round="0"
+    let "rounds = total / maxdata"
+    [[ $remainder -eq 0 ]] || let "rounds += 1"
+
+    # Loop thru rounds
+    [[ $rounds -eq 1 ]] || info "Splitting into $rounds rounds"
+    while [[ $left -gt 0 ]]; do
+        let "round += 1"
+        [[ $rounds -eq 1 ]] || warn "Round $round"
+
+        increment="$left"
+        [[ $left -le $maxdata ]] || increment="$maxdata"
+
+        parallel --bar --lb -P $threads -r $script {} ::: \
+            ${dataset[@]:$marker:$increment} | tee -a $output
+
+        let "left -= increment"
+        let "marker += increment"
+        echo -en "\e[1A\e[K"
+    done
 else
     let "count = 1"
-    for ip in "${ips[@]}"; do
-        echo -en "[$count/$total]                              \r" >&2
-        if [[ -z $web ]]; then
-            check_vmware_viewer "$ip"
-        else
-            check_web "$ip"
-        fi
+    for data in "${dataset[@]}"; do
+        echo -e "\r\e[K" >&2
+        echo -en "${color:+\e[37m}[$count/$total]\e[0m\e[K\e[1A" >&2
+        $script "$data"
         let "count += 1"
-    done | tee -a $output; unset ip
+    done | tee -a $output; unset data
 fi
+
+clean

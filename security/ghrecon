@@ -28,6 +28,24 @@
 # SOFTWARE.
 # --------------------------------------------------------------------
 
+err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
+
+errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
+
+good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
+
+info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+    esac
+    echo "$arg"
+    return $shift
+}
+
 usage() {
     echo "Usage: ${0/*\//} [OPTIONS] github_url"
     echo
@@ -40,48 +58,43 @@ usage() {
     echo "Options:"
     echo "    -a, --access=TOKEN    Use the specified access token"
     echo "    -h, --help            Display this help message"
+    echo "    --nocolor             Disable colorized output"
     echo "    -o, --output=FILE     Output to specified file"
     echo "    -s, --socks=SOCKS     Use the specified socks5 proxy"
     echo
     exit $1
 }
 
-declare -a args
-output="/dev/null"
-unset socks token
+warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
 
+declare -a args
+unset help socks token
+color="true"
+output="/dev/null"
+
+# Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "-a"|"--access"*)
-            case "$1" in
-                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-            esac
+        "-a"|"--access"*) arg="$(long_opt $@)" || shift
             token="?access_token=$arg"
             ;;
-        "-h"|"--help") usage 0 ;;
-        "-o"|"--output"*)
-            case "$1" in
-                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-            esac
-            output="$arg"
-            ;;
-        "-s"|"--socks"*)
-            case "$1" in
-                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-            esac
-            socks="--socks5 $arg"
-            ;;
+        "-h"|"--help") help="true" ;;
+        "--nocolor") unset color ;;
+        "-o"|"--output"*) output="$(long_opt $@)" || shift ;;
+        "-s"|"--socks"*) socks="--socks5 $(long_opt $@)" || shift ;;
         *) args+=("$1") ;;
     esac
     shift
 done
 [[ -z ${args[@]} ]] || set -- "${args[@]}"
 
+# Check for valid params and missing dependencies
+[[ -z $help ]] || usage 0
 [[ $# -le 1 ]] || usage 2
+for dep in curl; do
+    [[ -n $(command -v $dep) ]] || errx 3 "$dep is not installed"
+done; unset dep
 
 github="https://github.com/api/v3"
 [[ $# -eq 0 ]] || github="$1/api/v3"

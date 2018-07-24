@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# A script for quickly formatting removable devices (SDCard, USB).
+# A script to prevent runaway processes.
 # by Miles Whittaker <mjwhitta@gmail.com>
 #
 # --------------------------------------------------------------------
@@ -47,17 +47,18 @@ long_opt() {
 }
 
 usage() {
-    echo "Usage: ${0/*\//} [OPTIONS] <dev>"
+    echo "Usage: ${0/*\//} [OPTIONS]"
     echo
-    echo "This script creates a new partition table with a single,"
-    echo "bootable partition."
+    echo "Prevent processes from rapidly spawning (sometimes happens"
+    echo "with xdg-open)"
     echo
     echo "Options:"
-    echo "    --ext4               Format as ext4 (default)"
-    echo "    --fat32              Format as FAT32"
-    echo "    -h, --help           Display this help message"
-    echo "    -l, --label=LABEL    Set the ext4 partition label"
-    echo "    --nocolor            Disable colorized output"
+    echo "    -c, --count        Show count of each running command"
+    echo "    -h, --help         Display this help message"
+    echo "    -m, --max=MAX      Set maximum allowed process count"
+    echo "                       (default: $max)"
+    echo "    --nocolor          Disable colorized output"
+    echo "    -p, --proc=PROC    Only check processes matching PROC"
     echo
     exit $1
 }
@@ -65,18 +66,19 @@ usage() {
 warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
 
 declare -a args
-unset help lbl yes
+unset help proc show_count
 color="true"
-format="ext4"
+max="64"
 
+# Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "--ext4") format="ext4" ;;
-        "--fat32") format="fat32" ;;
+        "-c"|"--count") show_count="true" ;;
         "-h"|"--help") help="true" ;;
-        "-l"|"--label"*) label="-L $(long_opt $@)" || shift ;;
+        "-m"|"--max"*) max="$(long_opt $@)" || shift ;;
         "--nocolor") unset color ;;
+        "-p"|"--proc"*) proc="$(long_opt $@)" || shift ;;
         *) args+=("$1") ;;
     esac
     shift
@@ -85,50 +87,24 @@ done
 
 # Check for valid params and missing dependencies
 [[ -z $help ]] || usage 0
-[[ $# -eq 1 ]] || usage 2
+[[ $# -eq 0 ]] || usage 2
 
-while read dev; do
-    sudo wipefs --all --force $dev
-    err="$?"
-    [[ $err -eq 0 ]] || exit $err
-done < <(lsblk --list --paths $1 | awk '!/NAME/ {print $1}' | sort -r)
-
-dev="$1"
-
-case "$format" in
-    "ext4")
-        sed -e "s/\s*\([\+0-9a-zA-Z]*\).*/\1/" <<EOF | sudo fdisk $dev
-            o  # clear the in memory partition table
-            n  # new partition
-            p  # primary partition
-            1  # partition number 1
-               # default - start at beginning of disk
-               # default - extend partition to end of disk
-            a  # make a partition bootable
-            p  # print the in-memory partition table
-            w  # write the partition table and exit
-EOF
-        ;;
-    "fat32")
-        sed -e "s/\s*\([\+0-9a-zA-Z]*\).*/\1/" <<EOF | sudo fdisk $dev
-            o  # clear the in memory partition table
-            n  # new partition
-            p  # primary partition
-            1  # partition number 1
-               # default - start at beginning of disk
-               # default - extend partition to end of disk
-            a  # make a partition bootable
-            t  # change partition type
-            c  # to FAT32
-            p  # print the in-memory partition table
-            w  # write the partition table and exit
-EOF
-        ;;
-esac
-err="$?"
-[[ $err -eq 0 ]] || exit $err
-
-case "$format" in
-    "ext4") sudo mkfs.ext4 -F -O "^64bit" $lbl ${dev}1 ;;
-    "fat32") sudo mkfs.vfat -F 32 ${dev}1 ;;
-esac
+while read c p; do
+    if [[ -n $show_count ]]; then
+        if [[ -n $proc ]]; then
+            case "$p" in
+                *"$proc"*) ;;
+                *) continue ;;
+            esac
+        fi
+        if [[ $c -ge $max ]]; then
+            warn "$c $p"
+        else
+            good "$c $p"
+        fi
+    elif [[ -n $proc ]]; then
+        [[ "$p" == "$proc" ]] && [[ $c -ge $max ]] && killall $p
+    else
+        [[ $c -ge $max ]] && killall $p
+    fi
+done < <(ps -e -o comm | tail -n +2 | sort | uniq -c | sort -n -r)

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# A script to prevent runaway processes.
+# A script to copy files to a remote host via bash commands.
 # by Miles Whittaker <mjwhitta@gmail.com>
 #
 # --------------------------------------------------------------------
@@ -28,65 +28,72 @@
 # SOFTWARE.
 # --------------------------------------------------------------------
 
+err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
+
+errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
+
+good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
+
+info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+    esac
+    echo "$arg"
+    return $shift
+}
+
 usage() {
-    echo "Usage: ${0/*\//} [OPTIONS]"
+    echo "Usage: ${0/*\//} [OPTIONS] <file>"
     echo
-    echo "Prevent processes from rapidly spawning (sometimes happens"
-    echo "with xdg-open)"
+    echo "Generate bash commands to recreate a file on a remote host"
     echo
     echo "Options:"
-    echo "    -c, --count        Show count of each running command"
-    echo "    -h, --help         Display this help message"
-    echo "    -m, --max=MAX      Set maximum allowed process count"
-    echo "                       (default: $max)"
-    echo "    -p, --proc=PROC    Only check processes matching PROC"
+    echo "    -h, --help    Display this help message"
+    echo "    --nocolor     Disable colorized output"
     echo
     exit $1
 }
 
-declare -a args
-unset proc show_count
-max="64"
+warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
 
+declare -a args
+unset help
+color="true"
+
+# Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "-c"|"--count") show_count="true" ;;
-        "-h"|"--help") usage 0 ;;
-        "-m"|"--max"*)
-            case "$1" in
-                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-            esac
-            max="$1"
-            ;;
-        "-p"|"--proc"*)
-            case "$1" in
-                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-            esac
-            proc="$arg"
-            ;;
+        "-h"|"--help") help="true" ;;
+        "--nocolor") unset color ;;
         *) args+=("$1") ;;
     esac
     shift
 done
 [[ -z ${args[@]} ]] || set -- "${args[@]}"
 
-[[ $# -eq 0 ]] || usage 1
+# Check for valid params and missing dependencies
+[[ -z $help ]] || usage 0
+[[ $# -eq 1 ]] || usage 1
+[[ -f $1 ]] || usage 2
+[[ -n $(command -v xclip) ]] || [[ -n $(command -v xsel) ]] || usage 3
 
-while read c p; do
-    if [[ -n $show_count ]]; then
-        if [[ -n $proc ]]; then
-            case "$p" in
-                *"$proc"*) echo "$c $p" ;;
-            esac
-        else
-            echo "$c $p"
-        fi
-    elif [[ -n $proc ]]; then
-        [[ "$p" == "$proc" ]] && [[ $c -ge $max ]] && killall $p
-    else
-        [[ $c -ge $max ]] && killall $p
-    fi
-done < <(ps -e -o comm | tail -n +2 | sort | uniq -c | sort -n -r)
+file="$1"
+filename="$(basename $file)"
+buffer="/tmp/paste_copy.buffer"
+
+echo "echo -n >$filename" >$buffer
+cat "$file" | sed "s|^\(.*\)$|echo '\1' >>$filename|g" >>$buffer
+echo "md5sum $filename" >>$buffer
+
+if [[ -n $(command -v xsel) ]]; then
+    cat $buffer | xsel -i --clipboard
+elif [[ -n $(command -v xclip) ]]; then
+    cat $buffer | xclip -i -selection clipboard
+fi
+
+md5sum "$file"

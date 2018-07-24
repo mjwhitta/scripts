@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-
-[[ ! -f $HOME/src/ZAP/zap.sh ]] || $HOME/src/ZAP/zap.sh &

@@ -21,12 +21,11 @@ long_opt() {
 usage() {
     echo "Usage: ${0/*\//} [OPTIONS]"
     echo
-    echo "Run the community edition of BurpSuite"
+    echo "Use xdotool to fix any special keys that are sticking"
     echo
     echo "Options:"
-    echo "    -c, --clear    Clear cache and download new BurpSuite"
-    echo "    -h, --help     Display this help message"
-    echo "    --nocolor      Disable colorized output"
+    echo "    -h, --help    Display this help message"
+    echo "    --nocolor     Disable colorized output"
     echo
     exit $1
 }
@@ -34,14 +33,13 @@ usage() {
 warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
 
 declare -a args
-unset clear help
+unset help
 color="true"
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "-c"|"--clear-cache") clear="true" ;;
         "-h"|"--help") help="true" ;;
         "--nocolor") unset color ;;
         *) args+=("$1") ;;
@@ -53,24 +51,15 @@ done
 # Check for valid params and missing dependencies
 [[ -z $help ]] || usage 0
 [[ $# -eq 0 ]] || usage 1
-for dep in curl; do
+for dep in perl xdotool; do
     [[ -n $(command -v $dep) ]] || errx 2 "$dep is not installed"
 done; unset dep
 
-cache="$HOME/.cache/burp"
-mkdir -p $cache
-
-# Ensure json config exists
-[[ -f $cache/burp.json ]] || echo "{}" >$cache/burp.json
-
-# Clear cached BurpSuite if requested
-[[ -z $clear ]] || rm -f $cache/burpsuite_community.jar
-
-# Get burpsuite if missing
-if [[ ! -f $cache/burpsuite_community.jar ]]; then
-    url="https://portswigger.net/burp/releases/download?type=jar"
-    curl -o $cache/burpsuite_community.jar "$url&product=community"
+unset keys
+if [[ -f /usr/include/X11/keysymdef.h ]]; then
+    keys="$(
+        perl -lne '/#define\s+XK_(\S+_(L|R|Level.*))\s/ && print $1' \
+        /usr/include/X11/keysymdef.h
+    )"
 fi
-
-java -jar $cache/burpsuite_community.jar \
-    --config-file=$cache/burp.json
+[[ -z $keys ]] || xdotool keyup $keys

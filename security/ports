@@ -28,6 +28,24 @@
 # SOFTWARE.
 # --------------------------------------------------------------------
 
+err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
+
+errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
+
+good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
+
+info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+    esac
+    echo "$arg"
+    return $shift
+}
+
 usage() {
     echo "Usage: ${0/*\//} [OPTIONS] [host1]... [hostN]"
     echo
@@ -40,22 +58,26 @@ usage() {
     exit $1
 }
 
+warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
+
 declare -a args
 unset help
-clr="true"
+color="true"
 hosts="."
 
+# Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
         "-h"|"--help") help="true" ;;
-        "--nocolor") unset clr ;;
+        "--nocolor") unset color ;;
         *) args+=("$1") ;;
     esac
     shift
 done
 [[ -z ${args[@]} ]] || set -- "${args[@]}"
 
+# Check for valid params and missing dependencies
 [[ -z $help ]] || usage 0
 [[ $# -eq 0 ]] || hosts="$@"
 
@@ -68,7 +90,7 @@ while read -r line; do
 
     if [[ $newhost != $oldhost ]]; then
         [[ -z $oldhost ]] || echo
-        echo -e "${clr:+\e[37m}# ${newhost/.\//}\e[0m"
+        echo -e "${color:+\e[37m}# ${newhost/.\//}\e[0m"
     fi
     echo "$match"
 
@@ -81,13 +103,14 @@ done < <(
 [[ -z $found ]] || echo
 
 # Host with no open ports
-unset oldhost
+unset found oldhost
 while read -r line; do
     newhost="$(dirname ${line/:*/})"
+    found="true"
 
     if [[ $newhost != $oldhost ]]; then
         [[ -z $oldhost ]] || echo
-        echo -e "${clr:+\e[37m}# ${newhost/.\//}\e[0m"
+        echo -e "${color:+\e[37m}# ${newhost/.\//}\e[0m"
         echo "No open ports"
         echo
     fi
@@ -98,4 +121,4 @@ done < <(
     grep -EHIiLs "[0-9]+\/.*open.*" {} + | sort -k 1,1 -k 2,2n -t ":"
 )
 
-echo -en "\e[1A\e[K"
+[[ -z $found ]] || echo -en "\e[1A\e[K"

@@ -1,52 +1,53 @@
 #!/usr/bin/env bash
 
+err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
+
+errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
+
 ftp_delete() {
-    [[ $# -eq 4 ]] || usage 3
+    [[ $# -eq 1 ]] || usage 4
 
-    HOST="$1"
-    USER="$2"
-    PASS="$3"
-    FILE="$4"
-
-    ftp -inv $HOST <<EOF
-user $USER $PASS
-delete $FILE
+    ftp -inv $host <<EOF
+user $user $pass
+delete $1
 bye
 EOF
 }
 
 ftp_get() {
-    [[ $# -eq 4 ]] || usage 4
+    [[ $# -eq 1 ]] || usage 5
 
-    HOST="$1"
-    USER="$2"
-    PASS="$3"
-    SRC="$4"
-    DEST="$(echo "$SRC" | awk -F "/" '{print $NF}')"
-
-    ftp -inv $HOST <<EOF
-user $USER $PASS
-get $SRC $DEST
+    ftp -inv $host <<EOF
+user $user $pass
+get $1 $$(basename $1)
 bye
 EOF
 }
 
 ftp_upload() {
-    [[ $# -eq 5 ]] || usage 5
+    [[ $# -eq 2 ]] || usage 6
 
-    HOST="$1"
-    USER="$2"
-    PASS="$3"
-    SRC="$4"
-    DEST="$5"
-
-    ftp -inv $HOST <<EOF
-user $USER $PASS
-mkdir $(dirname $DEST)
+    ftp -inv $host <<EOF
+user $user $pass
+mkdir $(dirname $2)
 bin
-put $SRC $DEST
+put $1 $2
 bye
 EOF
+}
+
+good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
+
+info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+    esac
+    echo "$arg"
+    return $shift
 }
 
 usage() {
@@ -61,22 +62,26 @@ usage() {
     echo "    -u, --upload    Upload file to ftp server"
     echo
     echo "Examples:"
-    echo "    ftp_util --upload HOST USER PASS file wwwroot/file"
-    echo "    ftp_util --delete HOST USER PASS wwwroot/file"
-    echo "    ftp_util --get HOST USER PASS wwwroot/file"
+    echo "    ftp_util --upload host user pass file wwwroot/file"
+    echo "    ftp_util --delete host user pass wwwroot/file"
+    echo "    ftp_util --get host user pass wwwroot/file"
     echo
     exit $1
 }
 
-declare -a args
-unset action
+warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
 
+declare -a args
+unset action help
+color="true"
+
+# Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
         "-d"|"--delete") action="delete" ;;
         "-g"|"--get") action="get" ;;
-        "-h"|"--help") usage 0 ;;
+        "-h"|"--help") help="true" ;;
         "-u"|"--upload") action="upload" ;;
         *) args+=("$1") ;;
     esac
@@ -84,8 +89,17 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -z ${args[@]} ]] || set -- "${args[@]}"
 
+# Check for valid params and missing dependencies
+[[ -z $help ]] || usage 0
 [[ $# -ge 3 ]] || usage 1
-[[ -n $action ]] || usage 2
+for dep in ftp; do
+    [[ -n $(command -v $dep) ]] || errx 2 "$dep is not installed"
+done; unset dep
+[[ -n $action ]] || usage 3
+
+host="$1" && shift
+user="$1" && shift
+pass="$1" && shift
 
 case "$action" in
     "delete") ftp_delete $@ ;;

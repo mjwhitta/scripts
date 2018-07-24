@@ -28,6 +28,24 @@
 # SOFTWARE.
 # --------------------------------------------------------------------
 
+err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
+
+errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
+
+good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
+
+info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
+    esac
+    echo "$arg"
+    return $shift
+}
+
 usage() {
     echo "Usage: ${0/*\//} [OPTIONS] [width] [height]"
     echo
@@ -49,6 +67,7 @@ usage() {
     echo "                             screen"
     echo "    -m, --max                Maximize window"
     echo "    -n, --min                Minimize widow"
+    echo "    --nocolor                Disable colorized output"
     echo "    -o, --offset=OFFSET      Specify offset from top of"
     echo "                             screen (default: $offset)"
     echo "    -p, --padding=PADDING    Specify padding around frame"
@@ -65,12 +84,17 @@ usage() {
     exit $1
 }
 
+warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
+
 declare -a args
+unset help
+color="true"
 frame=20
 offset=0
 padding=0
 snap_hist="/tmp/snap.hist"
 
+# Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
@@ -78,31 +102,14 @@ while [[ $# -gt 0 ]]; do
         "--bottom-left") snap_option="bottom-left" ;;
         "--bottom-right") snap_option="bottom-right" ;;
         "-c"|"--center") snap_option="center" ;;
-        "-f"|"--frame"*)
-            case "$1" in
-                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-            esac
-            frame="$arg"
-            ;;
-        "-h"|"--help") usage 0 ;;
+        "-f"|"--frame"*) frame="$(long_opt $@)" || shift ;;
+        "-h"|"--help") help="true" ;;
         "-l"|"--left") snap_option="left" ;;
         "-m"|"--max") snap_option="max" ;;
         "-n"|"--min") snap_option="min" ;;
-        "-o"|"--offset"*)
-            case "$1" in
-                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-            esac
-            offset="$arg"
-            ;;
-        "-p"|"--padding"*)
-            case "$1" in
-                "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-                *) shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-            esac
-            padding="$arg"
-            ;;
+        "--nocolor") unset color ;;
+        "-o"|"--offset"*) offset="$(long_opt $@)" || shift ;;
+        "-p"|"--padding"*) padding="$(long_opt $@)" || shift ;;
         "-r"|"--right") snap_option="right" ;;
         "-t"|"--top") snap_option="top" ;;
         "--top-left") snap_option="top-left" ;;
@@ -113,15 +120,17 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -z ${args[@]} ]] || set -- "${args[@]}"
 
+# Check for valid params and missing dependencies
+[[ -z $help ]] || usage 0
 [[ $# -eq 0 ]] || [[ $# -eq 2 ]] || usage 2
-[[ -n $(command -v wmctrl) ]] || usage 3
-[[ -n $(command -v xdotool) ]] || usage 4
-[[ -n $(command -v xrandr) ]] || usage 5
+for dep in perl wmctrl xdotool xrandr; do
+    [[ -n $(command -v $dep) ]] || errx 3 "$dep is not installed"
+done; unset dep
 
 geometry="$(
     xrandr | perl -lne '/current ([^,]+),/ && print $1 =~ s/\s+//rg'
 )"
-[[ -z $geometry ]] && echo "Can't figure out geometry!" && exit 6
+[[ -n $geometry ]] || errx 4 "Can't figure out geometry!"
 width="${geometry/x*/}"
 height="${geometry/*x/}"
 
@@ -142,10 +151,7 @@ for i in {1..20}; do
     sleep 0.1
 done
 
-if [[ -f ${snap_hist}.lock ]]; then
-    echo "Lock file may need to be manually deleted"
-    exit 7
-fi
+[[ ! -f ${snap_hist}.lock ]] || errx 5 "Lock file exists"
 
 # Lock
 touch ${snap_hist}.lock
