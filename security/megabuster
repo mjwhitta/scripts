@@ -572,6 +572,7 @@ usage() {
     echo "    -l, --list=LIST      Use the specified wordlist (can be"
     echo "                         used more than once)"
     echo "    --nocolor            Disable colorized output"
+    echo "    -p, --proxy=PROXY    Proxy traffic through PROXY"
     echo "    -r, --resume         Resume from a previous run"
     echo "    -s, --simulate       Simulate output but do nothing"
     local default="(default: $threads)"
@@ -598,9 +599,11 @@ EOF
 }
 
 declare -a args
-unset append dlists help recache resume simulate timeout tls wordlists
+unset append dlists help proxy recache resume simulate timeout tls
+unset wordlists
 cache="megabuster.resume"
 color="true"
+curl="curl -IkLs"
 dcache="$HOME/.cache/megabuster/default_list.locations"
 joblog="$cache/joblog.txt"
 json="$cache/megabuster.json"
@@ -616,6 +619,7 @@ while [[ $# -gt 0 ]]; do
         "-h"|"--help") help="true" ;;
         "-l"|"--list"*) wordlists+=($(long_opt $@)) || shift ;;
         "--nocolor") unset color ;;
+        "-p"|"--proxy"*) proxy="--proxy $(long_opt $@)" || shift ;;
         "-r"|"--resume") resume="--resume" ;;
         "-s"|"--simulate") simulate="true" ;;
         "-t"|"--threads"*) threads="$(long_opt $@)" || shift ;;
@@ -717,15 +721,17 @@ cat >$script <<EOF
 check() {
     # Check GET and POST
     for type in GET POST; do
-        data="\$(
-            curl $timeout -IksX $type "http${tls:+s}://$host/\$1" | \\
-            awk '/^HTTP\// {print \$2}'
-        )"
-        if [[ -n \$data ]] &&
-           [[ \$(echo "\$data" | head -n 1) -ne 404 ]]
-        then
-            good "$type \$1 (\$data)"
-        fi
+        while read -r line; do
+            case "\$line" in
+                "404") continue ;;
+            esac
+            good "\$type /\$1 (\$line)"
+        done < <(
+            $curl $proxy $timeout -X \$type \\
+            "http${tls:+s}://$host/\$1" | \\
+            awk '/^(HTTP|Location)/ {print \$2}' | tr -d "\r" | \\
+            sed -r "\\\$!N;s/\n/ /"
+        ); unset line
     done; unset type
 }
 
@@ -748,7 +754,7 @@ simulate() {
         *) ret="403" ;;
     esac
     case "\$(( RANDOM % 100 ))" in
-        7) good "\$type \$1 (\$ret)" ;;
+        7) good "\$type /\$1 (\$ret)" ;;
     esac
 }
 
