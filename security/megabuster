@@ -768,6 +768,7 @@ fi
 EOF
 chmod 700 $script
 
+info "MegaBuster is targeting $host"
 info "Processing dataset for jobs"
 
 declare -a dataset=($(
