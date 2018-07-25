@@ -132,7 +132,7 @@ if [[ -n \$(git -C \$1 config remote.origin.url) ]]; then
         fi
     fi
 
-    info "\$1: pulling changes"
+    good "\$1: pulling changes"
     git -C \$1 pull -r &>/dev/null
     if [[ \$? -ne 0 ]]; then
         err "\$1: error ocurred while pulling"
