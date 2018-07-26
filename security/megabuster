@@ -765,9 +765,9 @@ simulate() {
 warn() { echo -e "\r${color:+\e[33m}[-] \$@\e[0m\e[K"; }
 
 if [[ "x$simulate" != "x" ]]; then
-    simulate "\$1"
+    simulate "\${1#/}"
 else
-    check "\$1"
+    check "\${1#/}"
 fi
 EOF
 chmod 700 $script
