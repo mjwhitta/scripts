@@ -721,13 +721,17 @@ cat >$script <<EOF
 check() {
     # Check GET and POST
     for type in GET POST; do
+        unset data
+        case "\$type" in
+            "POST") data="true" ;;
+        esac
         while read -r line; do
             case "\$line" in
                 "404") continue ;;
             esac
             good "\$type /\$1 (\$line)"
         done < <(
-            $curl $proxy $timeout -X \$type \\
+            $curl \${data:+-d {}} $proxy $timeout -X \$type \\
             "http${tls:+s}://$host/\$1" | \\
             awk '/^(HTTP|Location)/ {print \$2}' | tr -d "\r" | \\
             sed -r "\\\$!N;s/\n/ /"
