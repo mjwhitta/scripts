@@ -59,6 +59,10 @@ good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
 
 info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
 
+json_get() {
+    [[ -z $json ]] || jq -cr ".$@" $json | sed -r "s/^null$//g"
+}
+
 logo() {
     [[ -n $color ]] || return
     [[ -n $(command -v tput) ]] || return
@@ -548,10 +552,11 @@ long_opt() {
 }
 
 read_resume_file() {
-    host="$(cat $json | jq -cMrS ".host" | sed "s/null//")"
-    rround="$(cat $json | jq -cMrS ".round" | sed "s/null//")"
-    simulate="$(cat $json | jq -cMrS ".simulate" | sed "s/null//")"
-    tls="$(cat $json | jq -cMrS ".tls" | sed "s/null//")"
+    host="$(json_get "host")"
+    rround="$(json_get "round")"
+    simulate="$(json_get "simulate")"
+    tls="$(json_get "tls")"
+    wordlists=($(json_get "wordlists[]"))
 }
 
 usage() {
@@ -593,14 +598,20 @@ write_resume_file() {
   "host": "${host:-${simulate:+simulation}}",
   "round": "${1:-0}",
   "simulate": "$simulate",
-  "tls": "$tls"
+  "tls": "$tls",
+  "wordlists": [
+$(
+    for i in $(seq 1 ${#wordlists[@]}); do
+        echo "    \"${wordlists[$i - 1]}\"${wordlists[$i]:+,}"
+    done; unset i
+)
+  ]
 }
 EOF
 }
 
-declare -a args
+declare -a args wordlists
 unset append dlists help proxy recache resume simulate timeout tls
-unset wordlists
 cache="megabuster.resume"
 color="true"
 curl="curl -IkLs"
