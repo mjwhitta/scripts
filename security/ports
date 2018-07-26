@@ -84,8 +84,8 @@ done
 # Hosts with open ports
 unset found oldhost
 while read -r line; do
-    match="${line/*:/}"
-    newhost="${line/:*/}"
+    match="${line#*:}"
+    newhost="${line%%:*}"
     found="true"
 
     if [[ $newhost != $oldhost ]]; then
@@ -106,7 +106,7 @@ done < <(
 # Host with no open ports
 unset found oldhost
 while read -r line; do
-    newhost="${line/:*/}"
+    newhost="${line%%:*}"
     found="true"
 
     if [[ $newhost != $oldhost ]]; then
