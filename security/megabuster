@@ -49,7 +49,7 @@ cache_default_lists() {
     touch $dcache
 }
 
-clean() { [[ -z $script ]] || rm -f $script; rm -rf $cache; exit $1; }
+clean() { [[ -z $script ]] || rm -f $script; exit $1; }
 
 err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
 
@@ -731,7 +731,7 @@ check() {
             esac
             good "\$type /\$1 (\$line)"
         done < <(
-            $curl \${data:+-d {}} $proxy $timeout -X \$type \\
+            $curl \${data:+-d {\}} $proxy $timeout -X \$type \\
             "http${tls:+s}://$host/\$1" | \\
             awk '/^(HTTP|Location)/ {print \$2}' | tr -d "\r" | \\
             sed -r "\\\$!N;s/\n/ /"
@@ -831,4 +831,5 @@ else
     done; unset data
 fi
 
+rm -rf $cache
 clean
