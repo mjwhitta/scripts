@@ -669,9 +669,9 @@ if [[ ${#wordlists[@]} -eq 0 ]] || [[ -n $append ]]; then
 fi
 
 # Ensure lists are provided and valid
-[[ ${#wordlists[@]} -ne 0 ]] || err 4 "No wordlists provided"
+[[ ${#wordlists[@]} -ne 0 ]] || errx 4 "No wordlists provided"
 for wordlist in "${wordlists[@]}"; do
-    [[ -f $wordlist ]] || err 5 "Wordlist does not exist: $wordlist"
+    [[ -f $wordlist ]] || errx 5 "Wordlist does not exist: $wordlist"
 done; unset wordlist
 
 # Determine parallel situation
@@ -713,7 +713,7 @@ if [[ -n $parallel ]]; then
     elif [[ -f $json ]]; then
         read_resume_file
     elif [[ -n $resume ]]; then
-        err 6 "No resume file found in current directory"
+        errx 6 "No resume file found in current directory"
     else
         write_resume_file
     fi
@@ -784,56 +784,61 @@ EOF
 chmod 700 $script
 
 info "MegaBuster is targeting $host"
-info "Processing dataset for jobs"
+info "Processing wordlists for ammo"
 
 declare -a dataset
 while read -r data; do
     dataset+=("$data")
 done < <(
-    grep -Ev "^( *#.*)?$" ${wordlists[@]} | \
+    grep -Ehsv "^( *#.*)?$" ${wordlists[@]} | \
     sed "s/\\\/\\\\\\\/g" | sort -u
 ); unset data
 total="${#dataset[@]}"
 
-[[ $total -ne 0 ]] || errx 7 "No dataset provided"
+[[ $total -ne 0 ]] || errx 7 "No words provided"
 
-info "$total jobs to run"
+info "$total shots to fire"
 if [[ -n $parallel ]]; then
-    # Math
-    left="$total"
-    marker="0"
+    # Determine max command line length minus some for a buffer
     maxdata="$(
         parallel -r --show-limits </dev/null | \
         awk '/Maximal used/ {print $NF; exit}'
     )"
-    [[ $maxdata -lt 5000 ]] || ((maxdata -= 5000))
-    remainder="$((total % maxdata))"
-    rounds="$((total / maxdata))"
-    [[ $remainder -eq 0 ]] || ((rounds += 1))
+    [[ $maxdata -lt 128 ]] || ((maxdata -= 128))
 
-    # Loop thru rounds
-    [[ $rounds -eq 1 ]] || info "Splitting into $rounds rounds"
-    while [[ $left -gt 0 ]]; do
+    # Build round data
+    declare -A rounds
+    all="${dataset[@]}"
+    round="0"
+    while [[ -n $all ]]; do
         ((round += 1))
-        [[ $round == $rround ]] && unset rround
+        if [[ ${#all} -gt $maxdata ]]; then
+            tmp="${all:0:$maxdata}"
+            rounds[$round]="${tmp% *}"
+            all="${all:${#rounds[$round]}}"
+        else
+            rounds[$round]="$all"
+            unset all
+        fi
+    done
 
-        increment="$left"
-        [[ $left -lt $maxdata ]] || increment="$((maxdata - 1))"
+    # Loop through rounds
+    [[ $round -eq 1 ]] || info "Splitting into ${#rounds[@]} rounds"
+    for round in $(seq 1 ${#rounds[@]}); do
+        [[ -z $rround ]] || [[ $round == $rround ]] || continue
+        unset rround
 
-        if [[ -z $rround ]]; then
-            write_resume_file $round
+        write_resume_file $round
 
-            [[ $rounds -eq 1 ]] || warn "Round $round"
-
-            parallel --bar --joblog ${resume:++}$joblog --lb \
-                -P $threads -r $resume \
-                $script "{}" ::: "${dataset[@]:$marker:$increment}"
-            unset resume
+        if [[ ${#rounds[@]} -ne 1 ]]; then
+            warn "Round $round of ${#rounds[@]}"
         fi
 
-        ((left -= increment))
-        ((marker += increment))
-        [[ -n $rround ]] || echo -en "\e[1A\e[K"
+        parallel --bar --joblog ${resume:++}$joblog --lb -P $threads \
+            -r $resume $script "{}" ::: ${rounds[$round]}
+        unset resume
+
+        echo -en "\e[1A\e[K"
     done
 else
     count="1"
