@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -f
+
 cache_default_lists() {
     # Create dcache directory
     mkdir -p $(dirname $dcache)
@@ -656,6 +658,18 @@ for dep in curl jq; do
     [[ -n $(command -v $dep) ]] || errx 3 "$dep is not installed"
 done; unset dep
 
+# Determine parallel situation
+if [[ -n $parallel ]] && [[ -z $(command -v parallel) ]]; then
+    warn "Parallel is not installed, defaulting to single-threaded"
+    unset parallel
+fi
+
+# Cite if needed
+if [[ -n $parallel ]] && [[ ! -f $HOME/.parallel/will-cite ]]; then
+    mkdir -p $HOME/.parallel
+    parallel --citation
+fi
+
 # If defaults lists are not cached, find and cache
 if [[ ! -f $dcache ]] || [[ -n $recache ]]; then
     cache_default_lists
@@ -677,18 +691,6 @@ fi
 for wordlist in "${wordlists[@]}"; do
     [[ -f $wordlist ]] || errx 5 "Wordlist does not exist: $wordlist"
 done; unset wordlist
-
-# Determine parallel situation
-if [[ -n $parallel ]] && [[ -z $(command -v parallel) ]]; then
-    warn "Parallel is not installed, defaulting to single-threaded"
-    unset parallel
-fi
-
-# Cite if needed
-if [[ -n $parallel ]] && [[ ! -f $HOME/.parallel/will-cite ]]; then
-    mkdir -p $HOME/.parallel
-    parallel --citation
-fi
 
 # Initialize some variables
 host="$1"
@@ -838,6 +840,7 @@ if [[ -n $parallel ]]; then
             warn "Round $round of ${#rounds[@]}"
         fi
 
+        # TODO
         parallel --bar --joblog ${resume:++}$joblog --lb -P $threads \
             -r $resume $script "{}" ::: ${rounds[$round]}
         unset resume
