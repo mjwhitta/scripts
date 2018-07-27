@@ -51,7 +51,11 @@ cache_default_lists() {
     touch $dcache
 }
 
-clean() { [[ -z $script ]] || rm -f $script; exit $1; }
+clean() {
+    [[ -z $script ]] || rm -f $script
+    [[ ${1:-0} -ne 0 ]] || rm -rf $cache
+    exit ${1:-0}
+}
 
 err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
 
@@ -557,14 +561,25 @@ long_opt() {
 
 read_resume_file() {
     host="$(json_get "host")"
-    rround="$(json_get "round")"
     simulate="$(json_get "simulate")"
     tls="$(json_get "tls")"
     wordlists=($(json_get "wordlists[]"))
 }
 
+subinfo() { echo -e "${color:+\e[36m}[=] $@\e[0m"; }
+
+# summarize_results() {
+#     [[ -n $summarize ]] || return
+#     [[ -f $results ]] || return
+
+#     info "Summarizing results"
+#     while read -r result; do
+#         good "${result:4}"
+#     done < <(grep -Eos "\[\+\].+" $results | sort -u); unset result
+# }
+
 usage() {
-    [[ $1 -ne 0 ]] || logo
+    [[ $1 -ne 0 ]] || logo >&2
     echo "Usage: ${0/*\//} [OPTIONS] <host/ip>[:port][/path][?query]"
     echo
     echo "Simple bash script to enumerate directories and files on a"
@@ -583,13 +598,14 @@ usage() {
     echo "    --nocolor            Disable colorized output"
     echo "    -p, --proxy=PROXY    Proxy traffic through PROXY"
     echo "    -r, --resume         Resume from a previous run"
-    echo "    -s, --simulate       Simulate output but do nothing"
+    echo "    --simulate           Simulate output but do nothing"
     local default="(default: $threads)"
     echo "    -t, --threads=NUM    Use the specied number of threads"
-    echo "                         if running in parallel $default"
+    echo "                         $default"
     echo "    --timeout=SECS       Use specified timeout with curl"
     echo "                         (default: none)"
     echo "    --tls                Use TLS connection (https)"
+    echo "    -v, --verobse        Do not hide parallel errors"
     echo
     exit $1
 }
@@ -600,7 +616,6 @@ write_resume_file() {
     cat >$json <<EOF
 {
   "host": "${host:-${simulate:+simulation}}",
-  "round": "${1:-0}",
   "simulate": "$simulate",
   "tls": "$tls",
   "wordlists": [
@@ -615,18 +630,17 @@ EOF
 }
 
 # FIXME
-echo "Fixing some bugs, check back later"
-exit
+echo "Fixing some bugs, check back later"; exit
 
 declare -a args wordlists
 unset append dlists help proxy recache resume simulate timeout tls
+unset verbose
 cache="megabuster.resume"
 color="true"
 curl="curl -IkLs"
 dcache="$HOME/.cache/megabuster/default_list.locations"
 joblog="$cache/joblog.txt"
 json="$cache/megabuster.json"
-parallel="true"
 threads="32"
 
 # Parse command line options
@@ -640,13 +654,14 @@ while [[ $# -gt 0 ]]; do
         "--nocolor") unset color ;;
         "-p"|"--proxy"*) proxy="--proxy $(long_opt $@)" || shift ;;
         "-r"|"--resume") resume="--resume" ;;
-        "-s"|"--simulate") simulate="true" ;;
+        "--simulate") simulate="true" ;;
         "-t"|"--threads"*) threads="$(long_opt $@)" || shift ;;
         "--timeout"*)
             arg="$(long_opt $@)" || shift
             timeout="--connect-timeout $arg --max-time $arg"
             ;;
         "--tls") tls="true" ;;
+        "-v"|"--verbose") verbose="true" ;;
         *) args+=("$1") ;;
     esac
     shift
@@ -656,18 +671,12 @@ done
 # Check for valid params and missing dependencies
 [[ -z $help ]] || usage 0
 [[ $# -eq 1 ]] || [[ -n $recache$resume$simulate ]] || usage 2
-for dep in curl jq; do
+for dep in curl jq parallel; do
     [[ -n $(command -v $dep) ]] || errx 3 "$dep is not installed"
 done; unset dep
 
-# Determine parallel situation
-if [[ -n $parallel ]] && [[ -z $(command -v parallel) ]]; then
-    warn "Parallel is not installed, defaulting to single-threaded"
-    unset parallel
-fi
-
 # Cite if needed
-if [[ -n $parallel ]] && [[ ! -f $HOME/.parallel/will-cite ]]; then
+if [[ ! -f $HOME/.parallel/will-cite ]]; then
     mkdir -p $HOME/.parallel
     parallel --citation
 fi
@@ -694,48 +703,46 @@ for wordlist in "${wordlists[@]}"; do
     [[ -f $wordlist ]] || errx 5 "Wordlist does not exist: $wordlist"
 done; unset wordlist
 
-# Initialize some variables
-host="$1"
-round="0"
+# Save host
+host="${1:-${simulate:+simulation}}"
 
-# Resume functionality only works with parallel
-if [[ -n $parallel ]]; then
-    # Ensure resume directory exists
-    mkdir -p $cache
+# Ensure resume directory exists
+mkdir -p $cache
 
-    # Check for resume file
-    if [[ -f $json ]] && [[ -z $resume ]]; then
-        warn "Resume file found"
-        while :; do
-            # Prompt whether to overwrite or resume
-            read -n 1 -p "Would you like to resume [y/n/q]: " -s ans
-            echo
+# Check for resume file
+if [[ -f $json ]] && [[ -z $resume ]]; then
+    warn "Resume file found" >&2
+    while :; do
+        # Prompt whether to overwrite or resume
+        read -n 1 -p "Would you like to resume [y/n/q]: " -s ans
+        echo
 
-            case "$ans" in
-                "n") write_resume_file; break ;;
-                "q") exit 0 ;;
-                "y") read_resume_file; resume="--resume"; break ;;
-                *) echo "Invalid response, try again!" ;;
-            esac
-        done
-    elif [[ -f $json ]]; then
-        read_resume_file
-    elif [[ -n $resume ]]; then
-        errx 6 "No resume file found in current directory"
-    else
-        write_resume_file
-    fi
+        case "$ans" in
+            "n") write_resume_file; break ;;
+            "q") exit 0 ;;
+            "y") read_resume_file; resume="--resume"; break ;;
+            *) echo "Invalid response, try again!" ;;
+        esac
+    done
+elif [[ -f $json ]]; then
+    read_resume_file
+elif [[ -n $resume ]]; then
+    errx 6 "No resume file found in current directory"
+else
+    write_resume_file
 fi
 
 # Display logo
-logo
+logo >&2
 
 # Script used by parallel
 script="/tmp/${0/*\//}.parallel"
-trap clean SIGINT
+trap "clean -1" SIGINT
 
 cat >$script <<EOF
 #!/usr/bin/env bash
+
+set -o noglob
 
 check() {
     # Check GET and POST
@@ -758,13 +765,13 @@ check() {
     done; unset type
 }
 
-err() { echo -e "\r${color:+\e[31m}[!] \$@\e[0m\e[K"; }
+# err() { echo -e "\r${color:+\e[31m}[!] \$@\e[0m\e[K"; }
 
-errx() { echo -e "\r${color:+\e[31m}[!] \${@:2}\e[0m\e[K"; exit \$1; }
+# errx() { echo -e "\r${color:+\e[31m}[!] \${@:2}\e[0m\e[K"; exit \$1; }
 
 good() { echo -e "\r${color:+\e[32m}[+] \$@\e[0m\e[K"; }
 
-info() { echo -e "\r${color:+\e[37m}[*] \$@\e[0m\e[K"; }
+# info() { echo -e "\r${color:+\e[37m}[*] \$@\e[0m\e[K"; }
 
 simulate() {
     case "\$((RANDOM % 2))" in
@@ -781,83 +788,43 @@ simulate() {
     esac
 }
 
-warn() { echo -e "\r${color:+\e[33m}[-] \$@\e[0m\e[K"; }
+# subinfo() { echo -e "\r${color:+\e[36m}[=] \$@\e[0m\e[K"; }
+
+# warn() { echo -e "\r${color:+\e[33m}[-] \$@\e[0m\e[K"; }
+
+# Ignore comments
+comment_regex="^( *#.*)?$"
+[[ ! "\$1" =~ \$comment_regex ]] || exit
+
+# Fix backslashes and remove leading slashes
+path="\${1//\\\/\\\\\\\}"
+path="\${path#\${path%%[^/]*}}"
 
 if [[ "x$simulate" != "x" ]]; then
-    simulate "\${1#/}"
+    simulate "\$path"
 else
-    check "\${1#/}"
+    check "\$path"
 fi
 EOF
 chmod 700 $script
 
 info "MegaBuster is targeting $host"
+
 info "Processing wordlists for ammo"
-
-declare -a dataset
-while read -r data; do
-    dataset+=("$data")
-done < <(
-    grep -Ehsv "^( *#.*)?$" ${wordlists[@]} | \
-    sed "s/\\\/\\\\\\\/g" | sort -u
-); unset data
-total="${#dataset[@]}"
-
-[[ $total -ne 0 ]] || errx 7 "No words provided"
-
+total="0"
+while read -r count; do
+    ((total += count))
+done < <(grep -cEhvs "^( *#.*)?$" "${wordlists[@]}"); unset count
 info "$total shots to fire"
-if [[ -n $parallel ]]; then
-    # Delimiter value
-    delim="λ"
 
-    # Determine max command line length minus some for a buffer
-    buffer="128"
-    maxdata="$(
-        parallel -r --show-limits </dev/null | \
-        awk '/Maximal used/ {print $NF; exit}'
-    )"
-    [[ $maxdata -lt $buffer ]] || ((maxdata -= buffer))
-    [[ $maxdata -ge $buffer ]] || errx 8 "Max data is crazy low"
+[[ $total -gt 0 ]] || errx 7 "No ammo"
 
-    # Build round data
-    declare -A rounds
-    all="$(join_with $delim "${dataset[@]}")"
-    round="0"
-    while [[ -n $all ]]; do
-        ((round += 1))
-        if [[ ${#all} -gt $maxdata ]]; then
-            tmp="${all:0:$maxdata}"
-            rounds[$round]="${tmp%$delim*}"
-            all="${all:${#rounds[$round]}}"
-        else
-            rounds[$round]="$all"
-            unset all
-        fi
-    done
+subinfo "Loading wordlists into MegaBuster"
 
-    # Loop through rounds
-    for round in $(seq 1 ${#rounds[@]}); do
-        [[ -z $rround ]] || [[ $round == $rround ]] || continue
-        unset rround
+cat ${wordlists[@]} | parallel $lists --bar \
+    --joblog ${resume:++}$joblog --lb -P $threads -r $resume \
+    $script {}
+[[ -n $verbose ]] || echo -en "\e[1A\e[K" >&2
 
-        write_resume_file $round
-
-        warn "Round $round of ${#rounds[@]}"
-
-        parallel --bar -d "$delim" --joblog ${resume:++}$joblog --lb \
-            -P $threads -r $resume $script {} ::: "${rounds[$round]}"
-        unset resume
-
-        echo -en "\e[1A\e[K"
-    done
-else
-    count="1"
-    for data in "${dataset[@]}"; do
-        echo -en "\r${color:+\e[37m}[$count/$total]\e[0m\e[K" >&2
-        $script "$data"
-        ((count += 1))
-    done; unset data
-fi
-
-rm -rf $cache
+# Cleanup
 clean
