@@ -610,6 +610,10 @@ $(
 EOF
 }
 
+# FIXME
+echo "Fixing some bugs, check back later"
+exit
+
 declare -a args wordlists
 unset append dlists help proxy recache resume simulate timeout tls
 cache="megabuster.resume"
