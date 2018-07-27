@@ -759,16 +759,16 @@ good() { echo -e "\r${color:+\e[32m}[+] \$@\e[0m\e[K"; }
 info() { echo -e "\r${color:+\e[37m}[*] \$@\e[0m\e[K"; }
 
 simulate() {
-    case "\$(( RANDOM % 2 ))" in
+    case "\$((RANDOM % 2))" in
         0) type="GET" ;;
         *) type="POST" ;;
     esac
-    case "\$(( RANDOM % 3 ))" in
+    case "\$((RANDOM % 3))" in
         0) ret="200" ;;
         1) ret="401" ;;
         *) ret="403" ;;
     esac
-    case "\$(( RANDOM % 100 ))" in
+    case "\$((RANDOM % 100))" in
         7) good "\$type /\$1 (\$ret)" ;;
     esac
 }
@@ -786,11 +786,14 @@ chmod 700 $script
 info "MegaBuster is targeting $host"
 info "Processing dataset for jobs"
 
-declare -a dataset=($(
-    cat ${wordlists[@]} | grep -Ev "^( *#.*)?$" | sed "s/*//g" | \
-    sort -u
-))
-let "total = ${#dataset[@]}"
+declare -a dataset
+while read -r data; do
+    dataset+=("$data")
+done < <(
+    grep -Ev "^( *#.*)?$" ${wordlists[@]} | \
+    sed "s/\\\/\\\\\\\/g" | sort -u
+); unset data
+total="${#dataset[@]}"
 
 [[ $total -ne 0 ]] || errx 7 "No dataset provided"
 
@@ -800,22 +803,22 @@ if [[ -n $parallel ]]; then
     left="$total"
     marker="0"
     maxdata="$(
-        parallel -r --show-limit </dev/null | \
+        parallel -r --show-limits </dev/null | \
         awk '/Maximal used/ {print $NF; exit}'
     )"
-    [[ $maxdata -lt 5000 ]] || let "maxdata -= 5000"
-    let "remainder = total % maxdata"
-    let "rounds = total / maxdata"
-    [[ $remainder -eq 0 ]] || let "rounds += 1"
+    [[ $maxdata -lt 5000 ]] || ((maxdata -= 5000))
+    remainder="$((total % maxdata))"
+    rounds="$((total / maxdata))"
+    [[ $remainder -eq 0 ]] || ((rounds += 1))
 
     # Loop thru rounds
     [[ $rounds -eq 1 ]] || info "Splitting into $rounds rounds"
     while [[ $left -gt 0 ]]; do
-        let "round += 1"
+        ((round += 1))
         [[ $round == $rround ]] && unset rround
 
         increment="$left"
-        [[ $left -lt $maxdata ]] || let "increment = $maxdata - 1"
+        [[ $left -lt $maxdata ]] || increment="$((maxdata - 1))"
 
         if [[ -z $rround ]]; then
             write_resume_file $round
@@ -824,21 +827,20 @@ if [[ -n $parallel ]]; then
 
             parallel --bar --joblog ${resume:++}$joblog --lb \
                 -P $threads -r $resume \
-                $script {} ::: ${dataset[@]:$marker:$increment}
+                $script "{}" ::: "${dataset[@]:$marker:$increment}"
             unset resume
         fi
 
-        let "left -= increment"
-        let "marker += increment"
+        ((left -= increment))
+        ((marker += increment))
         [[ -n $rround ]] || echo -en "\e[1A\e[K"
     done
 else
-    let "count = 1"
+    count="1"
     for data in "${dataset[@]}"; do
-        echo -e "\r\e[K" >&2
-        echo -en "${color:+\e[37m}[$count/$total]\e[0m\e[K\e[1A" >&2
+        echo -en "\r${color:+\e[37m}[$count/$total]\e[0m\e[K" >&2
         $script "$data"
-        let "count += 1"
+        ((count += 1))
     done; unset data
 fi
 
