@@ -639,9 +639,6 @@ $(
 EOF
 }
 
-# FIXME
-echo "Fixing some bugs, check back later"; exit
-
 declare -a args ignore wordlists
 unset append dlists help proxy recache resume simulate timeout tls
 unset verbose
