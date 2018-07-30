@@ -819,9 +819,8 @@ done < <(grep -cEhvs "^( *#.*)?$" "${wordlists[@]}"); unset count
 
 info "$total shots to fire"
 
-cat ${wordlists[@]} | parallel $lists --bar \
-    --joblog ${resume:++}$joblog --lb -P $threads -r $resume \
-    $script {}
+cat ${wordlists[@]} | parallel --bar --joblog ${resume:++}$joblog \
+    --lb -P $threads -r $resume $script {}
 [[ -n $verbose ]] || echo -en "\e[1A\e[K" >&2
 
 clean
