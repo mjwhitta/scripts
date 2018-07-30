@@ -583,11 +583,10 @@ usage() {
     [[ $1 -ne 0 ]] || logo >&2
     echo "Usage: ${0##*/} [OPTIONS] <host/ip>[:port][/path][?query]"
     echo
-    echo "Simple bash script to enumerate directories and files on a"
-    echo "webserver. MegaBuster is like Mega Man, DirBuster and dirb"
-    echo "had a baby! By default, MegaBuster will try to use the"
-    echo "big.txt and common.txt lists from dirb as well as the"
-    echo "directory-list-2.3-medium.txt list from DirBuster."
+    echo "Enumerate directories and files on a webserver. By default,"
+    echo "MegaBuster will try to use the big.txt and common.txt lists"
+    echo "from dirb as well as the directory-list-2.3-medium.txt list"
+    echo "from DirBuster."
     echo
     echo "Options:"
     echo "    -a, --apend          Append user specified lists to"
