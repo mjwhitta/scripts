@@ -561,6 +561,7 @@ long_opt() {
 
 read_resume_file() {
     host="$(json_get "host")"
+    ignore=($(json_get "ignore[]"))
     simulate="$(json_get "simulate")"
     tls="$(json_get "tls")"
     wordlists=($(json_get "wordlists[]"))
@@ -593,6 +594,9 @@ usage() {
     echo "                         the default"
     echo "    -c, --cache          Cache locations of defaults lists"
     echo "    -h, --help           Display this help message"
+    echo "    -i, --ignore=CODE    Ignore specified return codes, can"
+    echo "                         be used more than once, accepts"
+    echo "                         csv"
     echo "    -l, --list=LIST      Use the specified wordlist (can be"
     echo "                         used more than once)"
     echo "    --nocolor            Disable colorized output"
@@ -615,6 +619,13 @@ write_resume_file() {
     cat >$json <<EOF
 {
   "host": "${host:-${simulate:+simulation}}",
+  "ignore": [
+$(
+    for i in $(seq 1 ${#ignore[@]}); do
+        echo "    \"${ignore[$i - 1]}\"${ignore[$i]:+,}"
+    done; unset i
+)
+  ],
   "simulate": "$simulate",
   "tls": "$tls",
   "wordlists": [
@@ -631,7 +642,7 @@ EOF
 # FIXME
 echo "Fixing some bugs, check back later"; exit
 
-declare -a args wordlists
+declare -a args ignore wordlists
 unset append dlists help proxy recache resume simulate timeout tls
 unset verbose
 cache="${0##*/}.resume"
@@ -649,6 +660,10 @@ while [[ $# -gt 0 ]]; do
         "-a"|"--append") append="true" ;;
         "-c"|"--cache") recache="true" ;;
         "-h"|"--help") help="true" ;;
+        "-i"|"--ignore"*)
+            arg="$(long_opt $@)" || shift
+            ignore+=(${arg//,/ })
+            ;;
         "-l"|"--list"*) wordlists+=($(long_opt $@)) || shift ;;
         "--nocolor") unset color ;;
         "-p"|"--proxy"*) proxy="--proxy $(long_opt $@)" || shift ;;
@@ -705,6 +720,12 @@ done; unset wordlist
 # Save host
 host="${1:-${simulate:+simulation}}"
 
+# Ensure host is reachable
+if [[ -z $simulate ]]; then
+    ping -c 1 -W 1 ${host%%[:/]*} 2>/dev/null
+    [[ $# -eq 0 ]] || errx 6 "Target is out of range"
+fi
+
 # Ensure resume directory exists
 mkdir -p $cache
 
@@ -726,7 +747,7 @@ if [[ -f $json ]] && [[ -z $resume ]]; then
 elif [[ -f $json ]]; then
     read_resume_file
 elif [[ -n $resume ]]; then
-    errx 6 "No resume file found in current directory"
+    errx 7 "No resume file found in current directory"
 else
     write_resume_file
 fi
@@ -749,7 +770,7 @@ total="0"
 while read -r count; do
     ((total += count))
 done < <(grep -cEhvs "^( *#.*)?$" "${wordlists[@]}"); unset count
-[[ $total -gt 0 ]] || errx 7 "No ammo"
+[[ $total -gt 0 ]] || errx 8 "No ammo"
 
 info "$total shots to fire"
 
@@ -768,7 +789,8 @@ check() {
         esac
         while read -r line; do
             case "\$line" in
-                "404") continue ;;
+                404) continue ;;
+                ${ignore:+$(join_with "|" "${ignore[@]}")) continue ;;}
             esac
             good "\$type /\$1 (\$line)"
         done < <(
