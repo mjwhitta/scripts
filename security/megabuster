@@ -769,7 +769,7 @@ while read -r count; do
 done < <(grep -cEhvs "^( *#.*)?$" "${wordlists[@]}"); unset count
 [[ $total -gt 0 ]] || errx 8 "No ammo"
 
-info "$total shots to fire"
+subinfo "$total shots to fire"
 
 # Create sub-script
 cat >$script <<EOF
