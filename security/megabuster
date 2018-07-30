@@ -608,7 +608,7 @@ usage() {
     echo "    --timeout=SECS       Use specified timeout with curl"
     echo "                         (default: none)"
     echo "    --tls                Use TLS connection (https)"
-    echo "    -v, --verobse        Do not hide parallel errors"
+    echo "    -v, --verbose        Do not hide parallel errors"
     echo
     exit $1
 }

@@ -164,7 +164,7 @@ vbox_port_delete() {
             vbox_port_list $vm | \
             perl -lne '/(\d+) '$rule'/ && print $1'
         )"
-        [[ $idx -eq 0 ]] && let "idx = 1"
+        [[ $idx -ne 0 ]] || idx="1"
 
         echo -n "Deleting forwarded port from $vm..."
         VBoxManage modifyvm $vm --natpf$idx delete $rule
@@ -188,8 +188,8 @@ vbox_port_forward() {
             echo "Rule $rule already exists for $vm" && continue
 
         num_ports="$(vbox_port_list $vm | wc -l)"
-        let "idx = num_ports - 2"
-        [[ $idx -gt 0 ]] || let "idx = 1"
+        idx="$((num_ports - 2))"
+        [[ $idx -gt 0 ]] || idx="1"
 
         echo -n "Adding forwarded port to $vm..."
         VBoxManage modifyvm $vm --natpf$idx \

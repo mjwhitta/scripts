@@ -36,8 +36,8 @@ check_bin() {
     local runpath="5"
 
     while read line; do
-        [[ $line =~ "GNU_RELRO" ]] && let "relro |= 2"
-        [[ $line =~ "BIND_NOW" ]] && let "relro |= 1"
+        [[ $line =~ "GNU_RELRO" ]] && ((relro |= 2))
+        [[ $line =~ "BIND_NOW" ]] && ((relro |= 1))
         [[ $line =~ "__stack_chk_fail" ]] && canary="1"
         [[ $line =~ "GNU_STACK" ]] && [[ $line =~ "RWE" ]] && nx="0"
         [[ $line =~ "Type:" ]] && [[ $line =~ "DYN (" ]] && pie="4"
@@ -149,9 +149,9 @@ check_kernel_heap() {
     local kernheap="0"
 
     # Kernel heap hardening
-    [[ $config =~ "CONFIG_KERNHEAP=y" ]] && let "kernheap |= 2"
+    [[ $config =~ "CONFIG_KERNHEAP=y" ]] && ((kernheap |= 2))
     if [[ $config =~ "CONFIG_KERNHEAP_FULLPOISON=y" ]]; then
-        let "kernheap |= 1"
+        ((kernheap |= 1))
     fi
 
     # KERNHEAP <= 1 | no KERNHEAP + FULLPOISON = no protection
@@ -263,7 +263,7 @@ aslr="$(
 color="true"
 shield="$(cat /proc/sys/kernel/exec-shield 2>/dev/null)"
 shieldrand="$(cat /proc/sys/kernel/exec-shield-randomize 2>/dev/null)"
-[[ -n $shieldrand ]] && let "shieldrand = shieldrand + 3"
+[[ -z $shieldrand ]] || ((shieldrand += 3))
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do

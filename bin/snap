@@ -136,12 +136,12 @@ height="${geometry/*x/}"
 
 [[ $# -eq 2 ]] && width="$1" && height="$2"
 
-let "height = $height - $offset"
-let "hw = $width / 2"
-let "hhw = $width / 4"
-let "hh = $height / 2"
-let "hhh = $height / 4"
-let "g = 0"
+height="$((height - offset))"
+hw="$((width / 2))"
+hhw="$((width / 4))"
+hh="$((height / 2))"
+hhh="$((height / 4))"
+g="0"
 
 [[ $padding -eq 0 ]] || padded="true"
 
@@ -174,70 +174,70 @@ if [[ -z $previous ]]; then
     # Calculate snap values
     case "$snap_option" in
         "bottom")
-            let "x = $padding"
-            let "y = $hh + ($padding / 2) + $offset"
-            let "w = $width - (2 * $padding)"
-            let "h = $hh - (3 * $padding / 2) - $frame"
+            x="$padding"
+            y="$((hh + (padding / 2) + offset))"
+            w="$((width - (2 * padding)))"
+            h="$((hh - (3 * padding / 2) - frame))"
             ;;
         "bottom-left")
-            let "x = $padding"
-            let "y = $hh + ($padding / 2) + $offset"
-            let "w = $hw - (3 * $padding / 2)"
-            let "h = $hh - (3 * $padding / 2) - $frame"
+            x="$padding"
+            y="$((hh + (padding / 2) + offset))"
+            w="$((hw - (3 * padding / 2)))"
+            h="$((hh - (3 * padding / 2) - frame))"
             ;;
         "bottom-right")
-            let "x = $hw + ($padding / 2)"
-            let "y = $hh + ($padding /  2) + $offset"
-            let "w = $hw - (3 * $padding / 2)"
-            let "h = $hh - (3 * $padding / 2) - $frame"
+            x="$((hw + (padding / 2)))"
+            y="$((hh + (padding /  2) + offset))"
+            w="$((hw - (3 * padding / 2)))"
+            h="$((hh - (3 * padding / 2) - frame))"
             ;;
         "center")
-            let "x = $hhw + ($padding / 2)"
-            let "y = $padding + $offset"
-            let "w = $hw - (3 * $padding / 2)"
-            let "h = $height - (2 * $padding) - $frame"
+            x="$((hhw + (padding / 2)))"
+            y="$((padding + offset))"
+            w="$((hw - (3 * padding / 2)))"
+            h="$((height - (2 * padding) - frame))"
             ;;
         "left")
-            let "x = $padding"
-            let "y = $padding + $offset"
-            let "w = $hw - (3 * $padding / 2)"
-            let "h = $height - (2 * $padding) - $frame"
+            x="$padding"
+            y="$((padding + offset))"
+            w="$((hw - (3 * padding / 2)))"
+            h="$((height - (2 * padding) - frame))"
             ;;
         "max")
-            let "x = $padding"
-            let "y = $padding + $offset"
-            let "w = $width - (2 * $padding)"
-            let "h = $height - (2 * $padding) - $frame"
+            x="$padding"
+            y="$((padding + offset))"
+            w="$((width - (2 * padding)))"
+            h="$((height - (2 * padding) - frame))"
             ;;
         "min")
-            let "x = $hhw + ($padding / 2)"
-            let "y = $hhh + ($padding / 2) + $offset"
-            let "w = $hw - (3 * $padding / 2)"
-            let "h = $hh - (3 * $padding / 2) - $frame"
+            x="$((hhw + (padding / 2)))"
+            y="$((hhh + (padding / 2) + offset))"
+            w="$((hw - (3 * padding / 2)))"
+            h="$((hh - (3 * padding / 2) - frame))"
             ;;
         "right")
-            let "x = $hw + ($padding / 2)"
-            let "y = $padding + $offset"
-            let "w = $hw - (3 * $padding / 2)"
-            let "h = $height - (2 * $padding) - $frame"
+            x="$((hw + (padding / 2)))"
+            y="$((padding + offset))"
+            w="$((hw - (3 * padding / 2)))"
+            h="$((height - (2 * padding) - frame))"
             ;;
         "top")
-            let "x = $padding"
-            let "y = $padding + $offset"
-            let "w = $width - (2 * $padding)"
-            let "h = $hh - (3 * $padding / 2) - $frame"
+            x="$padding"
+            y="$((padding + offset))"
+            w="$((width - (2 * padding)))"
+            h="$((hh - (3 * padding / 2) - frame))"
             ;;
         "top-left")
-            let "x = $padding"
-            let "y = $padding + $offset"
-            let "w = $hw - (3 * $padding / 2)"
-            let "h = $hh - (3 * $padding / 2) - $frame"
+            x="$((padding))"
+            y="$((padding + offset))"
+            w="$((hw - (3 * padding / 2)))"
+            h="$((hh - (3 * padding / 2) - frame))"
             ;;
         "top-right")
-            let "x = $hw + ($padding / 2)"
-            let "y = $padding + $offset"
-            let "w = $hw - (3 * $padding / 2)"
-            let "h = $hh - (3 * $padding / 2) - $frame"
+            x="$((hw + (padding / 2)))"
+            y="$((padding + offset))"
+            w="$((hw - (3 * padding / 2)))"
+            h="$((hh - (3 * padding / 2) - frame))"
             ;;
     esac
 
@@ -290,10 +290,10 @@ if [[ -z $previous ]]; then
     fi
 else
     # Calculate snap values
-    let "x = $hhw + ($padding / 2)"
-    let "y = $hhh + ($padding / 2) + $offset"
-    let "w = $hw - (3 * $padding / 2)"
-    let "h = $hh - (3 * $padding / 2) - $frame"
+    x="$((hhw + (padding / 2)))"
+    y="$((hhh + (padding / 2) + offset))"
+    w="$((hw - (3 * padding / 2)))"
+    h="$((hh - (3 * padding / 2) - frame))"
 
     # Snap
     wmctrl -r :ACTIVE: -e $g,$x,$y,$w,$h

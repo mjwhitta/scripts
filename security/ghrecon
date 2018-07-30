@@ -68,9 +68,8 @@ usage() {
 warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
 
 declare -a args
-unset help socks token
+unset help output socks token
 color="true"
-output="/dev/null"
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do

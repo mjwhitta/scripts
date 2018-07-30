@@ -28,7 +28,13 @@
 # SOFTWARE.
 # --------------------------------------------------------------------
 
-clean() { [[ -z $script ]] || rm -f $script; exit $1; }
+set -o noglob
+
+clean() {
+    [[ ${1:-0} -ne 0 ]] || [[ ! -d $cache ]] || rm -rf $cache
+    [[ -z $script ]] || [[ ! -f $script ]] || rm -f $script
+    exit ${1:-0}
+}
 
 err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
 
@@ -37,6 +43,10 @@ errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; clean $1; }
 good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
 
 info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+
+json_get() {
+    [[ -z $json ]] || jq -cr ".$@" $json | sed -r "s/^null$//g"
+}
 
 long_opt() {
     local arg shift="0"
@@ -48,26 +58,42 @@ long_opt() {
     return $shift
 }
 
+# TODO
+read_resume_file() { echo -n; }
+
+subinfo() { echo -e "${color:+\e[36m}[=] $@\e[0m"; }
+
 usage() {
-    echo "Usage: ${0/*\//} [OPTIONS] <dir1>... [dirN]"
+    echo "Usage: ${0##*/} [OPTIONS] <dir1>... [dirN]"
     echo
     echo "Update git repos under specified directory"
     echo
     echo "Options:"
     echo "    -h, --help           Display this help message"
     echo "    --nocolor            Disable colorized output"
-    local default="(default: $threads)"
+    echo "    -r, --resume         Resume from a previous run"
     echo "    -t, --threads=NUM    Use the specied number of threads"
-    echo "                         if running in parallel $default"
+    echo "                         (default: $threads)"
+    echo "    -v, --verbose        Do not hide parallel errors"
     echo
     exit $1
 }
 
 warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
 
+# TODO
+write_resume_file() {
+    cat >$json <<EOF
+{}
+EOF
+}
+
 declare -a args
 unset help
+cache="${0##*/}.resume"
 color="true"
+joblog="$cache/joblog.txt"
+json="$cache/${0##*/}.json"
 parallel="true"
 threads="32"
 
@@ -77,7 +103,9 @@ while [[ $# -gt 0 ]]; do
         "--") shift && args+=("$@") && break ;;
         "-h"|"--help") help="true" ;;
         "--nocolor") unset color ;;
+        "-r"|"--resume") resume="--resume" ;;
         "-t"|"--threads"*) threads="$(long_opt $@)" || shift ;;
+        "-v"|"--verbose") verbose="true" ;;
         *) args+=("$1") ;;
     esac
     shift
@@ -86,9 +114,10 @@ done
 
 # Check for valid params and missing dependencies
 [[ -z $help ]] || usage 0
-[[ $# -ge 1 ]] || usage 2
-
-[[ -n $(command -v git) ]] || errx 3 "git is not installed"
+[[ $# -gt 0 ]] || [[ -n $resume ]] || usage 2
+for dep in git; do
+    [[ -n $(command -v $dep) ]] || errx 3 "$dep is not installed"
+done; unset dep
 
 # Determine parallel situation
 if [[ -n $parallel ]] && [[ -z $(command -v parallel) ]]; then
@@ -102,12 +131,67 @@ if [[ -n $parallel ]] && [[ ! -f $HOME/.parallel/will-cite ]]; then
     parallel --citation
 fi
 
-# Script used by parallel
-script="/tmp/${0/*\//}.parallel"
-trap clean SIGINT
+if [[ -n $parallel ]]; then
+    # Ensure resume directory exists
+    mkdir -p $cache
 
+    # Check for resume file
+    if [[ -f $json ]] && [[ -z $resume ]]; then
+        warn "Resume file found" >&2
+        while :; do
+            # Prompt whether to overwrite or resume
+            read -n 1 -p "Would you like to resume [y/n/q]: " -s ans
+            echo
+
+            case "$ans" in
+                "n") write_resume_file; break ;;
+                "q") exit 0 ;;
+                "y") read_resume_file; resume="--resume"; break ;;
+                *) echo "Invalid response, try again!" ;;
+            esac
+        done
+    elif [[ -f $json ]]; then
+        read_resume_file
+    elif [[ -n $resume ]]; then
+        errx 6 "No resume file found in current directory"
+    else
+        write_resume_file
+    fi
+fi
+
+# Dataset used by parallel
+dataset="$cache/${0##*/}.dataset"
+
+# Script used by parallel
+script="/tmp/${0##*/}.parallel"
+
+# Ensure cleanup on ^C
+trap "clean -1" SIGINT
+
+# Process dataset
+info "Processing dataset for jobs"
+
+if [[ ! -f $dataset ]]; then
+    total="0"
+    while read -r data; do
+        ((total += 1))
+        echo "$data" >>$dataset
+    done < <(
+        find -L $@ -ipath "*archived*" -prune -o -type d \
+        -name ".git" -exec dirname {} + 2>/dev/null
+    ); unset data
+else
+    total="$(cat $dataset | wc -l)"
+fi
+[[ $total -ne 0 ]] || errx 4 "No dataset provided"
+
+info "$total jobs to run"
+
+# Create sub-script
 cat >$script <<EOF
 #!/usr/bin/env bash
+
+set -o noglob
 
 err() { echo -e "\r${color:+\e[31m}[!] \$@\e[0m\e[K"; }
 
@@ -116,6 +200,8 @@ errx() { echo -e "\r${color:+\e[31m}[!] \${@:2}\e[0m\e[K"; exit \$1; }
 good() { echo -e "\r${color:+\e[32m}[+] \$@\e[0m\e[K"; }
 
 info() { echo -e "\r${color:+\e[37m}[*] \$@\e[0m\e[K"; }
+
+subinfo() { echo -e "\r${color:+\e[36m}[=] \$@\e[0m\e[K"; }
 
 warn() { echo -e "\r${color:+\e[33m}[-] \$@\e[0m\e[K"; }
 
@@ -153,54 +239,19 @@ fi
 EOF
 chmod 700 $script
 
-info "Processing dataset for jobs"
-
-declare -a dataset=($(
-    find -L $@ -ipath "*archived*" -prune -o -type d \
-    -name ".git" -exec dirname {} + 2>/dev/null
-))
-let "total = ${#dataset[@]}"
-
-[[ $total -ne 0 ]] || errx 4 "No dataset provided"
-
-info "$total jobs to run"
+# Run sub-script
 if [[ -n $parallel ]]; then
-    # Math
-    left="$total"
-    marker="0"
-    maxdata="$(
-        parallel -r --show-limit </dev/null | \
-        awk '/Maximal used/ {print $NF; exit}'
-    )"
-    let "remainder = total % maxdata"
-    round="0"
-    let "rounds = total / maxdata"
-    [[ $remainder -eq 0 ]] || let "rounds += 1"
-
-    # Loop thru rounds
-    [[ $rounds -eq 1 ]] || info "Splitting into $rounds rounds"
-    while [[ $left -gt 0 ]]; do
-        let "round += 1"
-        [[ $rounds -eq 1 ]] || warn "Round $round"
-
-        increment="$left"
-        [[ $left -le $maxdata ]] || increment="$maxdata"
-
-        parallel --bar --lb -P $threads -r $script {} ::: \
-            ${dataset[@]:$marker:$increment}
-
-        let "left -= increment"
-        let "marker += increment"
-        echo -en "\e[1A\e[K"
-    done
+    parallel -a $dataset --bar --joblog ${resume:++}$joblog --lb \
+        -P $threads -r $resume $script {}
+    [[ -n $verbose ]] || echo -en "\e[1A\e[K" >&2
 else
-    let "count = 1"
-    for data in "${dataset[@]}"; do
+    count="1"
+    while read -r data; do
         echo -e "\r\e[K" >&2
         echo -en "${color:+\e[37m}[$count/$total]\e[0m\e[K\e[1A" >&2
         $script "$data"
-        let "count += 1"
-    done; unset data
+        ((count += 1))
+    done <$dataset; unset data
 fi
 
 clean

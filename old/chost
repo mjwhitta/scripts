@@ -52,7 +52,7 @@ host_menu() {
 
     lines="$(tput lines)"
     columns="$(tput cols)"
-    let "menu_height = lines - 7"
+    menu_height="$((lines - 7))"
     dialog --clear --nook --nocancel --no-shadow \
         --menu "Choose a host" $lines $columns $menu_height \
         $(get_choices) 2>/tmp/chost
