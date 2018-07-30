@@ -52,8 +52,8 @@ cache_default_lists() {
 }
 
 clean() {
-    [[ -z $script ]] || rm -f $script
-    [[ ${1:-0} -ne 0 ]] || rm -rf $cache
+    [[ ${1:-0} -ne 0 ]] || [[ ! -d $cache ]] || rm -rf $cache
+    [[ -z $script ]] || [[ ! -f $script ]] || rm -f $script
     exit ${1:-0}
 }
 
@@ -580,7 +580,7 @@ subinfo() { echo -e "${color:+\e[36m}[=] $@\e[0m"; }
 
 usage() {
     [[ $1 -ne 0 ]] || logo >&2
-    echo "Usage: ${0/*\//} [OPTIONS] <host/ip>[:port][/path][?query]"
+    echo "Usage: ${0##*/} [OPTIONS] <host/ip>[:port][/path][?query]"
     echo
     echo "Simple bash script to enumerate directories and files on a"
     echo "webserver. MegaBuster is like Mega Man, DirBuster and dirb"
@@ -599,9 +599,8 @@ usage() {
     echo "    -p, --proxy=PROXY    Proxy traffic through PROXY"
     echo "    -r, --resume         Resume from a previous run"
     echo "    --simulate           Simulate output but do nothing"
-    local default="(default: $threads)"
     echo "    -t, --threads=NUM    Use the specied number of threads"
-    echo "                         $default"
+    echo "                         (default: $threads)"
     echo "    --timeout=SECS       Use specified timeout with curl"
     echo "                         (default: none)"
     echo "    --tls                Use TLS connection (https)"
@@ -635,12 +634,12 @@ echo "Fixing some bugs, check back later"; exit
 declare -a args wordlists
 unset append dlists help proxy recache resume simulate timeout tls
 unset verbose
-cache="megabuster.resume"
+cache="${0##*/}.resume"
 color="true"
 curl="curl -IkLs"
-dcache="$HOME/.cache/megabuster/default_list.locations"
+dcache="$HOME/.cache/${0##*/}/default_list.locations"
 joblog="$cache/joblog.txt"
-json="$cache/megabuster.json"
+json="$cache/${0##*/}.json"
 threads="32"
 
 # Parse command line options
@@ -736,9 +735,25 @@ fi
 logo >&2
 
 # Script used by parallel
-script="/tmp/${0/*\//}.parallel"
+script="/tmp/${0##*/}.parallel"
+
+# Ensure cleanup on ^C
 trap "clean -1" SIGINT
 
+info "MegaBuster is targeting $host"
+
+# Process dataset
+info "Processing wordlists for ammo"
+
+total="0"
+while read -r count; do
+    ((total += count))
+done < <(grep -cEhvs "^( *#.*)?$" "${wordlists[@]}"); unset count
+[[ $total -gt 0 ]] || errx 7 "No ammo"
+
+info "$total shots to fire"
+
+# Create sub-script
 cat >$script <<EOF
 #!/usr/bin/env bash
 
@@ -807,17 +822,6 @@ else
 fi
 EOF
 chmod 700 $script
-
-info "MegaBuster is targeting $host"
-info "Processing wordlists for ammo"
-
-total="0"
-while read -r count; do
-    ((total += count))
-done < <(grep -cEhvs "^( *#.*)?$" "${wordlists[@]}"); unset count
-[[ $total -gt 0 ]] || errx 7 "No ammo"
-
-info "$total shots to fire"
 
 cat ${wordlists[@]} | parallel --bar --joblog ${resume:++}$joblog \
     --lb -P $threads -r $resume $script {}
