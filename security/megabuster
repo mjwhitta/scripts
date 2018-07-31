@@ -791,8 +791,11 @@ check() {
             case "\$line" in
                 404) continue ;;
                 ${ignore:+$(join_with "|" "${ignore[@]}")) continue ;;}
+                5*) err "\$type /\$1 (\$line)" ;;
+                4*) warn "\$type /\$1 (\$line)" ;;
+                3*) subinfo "\$type /\$1 (\$line)" ;;
+                *) good "\$type /\$1 (\$line)" ;;
             esac
-            good "\$type /\$1 (\$line)"
         done < <(
             $curl \${data:+-d $data} $proxy $timeout -X \$type \\
             "http${tls:+s}://$host/\$1" | \\
@@ -802,13 +805,13 @@ check() {
     done; unset type
 }
 
-# err() { echo -e "\r${color:+\e[31m}[!] \$@\e[0m\e[K"; }
+err() { echo -e "\r${color:+\e[31m}[!] \$@\e[0m\e[K"; }
 
-# errx() { echo -e "\r${color:+\e[31m}[!] \${@:2}\e[0m\e[K"; exit \$1; }
+errx() { echo -e "\r${color:+\e[31m}[!] \${@:2}\e[0m\e[K"; exit \$1; }
 
 good() { echo -e "\r${color:+\e[32m}[+] \$@\e[0m\e[K"; }
 
-# info() { echo -e "\r${color:+\e[37m}[*] \$@\e[0m\e[K"; }
+info() { echo -e "\r${color:+\e[37m}[*] \$@\e[0m\e[K"; }
 
 simulate() {
     local ret type
@@ -816,19 +819,31 @@ simulate() {
         0) type="GET" ;;
         *) type="POST" ;;
     esac
-    case "\$((RANDOM % 3))" in
+    case "\$((RANDOM % 6))" in
         0) ret="200" ;;
-        1) ret="401" ;;
-        *) ret="403" ;;
+        1) ret="301" ;;
+        2) ret="302" ;;
+        3) ret="401" ;;
+        4) ret="403" ;;
+        *) ret="500" ;;
     esac
-    case "\$((RANDOM % 100))" in
-        7) good "\$type /\$1 (\$ret)" ;;
+    case "\$((RANDOM % 64))" in
+        8)
+            case "\$ret" in
+                404) return ;;
+                ${ignore:+$(join_with "|" "${ignore[@]}")) return ;;}
+                5*) err "\$type /\$1 (\$ret)" ;;
+                4*) warn "\$type /\$1 (\$ret)" ;;
+                3*) subinfo "\$type /\$1 (\$ret /some/other/path)" ;;
+                *) good "\$type /\$1 (\$ret)" ;;
+            esac
+            ;;
     esac
 }
 
-# subinfo() { echo -e "\r${color:+\e[36m}[=] \$@\e[0m\e[K"; }
+subinfo() { echo -e "\r${color:+\e[36m}[=] \$@\e[0m\e[K"; }
 
-# warn() { echo -e "\r${color:+\e[33m}[-] \$@\e[0m\e[K"; }
+warn() { echo -e "\r${color:+\e[33m}[-] \$@\e[0m\e[K"; }
 
 # Ignore comments
 comment_regex="^( *#.*)?$"
