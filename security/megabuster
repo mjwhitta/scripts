@@ -54,6 +54,7 @@ cache_default_lists() {
 clean() {
     [[ ${1:-0} -ne 0 ]] || [[ ! -d $cache ]] || rm -rf $cache
     [[ -z $script ]] || [[ ! -f $script ]] || rm -f $script
+    echo -en "\e[?25h" # Show cursor again
     exit ${1:-0}
 }
 
@@ -755,6 +756,9 @@ script="/tmp/${0##*/}.parallel"
 
 # Ensure cleanup on ^C
 trap "clean -1" SIGINT
+
+# Hide cursor
+echo -en "\e[?25l"
 
 info "MegaBuster is targeting $host"
 
