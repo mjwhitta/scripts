@@ -102,14 +102,14 @@ while [[ $# -gt 0 ]]; do
         "--bottom-left") snap_option="bottom-left" ;;
         "--bottom-right") snap_option="bottom-right" ;;
         "-c"|"--center") snap_option="center" ;;
-        "-f"|"--frame"*) frame="$(long_opt $@)" || shift ;;
+        "-f"|"--frame"*) frame="$(long_opt "$@")" || shift ;;
         "-h"|"--help") help="true" ;;
         "-l"|"--left") snap_option="left" ;;
         "-m"|"--max") snap_option="max" ;;
         "-n"|"--min") snap_option="min" ;;
         "--nocolor") unset color ;;
-        "-o"|"--offset"*) offset="$(long_opt $@)" || shift ;;
-        "-p"|"--padding"*) padding="$(long_opt $@)" || shift ;;
+        "-o"|"--offset"*) offset="$(long_opt "$@")" || shift ;;
+        "-p"|"--padding"*) padding="$(long_opt "$@")" || shift ;;
         "-r"|"--right") snap_option="right" ;;
         "-t"|"--top") snap_option="top" ;;
         "--top-left") snap_option="top-left" ;;

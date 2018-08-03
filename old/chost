@@ -120,7 +120,7 @@ hosts_file="$HOME/.config/chost/config"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "-c"|"--config"*) hosts_file="$(long_opt $@)" || shift ;;
+        "-c"|"--config"*) hosts_file="$(long_opt "$@")" || shift ;;
         "-h"|"--help") help="true" ;;
         "-l"|"--loop") loop="true" ;;
         *) args+=("$1") ;;

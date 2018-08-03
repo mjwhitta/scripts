@@ -69,7 +69,7 @@ color="true"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "-d"|"--dns"*) dns="$(long_opt $@)" || shift ;;
+        "-d"|"--dns"*) dns="$(long_opt "$@")" || shift ;;
         "-h"|"--help") help="true" ;;
         "--nocolor") unset color ;;
         *) args+=("$1") ;;

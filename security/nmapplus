@@ -137,13 +137,13 @@ while [[ $# -gt 0 ]]; do
         "-6") ipv6="-6" ;;
         "-f"|"--force") force="-Pn" ;;
         "-h"|"--help") help="true" ;;
-        "--hosts"*) hosts+=("$(long_opt $@)") || shift ;;
-        "-i"|"--iface"*) iface="-e $(long_opt $@)" || shift ;;
+        "--hosts"*) hosts+=("$(long_opt "$@")") || shift ;;
+        "-i"|"--iface"*) iface="-e $(long_opt "$@")" || shift ;;
         "-o"|"--os") os="-A" ;;
-        "-p"|"--ports"*) ports="-p $(long_opt $@)" || shift ;;
+        "-p"|"--ports"*) ports="-p $(long_opt "$@")" || shift ;;
         "-s"|"--services") services="-sV" ;;
         "-t"|"--technique"*)
-            arg="$(long_opt $@)" || shift
+            arg="$(long_opt "$@")" || shift
             case "$arg" in
                 "syn") technique="-sS" ;;
                 "connect") technique="-sT" ;;
@@ -157,8 +157,8 @@ while [[ $# -gt 0 ]]; do
             esac
             ;;
         "--timeout"*)
-            timeout="--host-timeout $(long_opt $@)" || shift ;;
-        "-n"|"--topn"*) ports="--top-ports $(long_opt $@)" || shift ;;
+            timeout="--host-timeout $(long_opt "$@")" || shift ;;
+        "-n"|"--topn"*) ports="--top-ports $(long_opt "$@")" || shift ;;
         "-u"|"--udp") udp="-sU"; prot="udp" ;;
         *) args+=("$1") ;;
     esac

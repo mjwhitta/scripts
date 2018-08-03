@@ -73,7 +73,7 @@ delay="120"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "-d"|"--delay"*) delay="$(long_opt $@)" || shift ;;
+        "-d"|"--delay"*) delay="$(long_opt "$@")" || shift ;;
         "-h"|"--help") help="true" ;;
         "--nocolor") unset color ;;
         *) args+=("$1") ;;

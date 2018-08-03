@@ -119,10 +119,10 @@ while [[ $# -gt 0 ]]; do
         "-h"|"--help") help="true" ;;
         "-i"|"--info") action="info" ;;
         "--nocolor") unset color ;;
-        "-o"|"--output"*) output="$(long_opt $@)" || shift ;;
+        "-o"|"--output"*) output="$(long_opt "$@")" || shift ;;
         "-r"|"--resume") resume="--resume" ;;
-        "-s"|"--size"*) resolution="$(long_opt $@)" || shift ;;
-        "-t"|"--threads"*) threads="$(long_opt $@)" || shift ;;
+        "-s"|"--size"*) resolution="$(long_opt "$@")" || shift ;;
+        "-t"|"--threads"*) threads="$(long_opt "$@")" || shift ;;
         "-v"|"--verbose") verbose="true" ;;
         *) args+=("$1") ;;
     esac

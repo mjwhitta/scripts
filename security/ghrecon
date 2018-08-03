@@ -75,13 +75,13 @@ color="true"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "-a"|"--access"*) arg="$(long_opt $@)" || shift
+        "-a"|"--access"*) arg="$(long_opt "$@")" || shift
             token="?access_token=$arg"
             ;;
         "-h"|"--help") help="true" ;;
         "--nocolor") unset color ;;
-        "-o"|"--output"*) output="$(long_opt $@)" || shift ;;
-        "-s"|"--socks"*) socks="--socks5 $(long_opt $@)" || shift ;;
+        "-o"|"--output"*) output="$(long_opt "$@")" || shift ;;
+        "-s"|"--socks"*) socks="--socks5 $(long_opt "$@")" || shift ;;
         *) args+=("$1") ;;
     esac
     shift

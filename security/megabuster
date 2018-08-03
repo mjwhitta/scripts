@@ -657,17 +657,17 @@ while [[ $# -gt 0 ]]; do
         "-c"|"--cache") recache="true" ;;
         "-h"|"--help") help="true" ;;
         "-i"|"--ignore"*)
-            arg="$(long_opt $@)" || shift
+            arg="$(long_opt "$@")" || shift
             ignore+=(${arg//,/ })
             ;;
-        "-l"|"--list"*) wordlists+=($(long_opt $@)) || shift ;;
+        "-l"|"--list"*) wordlists+=($(long_opt "$@")) || shift ;;
         "--nocolor") unset color ;;
-        "-p"|"--proxy"*) proxy="--proxy $(long_opt $@)" || shift ;;
+        "-p"|"--proxy"*) proxy="--proxy $(long_opt "$@")" || shift ;;
         "-r"|"--resume") resume="--resume" ;;
         "--simulate") simulate="true" ;;
-        "-t"|"--threads"*) threads="$(long_opt $@)" || shift ;;
+        "-t"|"--threads"*) threads="$(long_opt "$@")" || shift ;;
         "--timeout"*)
-            arg="$(long_opt $@)" || shift
+            arg="$(long_opt "$@")" || shift
             timeout="--connect-timeout $arg --max-time $arg"
             ;;
         "--tls") tls="true" ;;

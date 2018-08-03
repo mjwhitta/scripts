@@ -91,10 +91,10 @@ while [[ $# -gt 0 ]]; do
         "-d"|"--debug") debug="true" ;;
         "-h"|"--help") help="true" ;;
         "--nocolor") unset color ;;
-        "-o"|"--output"*) output="$(long_opt $@)" || shift ;;
+        "-o"|"--output"*) output="$(long_opt "$@")" || shift ;;
         "-r"|"--resume") resume="--resume" ;;
-        "-t"|"--threads"*) threads="$(long_opt $@)" || shift ;;
-        "--timeout"*) timeout="$(long_opt $@)" || shift ;;
+        "-t"|"--threads"*) threads="$(long_opt "$@")" || shift ;;
+        "--timeout"*) timeout="$(long_opt "$@")" || shift ;;
         "-v"|"--verbose") verbose="true" ;;
         "-w"|"--web") web="true" ;;
         *) args+=("$1") ;;

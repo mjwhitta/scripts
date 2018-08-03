@@ -72,13 +72,13 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
         "-c"|"--connect") action="connect" ;;
-        "-f"|"--fifo"*) fifo="$(long_opt $@)" || shift ;;
+        "-f"|"--fifo"*) fifo="$(long_opt "$@")" || shift ;;
         "-h"|"--help") help="true" ;;
-        "--host"*) host="$(long_opt $@)" || shift ;;
+        "--host"*) host="$(long_opt "$@")" || shift ;;
         "-l"|"--listen") action="listen" ;;
-        "--nc"*) nc="$(long_opt $@)" || shift ;;
+        "--nc"*) nc="$(long_opt "$@")" || shift ;;
         "--nocolor") unset color ;;
-        "-p"|"--port"*) port="$(long_opt $@)" || shift ;;
+        "-p"|"--port"*) port="$(long_opt "$@")" || shift ;;
         *) args+=("$1") ;;
     esac
     shift

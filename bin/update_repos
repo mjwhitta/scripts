@@ -104,7 +104,7 @@ while [[ $# -gt 0 ]]; do
         "-h"|"--help") help="true" ;;
         "--nocolor") unset color ;;
         "-r"|"--resume") resume="--resume" ;;
-        "-t"|"--threads"*) threads="$(long_opt $@)" || shift ;;
+        "-t"|"--threads"*) threads="$(long_opt "$@")" || shift ;;
         "-v"|"--verbose") verbose="true" ;;
         *) args+=("$1") ;;
     esac

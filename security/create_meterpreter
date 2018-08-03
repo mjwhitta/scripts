@@ -67,10 +67,10 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
         "-h"|"--help") help="true" ;;
-        "-i"|"--ip"*) ip="$(long_opt $@)" || shift ;;
+        "-i"|"--ip"*) ip="$(long_opt "$@")" || shift ;;
         "-l"|"--linux") os="linux/x86" ;;
         "--nocolor") unset color ;;
-        "-p"|"--port"*) port="$(long_opt $@)" || shift ;;
+        "-p"|"--port"*) port="$(long_opt "$@")" || shift ;;
         "-w"|"--windows") os="windows" ;;
         *) args+=("$1") ;;
     esac

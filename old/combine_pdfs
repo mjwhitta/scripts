@@ -73,7 +73,7 @@ while [[ $# -gt 0 ]]; do
         "--") shift && args+=("$@") && break ;;
         "-h"|"--help") help="true" ;;
         "--nocolor") unset color ;;
-        "-t"|"--title"*) title="$(long_opt $@)" || shift ;;
+        "-t"|"--title"*) title="$(long_opt "$@")" || shift ;;
         *) args+=("$1") ;;
     esac
     shift

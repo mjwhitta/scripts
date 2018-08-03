@@ -88,10 +88,10 @@ color="true"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "-e"|"--email"*) email="$(long_opt $@)" || shift ;;
-        "-f"|"--file"*) file="$(long_opt $@)" || shift ;;
+        "-e"|"--email"*) email="$(long_opt "$@")" || shift ;;
+        "-f"|"--file"*) file="$(long_opt "$@")" || shift ;;
         "-h"|"--help") help="true" ;;
-        "-i"|"--ip"*) ip="$(long_opt $@)" || shift ;;
+        "-i"|"--ip"*) ip="$(long_opt "$@")" || shift ;;
         "--nocolor") unset color ;;
         *) args+=("$1") ;;
     esac

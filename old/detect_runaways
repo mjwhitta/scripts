@@ -76,9 +76,9 @@ while [[ $# -gt 0 ]]; do
         "--") shift && args+=("$@") && break ;;
         "-c"|"--count") show_count="true" ;;
         "-h"|"--help") help="true" ;;
-        "-m"|"--max"*) max="$(long_opt $@)" || shift ;;
+        "-m"|"--max"*) max="$(long_opt "$@")" || shift ;;
         "--nocolor") unset color ;;
-        "-p"|"--proc"*) proc="$(long_opt $@)" || shift ;;
+        "-p"|"--proc"*) proc="$(long_opt "$@")" || shift ;;
         *) args+=("$1") ;;
     esac
     shift

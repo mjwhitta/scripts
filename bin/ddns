@@ -91,18 +91,18 @@ ip_url="https://icanhazip.com"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "-d"|"--domain"*) domain="$(long_opt $@)" || shift ;;
+        "-d"|"--domain"*) domain="$(long_opt "$@")" || shift ;;
         "-e"|"--external") external="true" ;;
-        "-f"|"--file"*) file="$(long_opt $@)" || shift ;;
+        "-f"|"--file"*) file="$(long_opt "$@")" || shift ;;
         "--force") force="true" ;;
         "-h"|"--help") help="true" ;;
         "-i"|"--internal") unset external ;;
-        "--iface"*) iface="$(long_opt $@)" || shift ;;
-        "--ip"*) old_ip="$(long_opt $@)" || shift ;;
+        "--iface"*) iface="$(long_opt "$@")" || shift ;;
+        "--ip"*) old_ip="$(long_opt "$@")" || shift ;;
         "--nocolor") unset color ;;
-        "-p"|"--pass"*) password="$(long_opt $@)" || shift ;;
-        "--url"*) ip_url="$(long_opt $@)" || shift ;;
-        "-u"|"--user"*) username="$(long_opt $@)" || shift ;;
+        "-p"|"--pass"*) password="$(long_opt "$@")" || shift ;;
+        "--url"*) ip_url="$(long_opt "$@")" || shift ;;
+        "-u"|"--user"*) username="$(long_opt "$@")" || shift ;;
         *) args+=("$1") ;;
     esac
     shift

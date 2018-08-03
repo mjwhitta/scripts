@@ -75,7 +75,7 @@ while [[ $# -gt 0 ]]; do
         "--ext4") format="ext4" ;;
         "--fat32") format="fat32" ;;
         "-h"|"--help") help="true" ;;
-        "-l"|"--label"*) label="-L $(long_opt $@)" || shift ;;
+        "-l"|"--label"*) label="-L $(long_opt "$@")" || shift ;;
         "--nocolor") unset color ;;
         *) args+=("$1") ;;
     esac
