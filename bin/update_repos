@@ -58,7 +58,6 @@ long_opt() {
     return $shift
 }
 
-# TODO
 read_resume_file() { echo -n; }
 
 subinfo() { echo -e "${color:+\e[36m}[=] $@\e[0m"; }
@@ -81,8 +80,9 @@ usage() {
 
 warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
 
-# TODO
 write_resume_file() {
+    [[ -z $cache ]] || rm -rf $cache
+    mkdir -p $cache
     cat >$json <<EOF
 {}
 EOF

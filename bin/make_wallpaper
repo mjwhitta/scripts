@@ -91,6 +91,8 @@ usage() {
 warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
 
 write_resume_file() {
+    [[ -z $cache ]] || rm -rf $cache
+    mkdir -p $cache
     cat >$json <<EOF
 {
   "action": "$action",
