@@ -1,5 +1,28 @@
 #!/usr/bin/env bash
 
+### Helpers begin
+checkdeps() {
+    for d in "${deps[@]}"; do
+        [[ -n $(command -v $d) ]] || errx 128 "$d is not installed"
+    done; unset d
+}
+err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
+errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
+good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
+info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+    esac
+    echo "$arg"
+    return $shift
+}
+subinfo() { echo -e "${color:+\e[36m}[=] $@\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
+### Helpers end
+
 connect() {
     while :; do
         rm -f $fifo
@@ -10,30 +33,12 @@ connect() {
     rm -f $fifo
 }
 
-err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
-
-errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
-
-good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
-
-info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
-
 listen() {
     $nc -lvp $port
 }
 
-long_opt() {
-    local arg shift="0"
-    case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-    esac
-    echo "$arg"
-    return $shift
-}
-
 usage() {
-    echo "Usage: ${0/*\//} [OPTIONS]"
+    echo "Usage: ${0##*/} [OPTIONS]"
     echo
     echo "Create a reverse shell"
     echo
@@ -52,11 +57,10 @@ usage() {
     exit $1
 }
 
-warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
-
-declare -a args
+declare -a args deps
 unset help host
 color="true"
+deps+=("mkfifo")
 fifo="/tmp/f"
 if [[ -n $(command -v nc) ]]; then
     nc="$(command -v nc)"
@@ -66,6 +70,9 @@ elif [[ -n $(command -v netcat) ]]; then
     nc="$(command -v netcat)"
 fi
 port=4444
+
+# Check for missing dependencies
+checkdeps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
@@ -85,14 +92,14 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -z ${args[@]} ]] || set -- "${args[@]}"
 
-# Check for valid params and missing dependencies
+# Check for valid params
 [[ -z $help ]] || usage 0
-[[ $# -eq 0 ]] || usage 2
-[[ -n $action ]] || usage 3
-[[ -n $nc ]] || usage 4
-[[ -f $nc ]] || usage 5
+[[ $# -eq 0 ]] || usage 1
+[[ -n $action ]] || usage 2
+[[ -n $nc ]] || usage 3
+[[ -f $nc ]] || usage 4
 
 case "$action" in
-    "connect") [[ -n $host ]] || errx 6 "No host provided"; connect ;;
+    "connect") [[ -n $host ]] || errx 5 "No host provided"; connect ;;
     "listen") listen ;;
 esac

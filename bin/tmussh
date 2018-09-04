@@ -30,23 +30,22 @@
 
 function tmussh() {
     tmussh_cleanup() {
-        unset args current_pane delay help hosts interactive
+        unset args cmd current_pane delay help interactive
         unset keep_localhost window wname
         unset -f tmussh_cleanup tmussh_usage
     }
 
     tmussh_usage() {
-        echo "Usage: tmussh [OPTIONS] [cmd]"
+        echo "Usage: tmussh [OPTIONS] <host1>... [hostN]"
         echo
         echo "Open connections to multiple hosts using tmux and ssh."
         echo "If a command is specified, it will run that command on"
         echo "each host."
         echo
         echo "Options:"
+        echo "    -c, --cmd=CMD        Command to run on each host"
         echo "    -d, --delay=SECS     Wait for specified time after"
         echo "                         connecting (default: $delay)"
-        echo "    --host=HOST          Specify host to connect to"
-        echo "                         (can be used more than once)"
         echo "    -h, --help           Display this help message"
         echo "    -i, --interactive    Do not close connection"
         echo "                         (default: true if no cmd)"
@@ -55,13 +54,27 @@ function tmussh() {
         tmussh_cleanup
     }
 
-    declare -a args hosts
-    unset help interactive keep_localhost window
+    declare -a args
+    unset cmd help interactive keep_localhost window
     delay="3"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
             "--") shift && args+=("$@") && break ;;
+            "-c"|"--cmd"*)
+                case "$1" in
+                    "--"*"="*)
+                        arg="${1#*=}"
+                        [[ -z $arg ]] && tmussh_usage && return 1
+                        ;;
+                    *)
+                        shift
+                        [[ $# -eq 0 ]] && tmussh_usage && return 1
+                        arg="$1"
+                        ;;
+                esac
+                cmd="$arg"
+                ;;
             "-d"|"--delay"*)
                 case "$1" in
                     "--"*"="*)
@@ -77,20 +90,6 @@ function tmussh() {
                 delay="$arg"
                 ;;
             "-h"|"--help") help="true" ;;
-            "--host"*)
-                case "$1" in
-                    "--"*"="*)
-                        arg="${1#*=}"
-                        [[ -z $arg ]] && tmussh_usage && return 1
-                        ;;
-                    *)
-                        shift
-                        [[ $# -eq 0 ]] && tmussh_usage && return 1
-                        arg="$1"
-                        ;;
-                esac
-                hosts+=("$arg")
-                ;;
             "-i"|"--interactive") interactive="true" ;;
             "-w"|"--window") window="true" ;;
             *) args+=("$1") ;;
@@ -105,7 +104,7 @@ function tmussh() {
     [[ -z $window ]] || tmux new-window -n $wname
 
     current_pane="$(tmux display -p "#{pane_id}")"
-    for host in "${hosts[@]}"; do
+    for host in "$@"; do
         case "$host" in
             "localhost") keep_localhost="true" ;;
             *) tmux split-window -h "ssh $host" ;;
@@ -117,9 +116,9 @@ function tmussh() {
     tmux select-layout tiled
     tmux set-option -w synchronize-panes on
 
-    if [[ $# -gt 0 ]]; then
+    if [[ -n $cmd ]]; then
         sleep $delay
-        tmux send-keys "$@"
+        tmux send-keys "$cmd"
         if [[ -z $interactive ]]; then
             tmux send-keys "exit"
             tmux set-option -w synchronize-panes off

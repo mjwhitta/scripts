@@ -28,9 +28,28 @@
 # SOFTWARE.
 # --------------------------------------------------------------------
 
+### Helpers begin
+checkdeps() {
+    for d in "${deps[@]}"; do
+        [[ -n $(command -v $d) ]] || errx 128 "$d is not installed"
+    done; unset d
+}
 err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
-
 errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
+good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
+info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+    esac
+    echo "$arg"
+    return $shift
+}
+subinfo() { echo -e "${color:+\e[36m}[=] $@\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
+### Helpers end
 
 get_choices() {
     while read h; do
@@ -41,8 +60,6 @@ get_choices() {
     echo -n "norc . "
     echo -n "quit . "
 }
-
-good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
 
 host_menu() {
     [[ -e $hosts_file ]] || touch $hosts_file
@@ -63,25 +80,13 @@ host_menu() {
     [[ -n $host ]] || host_menu
 }
 
-info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
-
-long_opt() {
-    local arg shift="0"
-    case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-    esac
-    echo "$arg"
-    return $shift
-}
-
 start_shell() {
     sh="$(which_shell)"
     $sh
 }
 
 usage() {
-    echo "Usage: ${0/*\//} [OPTIONS]"
+    echo "Usage: ${0##*/} [OPTIONS]"
     echo
     echo "Automate starting up a new shell"
     echo
@@ -93,8 +98,6 @@ usage() {
     echo
     exit $1
 }
-
-warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
 
 which_shell() {
     sh="$(awk -F ":" "/$(whoami)/ {print \$NF}" /etc/passwd)"
@@ -111,10 +114,14 @@ which_shell() {
     echo -n "$(command -v sh)"
 }
 
-declare -a args
+declare -a args deps
 unset help loop
 color="true"
+deps+=("dialog")
 hosts_file="$HOME/.config/chost/config"
+
+# Check for missing dependencies
+checkdeps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
@@ -129,9 +136,9 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -z ${args[@]} ]] || set -- "${args[@]}"
 
-# Check for valid params and missing dependencies
+# Check for valid params
 [[ -z $help ]] || usage 0
-[[ $# -eq 0 ]] || usage 2
+[[ $# -eq 0 ]] || usage 1
 
 # Ruby
 export GEM_HOME="$HOME/.gem/ruby"
@@ -160,38 +167,24 @@ for dir in \
     /bin \
     /sbin \
     /usr/bin/core_perl \
+    /usr/bin/vendor_perl \
     $HOME/Android/Sdk/platform-tools \
     $HOME/Android/Sdk/tools \
     $HOME/Android/Sdk/tools/bin \
     $HOME/Android/Ndk \
-    $HOME/.rvm/bin \
-; do
-    [[ ! -d $dir ]] || PTH="$PTH:$dir"
-done
+    $HOME/.rvm/bin
+do
+    [[ ! -d $dir ]] || PTH="${PTH:+$PTH:}$dir"
+done; unset dir
 
 # Find missing from PATH
-for dir in $(echo "$PATH" | sed "s/:/ /g"); do
-    [[ -n $(echo "$PTH" | grep $dir) ]] || PTH="$PTH:$dir"
-done
+while read -r dir; do
+    [[ ! -d $dir ]] || PTH="${PTH:+$PTH:}$dir"
+done < <(echo "${PATH//:/\n}" | grep -Ev "${PTH//:/|}"); unset dir
 
 # Set PATH
 [[ -z $PTH ]] || export PATH="${PTH/:/}"
 unset dir PTH
-
-if [[ -z $(command -v dialog) ]]; then
-    err "dialog is not installed"
-    if [[ -n $(command -v apt-get) ]]; then
-        errx 3 "Please run \"sudo apt-get install dialog\""
-    elif [[ -n $(command -v brew) ]]; then
-        errx 3 "Please run \"brew install dialog\""
-    elif [[ -n $(command -v dnf) ]]; then
-        errx 3 "Please run \"sudo dnf install dialog\""
-    elif [[ -n $(command -v pacman) ]]; then
-        errx 3 "Please run \"sudo pacman -S dialog\""
-    elif [[ -n $(command -v yum) ]]; then
-        errx 3 "Please run \"sudo yum install dialog\""
-    fi
-fi
 
 # SSH agent
 if [[ -n $(command -v ssh-agent) ]]; then
