@@ -55,6 +55,7 @@ update_dns() {
     local creds="$username:$password"
     local query="hostname=$domain&myip=$1"
     curl -kLs "https://$creds@domains.google.com/nic/update?$query"
+    echo
 }
 
 usage() {
