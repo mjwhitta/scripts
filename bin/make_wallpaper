@@ -68,24 +68,23 @@ read_resume_file() {
 }
 
 usage() {
-    echo "Usage: ${0##*/} [OPTIONS] <image1>... [imageN]"
-    echo
-    echo "Create a wallpaper from an image"
-    echo
-    echo "Options:"
-    echo "    -h, --help           Display this help message"
-    echo "    -i, --info           Display background color that"
-    echo "                         would be used"
-    echo "    --nocolor            Disable colorized output"
-    echo "    -o, --output=DIR     Save to the specified directory"
-    echo "                         (default: $output)"
-    echo "    -r, --resume         Resume from a previous run"
-    echo "    -s, --size=WxH       Use the specified resolution"
-    echo "                         (default: $resolution)"
-    echo "    -t, --threads=NUM    Use the specied number of threads"
-    echo "                         (default: $threads)"
-    echo "    -v, --verbose        Do not hide parallel errors"
-    echo
+    cat <<EOF
+Usage: ${0##*/} [OPTIONS] <image1>... [imageN]
+
+Create a wallpaper from an image
+
+Options:
+    -h, --help           Display this help message
+    -i, --info           Display background color that would be used
+    --nocolor            Disable colorized output
+    -o, --output=DIR     Save to the specified directory (default: .)
+    -r, --resume         Resume from a previous run
+    -s, --size=WxH       Use the specified resolution (default:
+                         1920x1080)
+    -t, --threads=NUM    Use specified number of threads (default: 32)
+    -v, --verbose        Do not hide parallel errors
+
+EOF
     exit $1
 }
 
@@ -239,7 +238,7 @@ case "$action" in
             errx 3 "$output/\$name already exists!"
         fi
         if [[ -n \$bgcolor ]]; then
-            info "Creating $output/\$name"
+            good "Creating $output/\$name"
             convert \$1 -background \$bgcolor -gravity center \
                 -resize $resolution -extent $resolution \
                 $output/\$name
@@ -247,7 +246,7 @@ case "$action" in
             err "Couldn't create $output/\$name"
         fi
         ;;
-    "info") info "\$bgcolor" ;;
+    "info") subinfo "\$bgcolor" ;;
 esac
 EOF
 chmod 700 $script

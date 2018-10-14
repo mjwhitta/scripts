@@ -30,8 +30,8 @@
 
 function tmussh() {
     tmussh_cleanup() {
-        unset args cmd current_pane delay help interactive
-        unset keep_localhost window wname
+        unset agent agent_cmd args cmd current_pane delay help
+        unset interactive keep_localhost window wname
         unset -f tmussh_cleanup tmussh_usage
     }
 
@@ -96,28 +96,30 @@ function tmussh() {
         esac
         shift
     done
-    [[ -z ${args[@]} ]] || set -- "${args[@]}"
+    [[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
     [[ -n $help ]] && tmussh_usage && return 0
 
     wname="tmussh_$(head -c 4 /dev/urandom | xxd -p)"
-    [[ -z $window ]] || tmux new-window -n $wname
+    [[ -z $window ]] || tmux new-window -n "$wname"
 
+    agent="$HOME/.ssh/agent/env"
+    agent_cmd="[[ ! -f $agent ]] || . $agent"
     current_pane="$(tmux display -p "#{pane_id}")"
     for host in "$@"; do
         case "$host" in
             "localhost") keep_localhost="true" ;;
-            *) tmux split-window -h "ssh $host" ;;
+            *) tmux split-window -h "$agent_cmd; ssh $host" ;;
         esac
     done
-    [[ -n $keep_localhost ]] || tmux kill-pane -t $current_pane
+    [[ -n $keep_localhost ]] || tmux kill-pane -t "$current_pane"
 
     [[ -z $window ]] || tmux select-pane -t 0
     tmux select-layout tiled
     tmux set-option -w synchronize-panes on
 
     if [[ -n $cmd ]]; then
-        sleep $delay
+        sleep "$delay"
         tmux send-keys "$cmd"
         if [[ -z $interactive ]]; then
             tmux send-keys "exit"
