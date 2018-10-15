@@ -104,7 +104,7 @@ function tmussh() {
     [[ -z $window ]] || tmux new-window -n "$wname"
 
     agent="$HOME/.ssh/agent/env"
-    agent_cmd="[[ ! -f $agent ]] || . $agent"
+    agent_cmd="[[ ! -f $agent ]] || . $agent >/dev/null"
     current_pane="$(tmux display -p "#{pane_id}")"
     for host in "$@"; do
         case "$host" in
