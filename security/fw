@@ -35,16 +35,21 @@ function fw() {
     fi
 
     fw_cleanup() {
-        unset action all arg args chain help tbl tbls
+        unset action all arg args chain docker_ips help tbl tbls
         unset -f fw_cleanup fw_clear fw_close fw_list fw_open fw_reset
         unset -f fw_usage
     }
 
     fw_clear() {
         # Ignore Docker as those should be managed by docker.service
+        docker_ips="$(
+            ip -o a | \
+            grep -ioP "docker[0-9]+\s+inet\s+\K[0-9]{1,3}\.[0-9]{1,3}"
+        )"
 
         # Save Docker rules
-        sudo iptables-save | grep -Ei "^\*|^commit$|docker" \
+        sudo iptables-save | \
+            grep -iP "^\*|^commit$|docker| $docker_ips\." \
             >/tmp/fw.docker.rules
 
         for tbl in "${tbls[@]}"; do
@@ -71,8 +76,13 @@ function fw() {
         for tbl in "${tbls[@]}"; do
             echo "### $tbl ###"
             # Ignore Docker
+            docker_ips="$(
+                ip -o a | \
+                grep -ioP "docker[0-9]+\s+inet\s+\K[0-9]+\.[0-9]+"
+            )"
             if [[ $# -eq 0 ]]; then
-                sudo iptables -S -t $tbl | grep -iv "docker"
+                sudo iptables -S -t $tbl | \
+                    grep -iPv "docker| $docker_ips\."
             else
                 sudo iptables -S -t $tbl
             fi

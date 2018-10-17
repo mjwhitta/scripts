@@ -35,16 +35,21 @@ function fw6() {
     fi
 
     fw6_cleanup() {
-        unset action all arg args chain help tbl tbls
+        unset action all arg args chain docker_ips help tbl tbls
         unset -f fw6_cleanup fw6_clear fw6_close fw6_list fw6_open
         unset -f fw6_reset fw6_usage
     }
 
     fw6_clear() {
         # Ignore Docker as those should be managed by docker.service
+        docker_ips="$(
+            ip -o a | \
+            grep -ioP "docker[0-9]+\s+inet6\s+\Kfe80::[a-f0-9]+:"
+        )"
 
         # Save Docker rules
-        sudo ip6tables-save | grep -Ei "^\*|^commit$|docker" \
+        sudo ip6tables-save | \
+            grep -iP "^\*|^commit$|docker| $docker_ips" \
             >/tmp/fw6.docker.rules
 
         for tbl in "${tbls[@]}"; do
@@ -75,8 +80,13 @@ function fw6() {
         for tbl in "${tbls[@]}"; do
             echo "### $tbl ###"
             # Ignore Docker
+            docker_ips="$(
+                ip -o a | \
+                grep -ioP "docker[0-9]+\s+inet6\s+\Kfe80::[a-f0-9]+:"
+            )"
             if [[ $# -eq 0 ]]; then
-                sudo ip6tables -S -t $tbl | grep -iv "docker"
+                sudo ip6tables -S -t $tbl | \
+                    grep -iPv "docker| $docker_ips"
             else
                 sudo ip6tables -S -t $tbl
             fi
