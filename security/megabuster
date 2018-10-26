@@ -30,23 +30,34 @@
 
 ### Helpers begin
 set -o noglob
+check_and_lock() {
+    [[ -n $cache ]] || errx 124 "Cache is not defined"
+    mkdir -p "$cache"
+    if [[ -f "$cache/.lock" ]]; then
+        errx 125 "$cache/.lock already exists"
+    fi
+    echo "$$" >"$cache/.lock"
+}
 checkdeps() {
     for d in "${deps[@]}"; do
-        [[ -n $(command -v $d) ]] || errx 128 "$d is not installed"
+        [[ -n $(command -v "$d") ]] || errx 128 "$d is not installed"
     done; unset d
 }
 clean() {
-    [[ ${1:-0} -ne 0 ]] || [[ ! -d $cache ]] || rm -rf $cache
-    [[ -z $script ]] || [[ ! -f $script ]] || rm -f $script
+    if [[ ${1:-0} -eq 0 ]]; then
+        [[ -z $cache ]] || [[ ! -d "$cache" ]] || rm -rf "$cache"
+    fi
+    [[ -z $script ]] || [[ ! -f "$script" ]] || rm -f "$script"
     echo -en "\e[?25h" # Show cursor again
-    exit ${1:-0}
+    [[ ${1:-0} -eq 125 ]] || [[ -z $cache ]] || rm -f "$cache/.lock"
+    exit "${1:-0}"
 }
-err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
-errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; clean $1; }
-good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
-info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+errx() { echo -e "${color:+\e[31m}[!] ${*:2}\e[0m"; clean "$1"; }
+good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
+info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 json_get() {
-    [[ -z $json ]] || jq -cr ".$@" $json | sed -r "s/^null$//g"
+    [[ -z $json ]] || jq -cr ".$*" "$json" | sed -r "s/^null$//g"
 }
 long_opt() {
     local arg shift="0"
@@ -57,14 +68,14 @@ long_opt() {
     echo "$arg"
     return $shift
 }
-subinfo() { echo -e "${color:+\e[36m}[=] $@\e[0m"; }
-warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
+subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 ### Helpers end
 
 cache_default_lists() {
     # Create dcache directory
-    mkdir -p $(dirname $dcache)
-    rm -f $dcache
+    mkdir -p "$(dirname "$dcache")"
+    rm -f "$dcache"
 
     local dirb_blist="big.txt"
     local dirb_clist="common.txt"
@@ -81,12 +92,12 @@ cache_default_lists() {
     if [[ -n $dirb ]]; then
         for list in $dirb_blist $dirb_clist; do
             wordlist="$(
-                find $dirb -name "$list" -type f -print -quit \
+                find "$dirb" -name "$list" -type f -print -quit \
                 2>/dev/null
             )"
 
             # Cache location of list
-            [[ -z $wordlist ]] || echo "$wordlist" >>$dcache
+            [[ -z $wordlist ]] || echo "$wordlist" >>"$dcache"
         done; unset list
     fi
 
@@ -99,15 +110,15 @@ cache_default_lists() {
     # If dirbuster was found, find the list
     if [[ -n $dirbuster ]]; then
         wordlist="$(
-            find $dirbuster -name "$dirbuster_list" -type f -print \
+            find "$dirbuster" -name "$dirbuster_list" -type f -print \
             -quit 2>/dev/null
         )"
 
         # Cache location of list
-        [[ -z $wordlist ]] || echo "$wordlist" >>$dcache
+        [[ -z $wordlist ]] || echo "$wordlist" >>"$dcache"
     fi
 
-    touch $dcache
+    touch "$dcache"
 }
 
 join_with() { local IFS="$1"; echo "${*:2}"; }
@@ -600,50 +611,48 @@ read_resume_file() {
 
 # summarize_results() {
 #     [[ -n $summarize ]] || return
-#     [[ -f $results ]] || return
+#     [[ -f "$results" ]] || return
 #
 #     info "Summarizing results"
 #     while read -r result; do
 #         good "${result:4}"
-#     done < <(grep -Eos "\[\+\].+" $results | sort -u); unset result
+#     done < <(grep -oPs "\[\+\].+" $results | sort -u); unset result
 # }
 
 usage() {
     [[ $1 -ne 0 ]] || logo >&2
-    echo "Usage: ${0##*/} [OPTIONS] <host/ip>[:port][/path][?query]"
-    echo
-    echo "Fuzz paths on a webserver. By default, MegaBuster will try"
-    echo "to use the big.txt and common.txt lists from dirb and the"
-    echo "directory-list-2.3-medium.txt list from DirBuster."
-    echo
-    echo "Options:"
-    echo "    -a, --apend          Append user specified lists to"
-    echo "                         the default"
-    echo "    -c, --cache          Cache locations of defaults lists"
-    echo "    -h, --help           Display this help message"
-    echo "    -i, --ignore=CODE    Ignore specified return codes, can"
-    echo "                         be used more than once, accepts"
-    echo "                         csv"
-    echo "    -l, --list=LIST      Use the specified wordlist (can be"
-    echo "                         used more than once)"
-    echo "    --nocolor            Disable colorized output"
-    echo "    -p, --proxy=PROXY    Proxy traffic through PROXY"
-    echo "    -r, --resume         Resume from a previous run"
-    echo "    --simulate           Simulate output but do nothing"
-    echo "    -t, --threads=NUM    Use the specied number of threads"
-    echo "                         (default: $threads)"
-    echo "    --timeout=SECS       Use specified timeout with curl"
-    echo "                         (default: none)"
-    echo "    --tls                Use TLS connection (https)"
-    echo "    -v, --verbose        Do not hide parallel errors"
-    echo
-    exit $1
+    cat <<EOF
+Usage: ${0##*/} [OPTIONS] <host/ip>[:port][/path][?query]
+
+Fuzz paths on a webserver. By default, MegaBuster will try to use the
+big.txt and common.txt lists from dirb and the
+directory-list-2.3-medium.txt list from DirBuster.
+
+Options:
+    -a, --apend          Append user specified lists to the default
+    -c, --cache          Cache locations of defaults lists
+    -h, --help           Display this help message
+    -i, --ignore=CODE    Ignore specified return codes (can be used
+                         more than once or accepts comma-separated)
+    -l, --list=LIST      Use the specified wordlist (can be used more
+                         than once)
+    --nocolor            Disable colorized output
+    -p, --proxy=PROXY    Proxy traffic through PROXY
+    -r, --resume         Resume from a previous run
+    --simulate           Simulate output but do nothing
+    -t, --threads=NUM    Use specied number of threads (default: 32)
+    --timeout=SECS       Use specified curl timeout (default: none)
+    --tls                Use TLS connection (https)
+    -v, --verbose        Do not hide parallel errors
+
+EOF
+    exit "$1"
 }
 
 write_resume_file() {
-    [[ -z $cache ]] || rm -rf $cache
-    mkdir -p $cache
-    cat >$json <<EOF
+    [[ -z $cache ]] || rm -rf "$cache"
+    mkdir -p "$cache"
+    cat >"$json" <<EOF
 {
   "host": "${host:-${simulate:+simulation}}",
   "ignore": [
@@ -669,15 +678,11 @@ EOF
 declare -a args deps ignore wordlists
 unset append dlists help proxy recache resume simulate timeout tls
 unset verbose
-cache="${0##*/}.resume"
 color="true"
 curl="curl -IkLs"
-dcache="$HOME/.cache/${0##*/}/default_list.locations"
 deps+=("curl")
 deps+=("jq")
 deps+=("parallel")
-joblog="$cache/joblog.txt"
-json="$cache/${0##*/}.json"
 threads="32"
 
 # Check for missing dependencies
@@ -710,28 +715,47 @@ while [[ $# -gt 0 ]]; do
     esac
     shift
 done
-[[ -z ${args[@]} ]] || set -- "${args[@]}"
+[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
 # Check for valid params
 [[ -z $help ]] || usage 0
-[[ $# -eq 1 ]] || [[ -n $recache$resume$simulate ]] || usage 1
-
-# Cite if needed
-if [[ ! -f $HOME/.parallel/will-cite ]]; then
-    mkdir -p $HOME/.parallel
-    parallel --citation
-fi
+[[ $# -eq 1 ]] || [[ -n $recache$simulate ]] || usage 1
 
 # If defaults lists are not cached, find and cache
-if [[ ! -f $dcache ]] || [[ -n $recache ]]; then
+dcache="$HOME/.cache/${0##*/}/default_list.locations"
+if [[ ! -f "$dcache" ]] || [[ -n $recache ]]; then
     cache_default_lists
     [[ -z $recache ]] || exit
 fi
 
+# Save host
+host="${1:-${simulate:+simulation}}"
+
+# Ensure host is reachable
+if [[ -z $simulate ]]; then
+    ping -c 1 -W 1 "${host%%[:/]*}" &>/dev/null
+    [[ $? -eq 0 ]] || errx 4 "Target is out of range"
+fi
+
+# Cache variables
+hash="$(echo -n "$host" | sha256sum | awk '{print $1}')"
+cache="$HOME/.cache/${0##*/}/$hash"
+joblog="$cache/joblog.txt"
+json="$cache/${0##*/}.json"
+
+# Lock to prevent parallel issues
+check_and_lock
+
+# Cite if needed
+if [[ ! -f "$HOME/.parallel/will-cite" ]]; then
+    mkdir -p "$HOME/.parallel"
+    parallel --citation
+fi
+
 # Get default lists
 while read -r wordlist; do
-    dlists+=($wordlist)
-done <$dcache; unset wordlist
+    dlists+=("$wordlist")
+done <"$dcache"; unset wordlist
 
 # Use default lists if none provided or append was specified
 if [[ ${#wordlists[@]} -eq 0 ]] || [[ -n $append ]]; then
@@ -741,27 +765,17 @@ fi
 # Ensure lists are provided and valid
 [[ ${#wordlists[@]} -ne 0 ]] || errx 2 "No wordlists provided"
 for wordlist in "${wordlists[@]}"; do
-    [[ -f $wordlist ]] || errx 3 "Wordlist does not exist: $wordlist"
+    if [[ ! -f "$wordlist" ]]; then
+        errx 3 "Wordlist does not exist: $wordlist"
+    fi
 done; unset wordlist
 
-# Save host
-host="${1:-${simulate:+simulation}}"
-
-# Ensure host is reachable
-if [[ -z $simulate ]]; then
-    ping -c 1 -W 1 ${host%%[:/]*} &>/dev/null
-    [[ $? -eq 0 ]] || errx 4 "Target is out of range"
-fi
-
-# Ensure resume directory exists
-mkdir -p $cache
-
 # Check for resume file
-if [[ -f $json ]] && [[ -z $resume ]]; then
+if [[ -f "$json" ]] && [[ -z $resume ]]; then
     warn "Resume file found" >&2
     while :; do
         # Prompt whether to overwrite or resume
-        read -n 1 -p "Would you like to resume [y/n/q]: " -s ans
+        read -n 1 -p "Would you like to resume [y/n/q]: " -rs ans
         echo
 
         case "$ans" in
@@ -771,10 +785,10 @@ if [[ -f $json ]] && [[ -z $resume ]]; then
             *) echo "Invalid response, try again!" ;;
         esac
     done
-elif [[ -f $json ]]; then
+elif [[ -f "$json" ]]; then
     read_resume_file
 elif [[ -n $resume ]]; then
-    errx 5 "No resume file found in current directory"
+    errx 2 "No resume file found in current directory"
 else
     write_resume_file
 fi
@@ -793,29 +807,29 @@ echo -en "\e[?25l"
 
 info "MegaBuster is targeting $host"
 
-# Process dataset
+# Process wordlists
 info "Processing wordlists for ammo"
 
 total="0"
 while read -r count; do
     ((total += count))
-done < <(grep -cEhvs "^( *#.*)?$" "${wordlists[@]}"); unset count
+done < <(grep -chPvs "^( *#.*)?$" "${wordlists[@]}"); unset count
 [[ $total -gt 0 ]] || errx 0 "No ammo"
 
 subinfo "$total shots to fire"
 
 # Create sub-script
-cat >$script <<EOF
+cat >"$script" <<EOF
 #!/usr/bin/env bash
 
 ### Helpers begin
 set -o noglob
-err() { echo -e "\r${color:+\e[31m}[!] \$@\e[0m\e[K"; }
-errx() { echo -e "\r${color:+\e[31m}[!] \${@:2}\e[0m\e[K"; exit \$1; }
-good() { echo -e "\r${color:+\e[32m}[+] \$@\e[0m\e[K"; }
-info() { echo -e "\r${color:+\e[37m}[*] \$@\e[0m\e[K"; }
-subinfo() { echo -e "\r${color:+\e[36m}[=] \$@\e[0m\e[K"; }
-warn() { echo -e "\r${color:+\e[33m}[-] \$@\e[0m\e[K"; }
+err() { echo -e "\r${color:+\e[31m}[!] \$*\e[0m\e[K"; }
+errx() { echo -e "\r${color:+\e[31m}[!] \${*:2}\e[0m\e[K"; exit \$1; }
+good() { echo -e "\r${color:+\e[32m}[+] \$*\e[0m\e[K"; }
+info() { echo -e "\r${color:+\e[37m}[*] \$*\e[0m\e[K"; }
+subinfo() { echo -e "\r${color:+\e[36m}[=] \$*\e[0m\e[K"; }
+warn() { echo -e "\r${color:+\e[33m}[-] \$*\e[0m\e[K"; }
 ### Helpers end
 
 check() {
@@ -836,7 +850,7 @@ check() {
         *) good "\$type /\$1 (\$line)" ;;
       esac
     done < <(
-      $curl \${data:+-d $data} $proxy $timeout -X \$type \\
+      $curl \${data:+-d \$data} $proxy $timeout -X \$type \\
       "http${tls:+s}://$host/\$1" | \\
       awk '/^(HTTP|Location)/ {print \$2}' | tr -d "\r" | \\
       sed -r "\\\$!N;s/\n/ /"
@@ -889,10 +903,10 @@ else
   check "\$path"
 fi
 EOF
-chmod 700 $script
+chmod 700 "$script"
 
-cat ${wordlists[@]} | parallel --bar --joblog ${resume:++}$joblog \
-    --lb -P $threads -r $resume $script {}
+cat "${wordlists[@]}" | parallel --bar --joblog ${resume:++}"$joblog" \
+    --lb -P "$threads" -r $resume "$script" {}
 [[ -n $verbose ]] || echo -en "\e[1A\e[K" >&2
 
 clean
