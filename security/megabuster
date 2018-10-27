@@ -731,6 +731,12 @@ fi
 # Save host
 host="${1:-${simulate:+simulation}}"
 
+# Cache variables
+hash="$(echo -n "$host" | sha256sum | awk '{print $1}')"
+cache="$HOME/.cache/${0##*/}/$hash"
+joblog="$cache/joblog.txt"
+json="$cache/${0##*/}.json"
+
 # Ensure host is reachable
 if [[ -z $simulate ]]; then
     ping -c 1 -W 1 "${host%%[:/]*}" &>/dev/null
@@ -760,12 +766,6 @@ for wordlist in "${wordlists[@]}"; do
         errx 5 "Wordlist does not exist: $wordlist"
     fi
 done; unset wordlist
-
-# Cache variables
-hash="$(echo -n "$host" | sha256sum | awk '{print $1}')"
-cache="$HOME/.cache/${0##*/}/$hash"
-joblog="$cache/joblog.txt"
-json="$cache/${0##*/}.json"
 
 # Check for resume file
 if [[ -f "$json" ]] && [[ -z $resume ]]; then
