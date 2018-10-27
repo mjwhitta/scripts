@@ -737,15 +737,6 @@ if [[ -z $simulate ]]; then
     [[ $? -eq 0 ]] || errx 3 "Target is out of range"
 fi
 
-# Cache variables
-hash="$(echo -n "$host" | sha256sum | awk '{print $1}')"
-cache="$HOME/.cache/${0##*/}/$hash"
-joblog="$cache/joblog.txt"
-json="$cache/${0##*/}.json"
-
-# Lock to prevent parallel issues
-check_and_lock
-
 # Cite if needed
 if [[ ! -f "$HOME/.parallel/will-cite" ]]; then
     mkdir -p "$HOME/.parallel"
@@ -770,6 +761,12 @@ for wordlist in "${wordlists[@]}"; do
     fi
 done; unset wordlist
 
+# Cache variables
+hash="$(echo -n "$host" | sha256sum | awk '{print $1}')"
+cache="$HOME/.cache/${0##*/}/$hash"
+joblog="$cache/joblog.txt"
+json="$cache/${0##*/}.json"
+
 # Check for resume file
 if [[ -f "$json" ]] && [[ -z $resume ]]; then
     warn "Resume file found" >&2
@@ -792,6 +789,11 @@ elif [[ -n $resume ]]; then
 else
     write_resume_file
 fi
+
+# Lock to prevent parallel issues
+check_and_lock
+
+[[ -z $resume ]] || info "Resuming..."
 
 # Display logo
 logo >&2
