@@ -772,10 +772,11 @@ if [[ -f "$json" ]] && [[ -z $resume ]]; then
     warn "Resume file found" >&2
     while :; do
         # Prompt whether to overwrite or resume
-        read -n 1 -p "Would you like to resume [y/n/q]: " -rs ans
+        read -n 1 -p "Would you like to resume [y/n/q/c]: " -rs ans
         echo
 
         case "$ans" in
+            "c") clean 0 ;;
             "n") write_resume_file; break ;;
             "q") exit 0 ;;
             "y") read_resume_file; resume="--resume"; break ;;
