@@ -30,18 +30,44 @@
 
 ### Helpers begin
 set -o noglob
-check_and_lock() {
-    [[ -n $cache ]] || errx 124 "Cache is not defined"
-    mkdir -p "$cache"
-    if [[ -f "$cache/.lock" ]]; then
-        errx 125 "$cache/.lock already exists"
-    fi
-    echo "$$" >"$cache/.lock"
-}
-checkdeps() {
+trap "clean 126" SIGINT # Ensure cleanup on ^C
+check_deps() {
     for d in "${deps[@]}"; do
         [[ -n $(command -v "$d") ]] || errx 128 "$d is not installed"
     done; unset d
+}
+check_lock() {
+    [[ -n $cache ]] || errx 125 "Cache is not defined"
+    mkdir -p "$cache"
+    if [[ -f "$cache/.lock" ]]; then
+        errx 124 "$cache/.lock already exists"
+    fi
+    echo "$$" >"$cache/.lock"
+}
+check_resume_file() {
+    if [[ -f "$json" ]] && [[ -z $resume ]]; then
+        warn "Resume file found" >&2
+        while :; do
+            # Prompt whether to overwrite or resume
+            local a
+            read -n 1 -p "Would you like to resume [y/n/q/c]: " -rs a
+            echo
+
+            case "$a" in
+                "c") clean 0 ;;
+                "n") write_resume_file; break ;;
+                "q") exit 0 ;;
+                "y") read_resume_file; resume="--resume"; break ;;
+                *) echo "Invalid response, try again!" ;;
+            esac
+        done
+    elif [[ -f $json ]]; then
+        read_resume_file
+    elif [[ -n $resume ]]; then
+        errx 123 "No resume file found in current directory"
+    else
+        write_resume_file
+    fi
 }
 clean() {
     if [[ ${1:-0} -eq 0 ]]; then
@@ -55,6 +81,7 @@ clean() {
 err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
 errx() { echo -e "${color:+\e[31m}[!] ${*:2}\e[0m"; clean "$1"; }
 good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
+hide_cursor() { echo -en "\e[?25l"; }
 info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 json_get() {
     [[ -z $json ]] || jq -cr ".$*" "$json" | sed -r "s/^null$//g"
@@ -676,8 +703,7 @@ EOF
 }
 
 declare -a args deps ignore wordlists
-unset append dlists help proxy recache resume simulate timeout tls
-unset verbose
+unset append docache help proxy resume simulate timeout tls verbose
 color="true"
 curl="curl -IkLs"
 deps+=("curl")
@@ -686,14 +712,14 @@ deps+=("parallel")
 threads="32"
 
 # Check for missing dependencies
-checkdeps
+check_deps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
         "-a"|"--append") append="true" ;;
-        "-c"|"--cache") recache="true" ;;
+        "-c"|"--cache") docache="true" ;;
         "-h"|"--help") help="true" ;;
         "-i"|"--ignore"*)
             arg="$(long_opt "$@")" || shift
@@ -719,13 +745,13 @@ done
 
 # Check for valid params
 [[ -z $help ]] || usage 0
-[[ $# -eq 1 ]] || [[ -n $recache$simulate ]] || usage 1
+[[ $# -le 1 ]] || usage 1
+[[ $# -eq 1 ]] || [[ -n $docache$simulate ]] || usage 1
 
-# If defaults lists are not cached, find and cache
-dcache="$HOME/.cache/${0##*/}/default_list.locations"
-if [[ ! -f "$dcache" ]] || [[ -n $recache ]]; then
-    cache_default_lists
-    [[ -z $recache ]] || exit
+# Cite if needed
+if [[ ! -f "$HOME/.parallel/will-cite" ]]; then
+    mkdir -p "$HOME/.parallel"
+    parallel --citation
 fi
 
 # Save host
@@ -737,91 +763,56 @@ cache="$HOME/.cache/${0##*/}/$hash"
 joblog="$cache/joblog.txt"
 json="$cache/${0##*/}.json"
 
+# If defaults lists are not cached, find and cache
+dcache="$HOME/.cache/${0##*/}/default_list.locations"
+[[ -f "$dcache" ]] || docache="true"
+[[ -z $docache ]] || cache_default_lists
+[[ -n $host ]] || exit
+
 # Ensure host is reachable
 if [[ -z $simulate ]]; then
     ping -c 1 -W 1 "${host%%[:/]*}" &>/dev/null
     [[ $? -eq 0 ]] || errx 3 "Target is out of range"
 fi
 
-# Cite if needed
-if [[ ! -f "$HOME/.parallel/will-cite" ]]; then
-    mkdir -p "$HOME/.parallel"
-    parallel --citation
-fi
-
-# Get default lists
-while read -r wordlist; do
-    dlists+=("$wordlist")
-done <"$dcache"; unset wordlist
-
 # Use default lists if none provided or append was specified
 if [[ ${#wordlists[@]} -eq 0 ]] || [[ -n $append ]]; then
-    wordlists+=(${dlists[@]})
+    while read -r wordlist; do
+        wordlists+=("$wordlist")
+    done <"$dcache"; unset wordlist
 fi
 
 # Ensure lists are provided and valid
 [[ ${#wordlists[@]} -ne 0 ]] || errx 4 "No wordlists provided"
 for wordlist in "${wordlists[@]}"; do
-    if [[ ! -f "$wordlist" ]]; then
-        errx 5 "Wordlist does not exist: $wordlist"
-    fi
+    [[ -f "$wordlist" ]] || errx 5 "$wordlist does not exist"
 done; unset wordlist
 
 # Check for resume file
-if [[ -f "$json" ]] && [[ -z $resume ]]; then
-    warn "Resume file found" >&2
-    while :; do
-        # Prompt whether to overwrite or resume
-        read -n 1 -p "Would you like to resume [y/n/q/c]: " -rs ans
-        echo
-
-        case "$ans" in
-            "c") clean 0 ;;
-            "n") write_resume_file; break ;;
-            "q") exit 0 ;;
-            "y") read_resume_file; resume="--resume"; break ;;
-            *) echo "Invalid response, try again!" ;;
-        esac
-    done
-elif [[ -f "$json" ]]; then
-    read_resume_file
-elif [[ -n $resume ]]; then
-    errx 2 "No resume file found in current directory"
-else
-    write_resume_file
-fi
+check_resume_file
+hide_cursor
 
 # Lock to prevent parallel issues
-check_and_lock
+check_lock
 
 [[ -z $resume ]] || info "Resuming..."
 
 # Display logo
 logo >&2
 
-# Script used by parallel
-script="/tmp/${0##*/}.parallel"
-
-# Ensure cleanup on ^C
-trap "clean 126" SIGINT
-
-# Hide cursor
-echo -en "\e[?25l"
-
 info "MegaBuster is targeting $host"
-
-# Process wordlists
 info "Processing wordlists for ammo"
 
 total="0"
 while read -r count; do
     ((total += count))
 done < <(grep -chPvs "^( *#.*)?$" "${wordlists[@]}"); unset count
-[[ $total -gt 0 ]] || errx 0 "No ammo"
+[[ $total -gt 0 ]] || errx 2 "No ammo"
 
 subinfo "$total shots to fire"
 
 # Create sub-script
+script="/tmp/${0##*/}.parallel"
 cat >"$script" <<EOF
 #!/usr/bin/env bash
 
