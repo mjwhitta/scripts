@@ -64,7 +64,7 @@ check_resume_file() {
     elif [[ -f $json ]]; then
         read_resume_file
     elif [[ -n $resume ]]; then
-        errx 123 "No resume file found in current directory"
+        errx 123 "No resume file found"
     else
         write_resume_file
     fi
@@ -74,7 +74,7 @@ clean() {
         [[ -z $cache ]] || [[ ! -d "$cache" ]] || rm -rf "$cache"
     fi
     [[ -z $script ]] || [[ ! -f "$script" ]] || rm -f "$script"
-    echo -en "\e[?25h" # Show cursor again
+    show_cursor
     [[ ${1:-0} -eq 125 ]] || [[ -z $cache ]] || rm -f "$cache/.lock"
     exit "${1:-0}"
 }
@@ -95,6 +95,7 @@ long_opt() {
     echo "$arg"
     return $shift
 }
+show_cursor() { echo -en "\e[?25h"; }
 subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
 warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 ### Helpers end
@@ -660,9 +661,9 @@ Options:
     -c, --cache          Cache locations of defaults lists
     -h, --help           Display this help message
     -i, --ignore=CODE    Ignore specified return codes (can be used
-                         more than once or accepts comma-separated)
+                         more than once or accepts csv)
     -l, --list=LIST      Use the specified wordlist (can be used more
-                         than once)
+                         than once or accepts csv)
     --nocolor            Disable colorized output
     -p, --proxy=PROXY    Proxy traffic through PROXY
     -r, --resume         Resume from a previous run
@@ -725,7 +726,10 @@ while [[ $# -gt 0 ]]; do
             arg="$(long_opt "$@")" || shift
             ignore+=(${arg//,/ })
             ;;
-        "-l"|"--list"*) wordlists+=($(long_opt "$@")) || shift ;;
+        "-l"|"--list"*)
+            arg=($(long_opt "$@")) || shift
+            wordlists+=(${arg//,/ })
+            ;;
         "--nocolor") unset color ;;
         "-p"|"--proxy"*) proxy="--proxy $(long_opt "$@")" || shift ;;
         "-r"|"--resume") resume="--resume" ;;
