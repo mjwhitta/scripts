@@ -652,8 +652,8 @@ usage() {
 Usage: ${0##*/} [OPTIONS] <host/ip>[:port][/path][?query]
 
 Fuzz paths on a webserver. By default, MegaBuster will try to use the
-big.txt and common.txt lists from dirb and the
-directory-list-2.3-medium.txt list from DirBuster.
+directory-list-2.3-medium.txt list from DirBuster and the big.txt and
+common.txt lists from dirb.
 
 Options:
     -a, --apend          Append user specified lists to the default
