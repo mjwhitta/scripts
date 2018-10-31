@@ -634,10 +634,16 @@ logo() {
 
 read_resume_file() {
     host="$(json_get "host")"
-    ignore=($(json_get "ignore[]"))
+    local ignore
+    while read -r ignore; do
+        ignores+=("$ignore")
+    done < <(json_get "ignores[]"); unset ignore
     simulate="$(json_get "simulate")"
     tls="$(json_get "tls")"
-    wordlists=($(json_get "wordlists[]"))
+    local wordlist
+    while read -r wordlist; do
+        wordlists+=("$wordlist")
+    done < <(json_get "wordlists[]"); unset wordlist
 }
 
 # summarize_results() {
@@ -664,9 +670,9 @@ Options:
     -c, --cache          Cache locations of defaults lists
     -h, --help           Display this help message
     -i, --ignore=CODE    Ignore specified return codes (can be used
-                         more than once or accepts csv)
+                         more than once)
     -l, --list=LIST      Use the specified wordlist (can be used more
-                         than once or accepts csv)
+                         than once)
     --nocolor            Disable colorized output
     -p, --proxy=PROXY    Proxy traffic through PROXY
     -r, --resume         Resume from a previous run
@@ -689,10 +695,10 @@ write_resume_file() {
     cat >"$json" <<EOF
 {
   "host": "${host:-${simulate:+simulation}}",
-  "ignore": [
+  "ignores": [
 $(
-    for i in $(seq 1 ${#ignore[@]}); do
-        echo "    \"${ignore[$i - 1]}\"${ignore[$i]:+,}"
+    for i in $(seq 1 ${#ignores[@]}); do
+        echo "    \"${ignores[$i - 1]}\"${ignores[$i]:+,}"
     done; unset i
 )
   ],
@@ -709,7 +715,7 @@ $(
 EOF
 }
 
-declare -a args deps ignore wordlists
+declare -a args deps ignores wordlists
 unset append docache help proxy resume simulate timeout tls verbose
 color="true"
 curl="curl -IkLs"
@@ -728,23 +734,14 @@ while [[ $# -gt 0 ]]; do
         "-a"|"--append") append="true" ;;
         "-c"|"--cache") docache="true" ;;
         "-h"|"--help") help="true" ;;
-        "-i"|"--ignore"*)
-            arg="$(long_opt "$@")" || shift
-            ignore+=(${arg//,/ })
-            ;;
-        "-l"|"--list"*)
-            arg=($(long_opt "$@")) || shift
-            wordlists+=(${arg//,/ })
-            ;;
+        "-i"|"--ignore"*) ignores+=("$(long_opt "$@")") || shift ;;
+        "-l"|"--list"*) wordlists+=("$(long_opt "$@")") || shift ;;
         "--nocolor") unset color ;;
         "-p"|"--proxy"*) proxy="--proxy $(long_opt "$@")" || shift ;;
         "-r"|"--resume") resume="--resume" ;;
         "--simulate") simulate="true" ;;
         "-t"|"--threads"*) threads="$(long_opt "$@")" || shift ;;
-        "--timeout"*)
-            arg="$(long_opt "$@")" || shift
-            timeout="--connect-timeout $arg --max-time $arg"
-            ;;
+        "--timeout"*) timeout="-m $(long_opt "$@")" || shift ;;
         "--tls") tls="true" ;;
         "-v"|"--verbose") verbose="true" ;;
         *) args+=("$1") ;;
@@ -847,7 +844,7 @@ check() {
     while read -r line; do
       case "\$line" in
         404) continue ;;
-        ${ignore:+$(join_with "|" "${ignore[@]}")) continue ;;}
+        ${ignores:+$(join_with "|" "${ignores[@]}")) continue ;;}
         5*) err "\$type /\$1 (\$line)" ;;
         4*) warn "\$type /\$1 (\$line)" ;;
         3*) subinfo "\$type /\$1 (\${line/http*:\/\/$host/})" ;;
@@ -880,7 +877,7 @@ simulate() {
     8)
       case "\$ret" in
         404) return ;;
-        ${ignore:+$(join_with "|" "${ignore[@]}")) return ;;}
+        ${ignores:+$(join_with "|" "${ignores[@]}")) return ;;}
         5*) err "\$type /\$1 (\$ret)" ;;
         4*) warn "\$type /\$1 (\$ret)" ;;
         3*) subinfo "\$type /\$1 (\$ret /some/other/path)" ;;
