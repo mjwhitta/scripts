@@ -30,17 +30,17 @@
 
 ### Helpers begin
 set -o noglob
-trap "clean 126" SIGINT # Ensure cleanup on ^C
+trap "clean 128" SIGINT # Ensure cleanup on ^C
 check_deps() {
     for d in "${deps[@]}"; do
-        [[ -n $(command -v "$d") ]] || errx 128 "$d is not installed"
+        [[ -n $(command -v "$d") ]] || errx 127 "$d is not installed"
     done; unset d
 }
 check_lock() {
-    [[ -n $cache ]] || errx 125 "Cache is not defined"
+    [[ -n $cache ]] || errx 126 "Cache is not defined"
     mkdir -p "$cache"
     if [[ -f "$cache/.lock" ]]; then
-        errx 124 "$cache/.lock already exists"
+        errx 125 "$cache/.lock already exists"
     fi
     echo "$$" >"$cache/.lock"
 }
@@ -64,7 +64,7 @@ check_resume_file() {
     elif [[ -f $json ]]; then
         read_resume_file
     elif [[ -n $resume ]]; then
-        errx 123 "No resume file found"
+        errx 124 "No resume file found"
     else
         write_resume_file
     fi
@@ -74,8 +74,8 @@ clean() {
         [[ -z $cache ]] || [[ ! -d "$cache" ]] || rm -rf "$cache"
     fi
     [[ -z $script ]] || [[ ! -f "$script" ]] || rm -f "$script"
-    show_cursor
     [[ ${1:-0} -eq 125 ]] || [[ -z $cache ]] || rm -f "$cache/.lock"
+    show_cursor
     exit "${1:-0}"
 }
 err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
@@ -89,8 +89,8 @@ json_get() {
 long_opt() {
     local arg shift="0"
     case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 123 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 123; arg="$1" ;;
     esac
     echo "$arg"
     return $shift
@@ -792,12 +792,12 @@ for wordlist in "${wordlists[@]}"; do
     [[ -f "$wordlist" ]] || errx 5 "$wordlist does not exist"
 done; unset wordlist
 
+# Lock to prevent parallel issues
+check_lock
+
 # Check for resume file
 check_resume_file
 hide_cursor
-
-# Lock to prevent parallel issues
-check_lock
 
 [[ -z $resume ]] || info "Resuming..."
 
