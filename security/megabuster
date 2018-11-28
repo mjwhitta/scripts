@@ -764,6 +764,9 @@ fi
 # Save host
 host="${1:-${simulate:+simulation}}"
 
+# Strip protocol
+host="${host#*://}"
+
 # Cache variables
 hash="$(echo -n "$host" | sha256sum | awk '{print $1}')"
 cache="$HOME/.cache/${0##*/}/$hash"
@@ -778,8 +781,15 @@ dcache="$HOME/.cache/${0##*/}/default_list.locations"
 
 # Ensure host is reachable
 if [[ -z $simulate ]]; then
-    ping -c 1 -W 1 "${host%%[:/]*}" &>/dev/null
+    h="${host%%[:/]*}"
+    if [[ -n $proxy ]]; then
+        h="$(
+            echo "$proxy" | grep -ioPs "proxy .+://(.*@)?\K.+(?=:\d+)"
+        )"
+    fi
+    ping -c 1 -W 1 "$h" &>/dev/null
     [[ $? -eq 0 ]] || errx 3 "Target is out of range"
+    unset h
 fi
 
 # Use default lists if none provided or append was specified
