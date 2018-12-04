@@ -28,165 +28,167 @@
 # SOFTWARE.
 # --------------------------------------------------------------------
 
-function fw() {
-    if [[ -z $(command -v iptables) ]]; then
-        echo "iptables is not installed"
-        return 3
-    fi
-
-    fw_cleanup() {
-        unset action all arg args chain docker_ips help tbl tbls
-        unset -f fw_cleanup fw_clear fw_close fw_list fw_open fw_reset
-        unset -f fw_usage
-    }
-
-    fw_clear() {
-        # Ignore Docker as those should be managed by docker.service
-        docker_ips="$(
-            ip -o a | \
-            grep -ioP "docker[0-9]+\s+inet\s+\K[0-9]{1,3}\.[0-9]{1,3}"
-        )"
-
-        # Save Docker rules
-        sudo iptables-save | \
-            grep -iP "^\*|^commit$|docker| $docker_ips\." \
-            >/tmp/fw.docker.rules
-
-        for tbl in "${tbls[@]}"; do
-            while read -r chain; do
-                sudo iptables -t $tbl -P $chain ACCEPT
-            done < <(sudo iptables -S -t $tbl | awk '/-P/ {print $2}')
-            sudo iptables -t $tbl -F
-            while read -r chain; do
-                sudo iptables -t $tbl -X $chain
-            done < <(sudo iptables -S -t $tbl | awk '/-N/ {print $2}')
-        done
-
-        # Restore Docker rules
-        sudo iptables-restore </tmp/fw.docker.rules
-        rm -f /tmp/fw.docker.rules
-    }
-
-    fw_close() {
-        sudo iptables -D INPUT -p tcp --dport $1 -j ACCEPT
-        sudo iptables -D INPUT -p udp --dport $1 -j ACCEPT
-    }
-
-    fw_list() {
-        for tbl in "${tbls[@]}"; do
-            echo "### $tbl ###"
-            # Ignore Docker
-            docker_ips="$(
-                ip -o a | \
-                grep -ioP "docker[0-9]+\s+inet\s+\K[0-9]+\.[0-9]+"
-            )"
-            if [[ $# -eq 0 ]]; then
-                sudo iptables -S -t $tbl | \
-                    grep -iPv "docker| $docker_ips\."
-            else
-                sudo iptables -S -t $tbl
-            fi
-        done
-    }
-
-    fw_open() {
-        sudo iptables -I INPUT -p tcp --dport $1 -j ACCEPT
-        sudo iptables -I INPUT -p udp --dport $1 -j ACCEPT
-    }
-
-    fw_reset() {
-        if [[ -f /etc/iptables/iptables.rules ]]; then
-            fw_clear
-            sudo iptables-restore -n </etc/iptables/iptables.rules
-        fi
-    }
-
-    fw_usage() {
-        echo "Usage: fw [OPTIONS]"
-        echo
-        echo "Makes some iptables commands easier"
-        echo
-        echo "Options:"
-        echo "    -a, --all           Include Docker rules in output"
-        echo "    -h, --help          Display this help message"
-        echo "    -c, --close=PORT    Close a previously opened port"
-        echo "    --clear             Clear iptables rules"
-        echo "    -l, --list          List iptables rules (default"
-        echo "                        behavior)"
-        echo "    -o, --open=PORT     Open a port"
-        echo "    -r, --reset         Restore default iptables rules"
-        echo
-        fw_cleanup
-    }
-
-    declare -a args tbls
-    unset all help
-    action="list"
-    tbls=($(lsmod | perl -lne '/^iptable_(\S+)/ && print $1' | sort))
-    case "${tbls}" in
-        *"filter"*) ;;
-        *) tbls=("filter" ${tbls[@]})
+### Helpers begin
+check_deps() {
+    for d in "${deps[@]}"; do
+        [[ -n $(command -v "$d") ]] || errx 128 "$d is not installed"
+    done; unset d
+}
+err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+errx() { echo -e "${color:+\e[31m}[!] ${*:2}\e[0m"; exit "$1"; }
+good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
+info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
     esac
+    echo "$arg"
+    return $shift
+}
+subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
+### Helpers end
 
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            "--") shift && args+=("$@") && break ;;
-            "-a"|"--all") all="true" ;;
-            "-c"|"--close"*)
-                case "$1" in
-                    "--"*"="*)
-                        arg="${1#*=}"
-                        [[ -z $arg ]] && fw_usage && return 1
-                        ;;
-                    *)
-                        shift; [[ $# -eq 0 ]] && fw_usage && return 1
-                        arg="$1"
-                        ;;
-                esac
-                action="close"
-                port="$arg"
-                ;;
-            "--clear") action="clear" ;;
-            "-h"|"--help") help="true" ;;
-            "-l"|"--list") action="list" ;;
-            "-o"|"--open"*)
-                case "$1" in
-                    "--"*"="*)
-                        arg="${1#*=}"
-                        [[ -z $arg ]] && fw_usage && return 1
-                        ;;
-                    *)
-                        shift; [[ $# -eq 0 ]] && fw_usage && return 1
-                        arg="$1"
-                        ;;
-                esac
-                action="open"
-                port="$arg"
-                ;;
-            "-r"|"--reset") action="reset" ;;
-            *) args+=("$1") ;;
-        esac
-        shift
-    done
-    [[ -z ${args[@]} ]] || set -- "${args[@]}"
+fw_clear() {
+    # Ignore Docker as those should be managed by docker.service
+    docker_ips="$(
+        ip -o a | \
+        grep -ioP "docker[0-9]+\s+inet\s+\K[0-9]{1,3}\.[0-9]{1,3}"
+    )"
 
-    [[ -n $help ]] && fw_usage && return 0
-    [[ $# -gt 0 ]] && fw_usage && return 2
+    # Save Docker rules
+    sudo "${iptables}-save" | \
+        grep -iP "^\*|^commit$|docker|\s+$docker_ips\." \
+        >/tmp/fw.docker.rules
 
-    case "$action" in
-        "close") fw_close $port ;;
-        "clear") fw_clear ;;
-        "list") fw_list $all ;;
-        "open") fw_open $port ;;
-        "reset") fw_reset ;;
-    esac
+    for tbl in "${tbls[@]}"; do
+        while read -r chain; do
+            sudo "$iptables" -t "$tbl" -P "$chain" ACCEPT
+        done < <(
+            sudo "$iptables" -S -t "$tbl" | awk '/-P/ {print $2}'
+        ); unset chain
+        sudo "$iptables" -t "$tbl" -F
+        while read -r chain; do
+            sudo "$iptables" -t "$tbl" -X "$chain"
+        done < <(
+            sudo "$iptables" -S -t "$tbl" | awk '/-N/ {print $2}'
+        ); unset chain
+    done; unset tbl
 
-    fw_cleanup
+    # Restore Docker rules
+    sudo cat /tmp/fw.docker.rules | sudo "${iptables}-restore"
+    rm -f /tmp/fw.docker.rules
 }
 
-if [[ -n ${BASH_SOURCE[0]} ]]; then
-    case "$0" in
-        *"bash") ;;
-        *) fw "$@" ;;
+fw_close() {
+    sudo "$iptables" -D INPUT -p tcp --dport "$1" -j ACCEPT
+    sudo "$iptables" -D INPUT -p udp --dport "$1" -j ACCEPT
+}
+
+fw_list() {
+    for tbl in "${tbls[@]}"; do
+        info "$tbl"
+        # Ignore Docker
+        docker_ips="$(
+            ip -o a | \
+            grep -ioP "docker[0-9]+\s+inet\s+\K[0-9]+\.[0-9]+"
+        )"
+        if [[ $# -eq 0 ]]; then
+            sudo "$iptables" -S -t "$tbl" | \
+                grep -iPv "docker|\s+$docker_ips\."
+        else
+            sudo "$iptables" -S -t "$tbl"
+        fi
+    done; unset tbl
+}
+
+fw_open() {
+    sudo "$iptables" -I INPUT -p tcp --dport "$1" -j ACCEPT
+    sudo "$iptables" -I INPUT -p udp --dport "$1" -j ACCEPT
+}
+
+fw_reset() {
+    if [[ -f "/etc/iptables/$iptables.rules" ]]; then
+        fw_clear
+        sudo cat "/etc/iptables/$iptables.rules" | \
+            sudo "${iptables}-restore" -n
+    fi
+}
+
+usage() {
+    cat <<EOF
+Usage: ${0##*/} [OPTIONS]
+
+Makes some $iptables commands easier.
+
+Options:
+    -a, --all           Include Docker rules in output
+    -h, --help          Display this help message
+    -c, --close=PORT    Close a previously opened port
+    --clear             Clear $iptables rules
+    -l, --list          List $iptables rules (default behavior)
+    --nocolor           Disable colorized output
+    -o, --open=PORT     Open a port
+    -r, --reset         Restore default $iptables rules
+
+EOF
+    exit "$1"
+}
+
+# Enable multi-call functionality
+unset iptables
+case "${0##*/}" in
+    *"6") iptables="ip6tables" ;;
+esac
+
+declare -a args deps tbls
+unset all help port
+action="list"
+color="true"
+deps+=("${iptables:-iptables}")
+tbls+=("filter")
+while read -r tbl; do
+    [[ "$tbl" == "filter" ]] || tbls+=("$tbl")
+done < <(lsmod | grep -ioPs "^ip${iptables:+6}table_\K\S+" | sort)
+iptables="${iptables:-iptables}"
+
+# Check for missing dependencies
+check_deps
+
+# Parse command line options
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        "--") shift && args+=("$@") && break ;;
+        "-a"|"--all") all="true" ;;
+        "--clear") action="clear" ;;
+        "-c"|"--close"*)
+            action="close"
+            port="$(long_opt "$@")" || shift
+            ;;
+        "-h"|"--help") help="true" ;;
+        "-l"|"--list") action="list" ;;
+        "--nocolor") unset color ;;
+        "-o"|"--open"*)
+            action="open"
+            port="$(long_opt "$@")" || shift
+            ;;
+        "-r"|"--reset") action="reset" ;;
+        *) args+=("$1") ;;
     esac
-fi
+    shift
+done
+[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
+
+# Check for valid params
+[[ -z $help ]] || usage 0
+[[ $# -eq 0 ]] || usage 1
+
+case "$action" in
+    "close") fw_close "$port" ;;
+    "clear") fw_clear ;;
+    "list") fw_list $all ;;
+    "open") fw_open "$port" ;;
+    "reset") fw_reset ;;
+esac
