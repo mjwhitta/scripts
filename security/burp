@@ -71,13 +71,15 @@ mkdir -p "$cache"
 [[ -f "$cache/burp.json" ]] || echo "{}" >"$cache/burp.json"
 
 # Clear cached BurpSuite if requested
-[[ -z $clear ]] || rm -f "$cache/burpsuite_community.jar"
+[[ -z $clear ]] || find "$cache" -name "*.jar" -exec rm -f {} +
 
 # Get burpsuite if missing
-if [[ ! -f $cache/burpsuite_community.jar ]]; then
+burpsuite="$(find "$cache" -name "burp*.jar" | sort -nr | head -n 1)"
+if [[ -z $burpsuite ]]; then
     url="https://portswigger.net/burp/releases/download?type=jar"
-    curl -o "$cache/burpsuite_community.jar" "$url&product=community"
+    curl -Lo "$cache/burpsuite_community.jar" "$url&product=community"
+    [[ $? -eq 0 ]] || errx 2 "Failed to download burpsuite jar"
+    burpsuite="$cache/burpsuite_community.jar"
 fi
 
-java -jar "$cache/burpsuite_community.jar" \
-    --config-file="$cache/burp.json"
+java -jar "$burpsuite" --config-file="$cache/burp.json"
