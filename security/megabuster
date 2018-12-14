@@ -106,7 +106,7 @@ warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 cache_default_lists() {
     # Create dcache directory
     mkdir -p "$(dirname "$dcache")"
-    rm -f "$dcache"
+    rm -f "$dcache" "$dlist"
 
     local dirb_blist="big.txt"
     local dirb_clist="common.txt"
@@ -150,6 +150,11 @@ cache_default_lists() {
     fi
 
     touch "$dcache"
+    (
+        while read -r list; do
+            cat "$list"
+        done <"$dcache"; unset list
+    ) | sort -u >"$dlist"
 }
 
 join_with() { local IFS="$1"; echo "${*:2}"; }
@@ -775,6 +780,7 @@ json="$cache/${0##*/}.json"
 
 # If defaults lists are not cached, find and cache
 dcache="$HOME/.cache/${0##*/}/default_list.locations"
+dlist="$HOME/.cache/${0##*/}/default_list"
 [[ -f "$dcache" ]] || docache="true"
 [[ -z $docache ]] || cache_default_lists
 [[ -n $host ]] || exit
@@ -794,9 +800,7 @@ fi
 
 # Use default lists if none provided or append was specified
 if [[ ${#wordlists[@]} -eq 0 ]] || [[ -n $append ]]; then
-    while read -r wordlist; do
-        wordlists+=("$wordlist")
-    done <"$dcache"; unset wordlist
+    wordlists+=("$dlist")
 fi
 
 # Ensure lists are provided and valid
@@ -908,10 +912,18 @@ path="\${path%}"
 # Fix any other ^M
 path="\${path///\\\\\\\r}"
 
+# Change spaces to +
+path="\${path// /+}"
+
+# Encode %
+enc_path="\${path//%/%25}"
+
 if [[ "x$simulate" != "x" ]]; then
   simulate "\$path"
+  [[ "\$enc_path" == "\$path" ]] || simulate "\$enc_path"
 else
   check "\$path"
+  [[ "\$enc_path" == "\$path" ]] || check "\$enc_path"
 fi
 EOF
 chmod 700 "$script"
