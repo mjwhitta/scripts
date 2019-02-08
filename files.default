@@ -1,7 +1,6 @@
 bin/gen_passwd:$HOME/bin/gen_passwd
 bin/gits:$HOME/bin/gits
 bin/hexcal:$HOME/bin/hexcal
-bin/ikill:$HOME/bin/ikill
 bin/make_wallpaper:$HOME/bin/make_wallpaper
 bin/tmussh:$HOME/bin/tmussh
 bin/update_repos:$HOME/bin/update_repos
