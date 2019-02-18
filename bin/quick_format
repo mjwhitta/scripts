@@ -116,7 +116,7 @@ dev="$1"
 
 case "$format" in
     "ext4")
-        sed -e "s/^\s*\([^#]*\)\s*#.*/\1/" <<EOF | sudo fdisk "$dev"
+        sed -e "s/^\s*\([^# ]*\)\s*#.*/\1/" <<EOF | sudo fdisk "$dev"
             o  # clear the in memory partition table
             n  # new partition
             p  # primary partition
@@ -129,7 +129,7 @@ case "$format" in
 EOF
         ;;
     "fat32")
-        sed -e "s/^\s*\([^#]*\)\s*#.*/\1/" <<EOF | sudo fdisk "$dev"
+        sed -e "s/^\s*\([^# ]*\)\s*#.*/\1/" <<EOF | sudo fdisk "$dev"
             o  # clear the in memory partition table
             n  # new partition
             p  # primary partition
@@ -143,6 +143,21 @@ EOF
             w  # write the partition table and exit
 EOF
         ;;
+    "ntfs")
+        sed -e "s/^\s*\([^# ]*\)\s*#.*/\1/" <<EOF | sudo fdisk "$dev"
+            o  # clear the in memory partition table
+            n  # new partition
+            p  # primary partition
+            1  # partition number 1
+               # default - start at beginning of disk
+               # default - extend partition to end of disk
+            a  # make a partition bootable
+            t  # change partition type
+            86 # to FAT32
+            p  # print the in-memory partition table
+            w  # write the partition table and exit
+EOF
+        ;;
 esac
 err="$?"
 [[ $err -eq 0 ]] || exit $err
@@ -151,5 +166,6 @@ case "$format" in
     "ext4") sudo mkfs.ext4 -F -O "^64bit" ${lbl:+-L "$lbl"} "${dev}1"
         ;;
     "fat32") sudo mkfs.vfat -F 32 "${dev}1" ;;
-    "ntfs") sudo mkfs.ntfs -F ${lbl:+-L "$lbl"} "${dev}1" ;;
+    "ntfs") sudo mkfs.ntfs --force --fast ${lbl:+-L "$lbl"} "${dev}1"
+        ;;
 esac
