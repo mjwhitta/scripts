@@ -63,6 +63,7 @@ Options:
     --fat32              Format as FAT32
     -h, --help           Display this help message
     -l, --label=LABEL    Set the ext4 partition label
+    --legacy             Don't use UEFI
     --nocolor            Disable colorized output
     --ntfs               Format as NTFS
 
@@ -71,7 +72,7 @@ EOF
 }
 
 declare -a args deps
-unset help lbl yes
+unset help lbl legacy
 color="true"
 deps+=("fdisk")
 deps+=("lsblk")
@@ -92,6 +93,7 @@ while [[ $# -gt 0 ]]; do
         "--fat32") format="fat32" ;;
         "-h"|"--help") help="true" ;;
         "-l"|"--label"*) lbl="$(long_opt "$@")" || shift ;;
+        "--legacy") legacy="true" ;;
         "--nocolor") unset color ;;
         "--ntfs") format="ntfs" ;;
         *) args+=("$1") ;;
@@ -114,51 +116,93 @@ done < <(
 
 dev="$1"
 
-case "$format" in
-    "ext4")
-        sed -e "s/^\s*\([^# ]*\)\s*#.*/\1/" <<EOF | sudo fdisk "$dev"
-            o  # clear the in memory partition table
-            n  # new partition
-            p  # primary partition
-            1  # partition number 1
-               # default - start at beginning of disk
-               # default - extend partition to end of disk
-            a  # make a partition bootable
-            p  # print the in-memory partition table
-            w  # write the partition table and exit
+if [[ -z $legacy ]]; then
+    case "$format" in
+        "ext4")
+            sed "s/^\s*\([^# ]*\)\s*#.*/\1/" <<EOF | sudo fdisk "$dev"
+                g  # clear the in memory partition table
+                n  # new partition
+                   # default - partition number 1
+                   # default - start at beginning of disk
+                   # default - extend partition to end of disk
+                p  # print the in-memory partition table
+                w  # write the partition table and exit
 EOF
-        ;;
-    "fat32")
-        sed -e "s/^\s*\([^# ]*\)\s*#.*/\1/" <<EOF | sudo fdisk "$dev"
-            o  # clear the in memory partition table
-            n  # new partition
-            p  # primary partition
-            1  # partition number 1
-               # default - start at beginning of disk
-               # default - extend partition to end of disk
-            a  # make a partition bootable
-            t  # change partition type
-            c  # to FAT32
-            p  # print the in-memory partition table
-            w  # write the partition table and exit
+            ;;
+        "fat32")
+            sed "s/^\s*\([^# ]*\)\s*#.*/\1/" <<EOF | sudo fdisk "$dev"
+                g  # clear the in memory partition table
+                n  # new partition
+                   # default - partition number 1
+                   # default - start at beginning of disk
+                   # default - extend partition to end of disk
+                t  # change partition type
+                c  # to FAT32
+                p  # print the in-memory partition table
+                w  # write the partition table and exit
 EOF
-        ;;
-    "ntfs")
-        sed -e "s/^\s*\([^# ]*\)\s*#.*/\1/" <<EOF | sudo fdisk "$dev"
-            o  # clear the in memory partition table
-            n  # new partition
-            p  # primary partition
-            1  # partition number 1
-               # default - start at beginning of disk
-               # default - extend partition to end of disk
-            a  # make a partition bootable
-            t  # change partition type
-            86 # to FAT32
-            p  # print the in-memory partition table
-            w  # write the partition table and exit
+            ;;
+        "ntfs")
+            sed "s/^\s*\([^# ]*\)\s*#.*/\1/" <<EOF | sudo fdisk "$dev"
+                g  # clear the in memory partition table
+                n  # new partition
+                   # default - partition number 1
+                   # default - start at beginning of disk
+                   # default - extend partition to end of disk
+                t  # change partition type
+                86 # to FAT32
+                p  # print the in-memory partition table
+                w  # write the partition table and exit
 EOF
-        ;;
-esac
+            ;;
+    esac
+else
+    case "$format" in
+        "ext4")
+            sed "s/^\s*\([^# ]*\)\s*#.*/\1/" <<EOF | sudo fdisk "$dev"
+                o  # clear the in memory partition table
+                n  # new partition
+                p  # primary partition
+                1  # partition number 1
+                   # default - start at beginning of disk
+                   # default - extend partition to end of disk
+                a  # make a partition bootable
+                p  # print the in-memory partition table
+                w  # write the partition table and exit
+EOF
+            ;;
+        "fat32")
+            sed "s/^\s*\([^# ]*\)\s*#.*/\1/" <<EOF | sudo fdisk "$dev"
+                o  # clear the in memory partition table
+                n  # new partition
+                p  # primary partition
+                1  # partition number 1
+                   # default - start at beginning of disk
+                   # default - extend partition to end of disk
+                a  # make a partition bootable
+                t  # change partition type
+                c  # to FAT32
+                p  # print the in-memory partition table
+                w  # write the partition table and exit
+EOF
+            ;;
+        "ntfs")
+            sed "s/^\s*\([^# ]*\)\s*#.*/\1/" <<EOF | sudo fdisk "$dev"
+                o  # clear the in memory partition table
+                n  # new partition
+                p  # primary partition
+                1  # partition number 1
+                   # default - start at beginning of disk
+                   # default - extend partition to end of disk
+                a  # make a partition bootable
+                t  # change partition type
+                86 # to FAT32
+                p  # print the in-memory partition table
+                w  # write the partition table and exit
+EOF
+            ;;
+    esac
+fi
 err="$?"
 [[ $err -eq 0 ]] || exit $err
 
