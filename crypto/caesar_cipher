@@ -84,7 +84,7 @@ def parse(args)
     options["numbers"] = false
     options["verbose"] = false
 
-    info = "Encrypt or decrypte using Caesar Cipher"
+    info = "Encrypt or decrypte using Caesar Cipher."
 
     parser = OptionParser.new do |opts|
         opts.summary_width = 16

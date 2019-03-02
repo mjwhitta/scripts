@@ -30,35 +30,77 @@
 
 ### Helpers begin
 set -o noglob
-checkdeps() {
+trap "clean 128" SIGINT # Ensure cleanup on ^C
+check_deps() {
     for d in "${deps[@]}"; do
-        [[ -n $(command -v $d) ]] || errx 128 "$d is not installed"
+        [[ -n $(command -v "$d") ]] || errx 127 "$d is not installed"
     done; unset d
 }
-clean() {
-    [[ ${1:-0} -ne 0 ]] || [[ ! -d $cache ]] || rm -rf $cache
-    [[ -z $script ]] || [[ ! -f $script ]] || rm -f $script
-    echo -en "\e[?25h" # Show cursor again
-    exit ${1:-0}
+check_lock() {
+    [[ -n $cache ]] || errx 126 "Cache is not defined"
+    mkdir -p "$cache"
+    if [[ -f "$cache.lock" ]]; then
+        errx 125 "$cache.lock already exists"
+    fi
+    echo "$$" >"$cache.lock"
 }
-err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
-errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; clean $1; }
-good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
-info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+check_resume_file() {
+    if [[ -f "$json" ]] && [[ -z $resume ]]; then
+        warn "Resume file found" >&2
+        while :; do
+            # Prompt whether to overwrite or resume
+            local a
+            read -n 1 -p "Would you like to resume [y/n/q/c]: " -rs a
+            echo
+
+            case "$a" in
+                "c") clean 0 ;;
+                "n") write_resume_file; break ;;
+                "q") exit 0 ;;
+                "y") read_resume_file; resume="--resume"; break ;;
+                *) echo "Invalid response, try again!" ;;
+            esac
+        done
+    elif [[ -f "$json" ]]; then
+        read_resume_file
+    elif [[ -n $resume ]]; then
+        errx 124 "No resume file found"
+    else
+        write_resume_file
+    fi
+}
+clean() {
+    if [[ ${1:-0} -eq 0 ]]; then
+        [[ -z $cache ]] || [[ ! -d "$cache" ]] || rm -rf "$cache"
+    fi
+    [[ -z $script ]] || [[ ! -f "$script" ]] || rm -f "$script"
+    [[ ${1:-0} -eq 125 ]] || [[ -z $cache ]] || rm -f "$cache.lock"
+    show_cursor
+    exit "${1:-0}"
+}
+err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+errx() { err "${*:2}"; clean "$1"; }
+good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
+hide_cursor() { echo -en "\e[?25l"; }
+info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 json_get() {
-    [[ -z $json ]] || jq -cr ".$@" $json | sed -r "s/^null$//g"
+    if [[ -z $json ]] || [[ ! -f "$json" ]]; then
+        return
+    fi
+    jq -cr ".$*" "$json" | sed -r "s/^null$//g"
 }
 long_opt() {
     local arg shift="0"
     case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 123 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 123; arg="$1" ;;
     esac
     echo "$arg"
     return $shift
 }
-subinfo() { echo -e "${color:+\e[36m}[=] $@\e[0m"; }
-warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
+show_cursor() { echo -en "\e[?25h"; }
+subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 ### Helpers end
 
 read_resume_file() {
@@ -71,7 +113,7 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS] <image1>... [imageN]
 
-Create a wallpaper from an image
+Create wallpapers from images.
 
 Options:
     -h, --help           Display this help message
@@ -85,13 +127,16 @@ Options:
     -v, --verbose        Do not hide parallel errors
 
 EOF
-    exit $1
+    exit "$1"
 }
 
 write_resume_file() {
-    [[ -z $cache ]] || rm -rf $cache
-    mkdir -p $cache
-    cat >$json <<EOF
+    [[ -n $cache ]] || return
+    [[ -n $json ]] || return
+    rm -rf "$cache"
+    mkdir -p "$cache"
+
+    cat >"$json" <<EOF
 {
   "action": "$action",
   "output": "$output",
@@ -103,19 +148,16 @@ EOF
 declare -a args deps
 unset help
 action="convert"
-cache="${0##*/}.resume"
 color="true"
 deps+=("jq")
 deps+=("convert")
-joblog="$cache/joblog.txt"
-json="$cache/${0##*/}.json"
 output="."
 parallel="true"
 resolution="1920x1080"
 threads="32"
 
 # Check for missing dependencies
-checkdeps
+check_deps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
@@ -133,7 +175,7 @@ while [[ $# -gt 0 ]]; do
     esac
     shift
 done
-[[ -z ${args[@]} ]] || set -- "${args[@]}"
+[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
 # Check for valid params
 [[ -z $help ]] || usage 0
@@ -146,116 +188,89 @@ if [[ -n $parallel ]] && [[ -z $(command -v parallel) ]]; then
 fi
 
 # Cite if needed
-if [[ -n $parallel ]] && [[ ! -f $HOME/.parallel/will-cite ]]; then
-    mkdir -p $HOME/.parallel
+if [[ -n $parallel ]] && [[ ! -f "$HOME/.parallel/will-cite" ]]; then
+    mkdir -p "$HOME/.parallel"
     parallel --citation
 fi
 
-if [[ -n $parallel ]]; then
-    # Ensure resume directory exists
-    mkdir -p $cache
+# Cache variables
+hash="$(echo "$*" | sha256sum | awk '{print $1}')"
+cache="$HOME/.cache/${0##*/}/$hash"
+joblog="$cache/joblog.txt"
+json="$cache/${0##*/}.json"
 
-    # Check for resume file
-    if [[ -f $json ]] && [[ -z $resume ]]; then
-        warn "Resume file found" >&2
-        while :; do
-            # Prompt whether to overwrite or resume
-            read -n 1 -p "Would you like to resume [y/n/q]: " -s ans
-            echo
+# Lock to prevent parallel issues
+check_lock
 
-            case "$ans" in
-                "n") write_resume_file; break ;;
-                "q") exit 0 ;;
-                "y") read_resume_file; resume="--resume"; break ;;
-                *) echo "Invalid response, try again!" ;;
-            esac
-        done
-    elif [[ -f $json ]]; then
-        read_resume_file
-    elif [[ -n $resume ]]; then
-        errx 2 "No resume file found in current directory"
-    else
-        write_resume_file
-    fi
-fi
+# Check for resume file
+[[ -z $parallel ]] || check_resume_file
+hide_cursor
 
-# Dataset used by parallel
-dataset="$cache/${0##*/}.dataset"
+[[ -z $resume ]] || info "Resuming..."
 
-# Script used by parallel
-script="/tmp/${0##*/}.parallel"
-
-# Ensure cleanup on ^C
-trap "clean 126" SIGINT
-
-# Hide cursor
-echo -en "\e[?25l"
-
-# Process dataset
 info "Processing dataset for jobs"
 
-if [[ ! -f $dataset ]]; then
-    total="0"
+dataset="$cache/${0##*/}.dataset"
+if [[ ! -f "$dataset" ]]; then
     for data in "$@"; do
-        ((total += 1))
-        echo "$data" >>$dataset
+        echo "$data" >>"$dataset"
     done; unset data
-else
-    total="$(cat $dataset | wc -l)"
 fi
-[[ $total -gt 0 ]] || errx 0 "No dataset provided"
+total="$(wc -l "$dataset" | awk '{print $1}')"
+[[ $total -gt 0 ]] || errx 2 "No dataset provided"
 
-info "$total jobs to run"
+subinfo "$total jobs to run"
 
 # Create sub-script
-cat >$script <<EOF
+script="/tmp/${0##*/}.parallel"
+cat >"$script" <<EOF
 #!/usr/bin/env bash
 
 ### Helpers begin
 set -o noglob
-err() { echo -e "\r${color:+\e[31m}[!] \$@\e[0m\e[K"; }
-errx() { echo -e "\r${color:+\e[31m}[!] \${@:2}\e[0m\e[K"; exit \$1; }
-good() { echo -e "\r${color:+\e[32m}[+] \$@\e[0m\e[K"; }
-info() { echo -e "\r${color:+\e[37m}[*] \$@\e[0m\e[K"; }
-subinfo() { echo -e "\r${color:+\e[36m}[=] \$@\e[0m\e[K"; }
-warn() { echo -e "\r${color:+\e[33m}[-] \$@\e[0m\e[K"; }
+err() { echo -e "\r${color:+\e[31m}[!] \$*\e[0m\e[K"; }
+errx() { err "\${*:2}"; exit \$1; }
+good() { echo -e "\r${color:+\e[32m}[+] \$*\e[0m\e[K"; }
+info() { echo -e "\r${color:+\e[37m}[*] \$*\e[0m\e[K"; }
+subinfo() { echo -e "\r${color:+\e[36m}[=] \$*\e[0m\e[K"; }
+warn() { echo -e "\r${color:+\e[33m}[-] \$*\e[0m\e[K"; }
 ### Helpers end
 
-[[ -f \$1 ]] || exit 1
+[[ -f "\$1" ]] || exit 1
 
 bgcolor="\$(
-    convert \$1 -depth 8 +dither -format %c histogram:info: | \
-    sort -n | tail -n 1 | grep -Eo "#[A-Fa-f0-9]{6}"
+    convert "\$1" -depth 8 +dither -format %c histogram:info: | \
+    sort -n | tail -n 1 | grep -oPs "#[A-Fa-f0-9]{6}"
 )"
 
 case "$action" in
     "convert")
         name="\$(
-            basename \$1 | sed -r -e "s/\..+//g" \
+            basename "\$1" | sed -r -e "s/\..+//g" \
             -e "s/[^A-Za-z0-9]+/_/g"
         )_$resolution.png"
-        if [[ -f $output/\$name ]]; then
+        if [[ -f "$output/\$name" ]]; then
             errx 3 "$output/\$name already exists!"
         fi
         if [[ -n \$bgcolor ]]; then
             good "Creating $output/\$name"
-            convert \$1 -background \$bgcolor -gravity center \
-                -resize $resolution -extent $resolution \
-                $output/\$name
+            convert "\$1" -background "\$bgcolor" -gravity center \
+                -resize "$resolution" -extent "$resolution" \
+                "$output/\$name"
         else
-            err "Couldn't create $output/\$name"
+            errx 4 "Couldn't create $output/\$name"
         fi
         ;;
     "info") subinfo "\$bgcolor" ;;
 esac
 EOF
-chmod 700 $script
+chmod 700 "$script"
 
 # Run sub-script
-mkdir -p $output
+mkdir -p "$output"
 if [[ -n $parallel ]]; then
-    parallel -a $dataset --bar --joblog ${resume:++}$joblog --lb \
-        -P $threads -r $resume $script {}
+    parallel -a "$dataset" --bar --joblog ${resume:++}"$joblog" --lb \
+        -P "$threads" -r $resume "$script" {}
     [[ -n $verbose ]] || echo -en "\e[1A\e[K" >&2
 else
     count="1"
@@ -264,7 +279,7 @@ else
         echo -en "${color:+\e[37m}[$count/$total]\e[0m\e[K\e[1A" >&2
         $script "$data"
         ((count += 1))
-    done <$dataset; unset data
+    done <"$dataset"; unset data
 fi
 
 clean

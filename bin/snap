@@ -29,15 +29,15 @@
 # --------------------------------------------------------------------
 
 ### Helpers begin
-checkdeps() {
+check_deps() {
     for d in "${deps[@]}"; do
-        [[ -n $(command -v $d) ]] || errx 128 "$d is not installed"
+        [[ -n $(command -v "$d") ]] || errx 128 "$d is not installed"
     done; unset d
 }
-err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
-errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
-good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
-info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+errx() { err "${*:2}"; exit "$1"; }
+good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
+info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
@@ -47,62 +47,51 @@ long_opt() {
     echo "$arg"
     return $shift
 }
-subinfo() { echo -e "${color:+\e[36m}[=] $@\e[0m"; }
-warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
+subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 ### Helpers end
 
 usage() {
-    echo "Usage: ${0##*/} [OPTIONS] [width] [height]"
-    echo
-    echo "Simple window management tool"
-    echo
-    echo "Options:"
-    echo "    -b, --bottom             Snap active window to bottom"
-    echo "                             bottom of screen"
-    echo "    --bottom-left            Snap active window to"
-    echo "                             bottom-left of screen"
-    echo "    --bottom-right           Snap active window to"
-    echo "                             bottom-right of screen"
-    echo "    -c, --center             Snap active window to center"
-    echo "                             of screen"
-    echo "    -f, --frame=FRAME        Specify frame size (default:"
-    echo "                             $frame)"
-    echo "    -h, --help               Display this help message"
-    echo "    -l, --left               Snap active window to left of"
-    echo "                             screen"
-    echo "    -m, --max                Maximize window"
-    echo "    -n, --min                Minimize widow"
-    echo "    --nocolor                Disable colorized output"
-    echo "    -o, --offset=OFFSET      Specify offset from top of"
-    echo "                             screen (default: $offset)"
-    echo "    -p, --padding=PADDING    Specify padding around frame"
-    echo "                             (default: $padding)"
-    echo "    -r, --right              Snap active window to right of"
-    echo "                             screen"
-    echo "    -t, --top                Snap active window to top of"
-    echo "                             screen"
-    echo "    --top-left               Snap active window to top-left"
-    echo "                             of screen"
-    echo "    --top-right              Snap active window to"
-    echo "                             top-right of screen"
-    echo
-    exit $1
+    cat <<EOF
+Usage: ${0##*/} [OPTIONS] [width] [height]
+
+Simple window management tool.
+
+Options:
+    -b, --bottom          Snap active window to bottom
+    --bottom-left         Snap active window to bottom-left
+    --bottom-right        Snap active window to bottom-right
+    -c, --center          Snap active window to center
+    -f, --frame=FRAME     Specify frame size (default: $frame)
+    -h, --help            Display this help message
+    -l, --left            Snap active window to left
+    -m, --max             Maximize window
+    -n, --min             Minimize widow
+    --nocolor             Disable colorized output
+    -o, --offset=SIZE     Specify offset from top (default: $offset)
+    -p, --padding=SIZE    Specify padding (default: $padding)
+    -r, --right           Snap active window to right
+    -t, --top             Snap active window to top
+    --top-left            Snap active window to top-left
+    --top-right           Snap active window to top-right
+
+EOF
+    exit "$1"
 }
 
 declare -a args deps
 unset help
 color="true"
-deps+=("perl")
 deps+=("wmctrl")
 deps+=("xdotool")
 deps+=("xrandr")
-frame=20
-offset=0
-padding=0
+frame="20"
+offset="0"
+padding="0"
 snap_hist="/tmp/snap.hist"
 
 # Check for missing dependencies
-checkdeps
+check_deps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
@@ -128,18 +117,16 @@ while [[ $# -gt 0 ]]; do
     esac
     shift
 done
-[[ -z ${args[@]} ]] || set -- "${args[@]}"
+[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
 # Check for valid params
 [[ -z $help ]] || usage 0
 [[ $# -eq 0 ]] || [[ $# -eq 2 ]] || usage 1
 
-geometry="$(
-    xrandr | perl -lne '/current ([^,]+),/ && print $1 =~ s/\s+//rg'
-)"
+geometry="$(xrandr | grep -oPs "current \K[^,]+")"
 [[ -n $geometry ]] || errx 2 "Can't figure out geometry!"
-width="${geometry/x*/}"
-height="${geometry/*x/}"
+width="${geometry/ x*/}"
+height="${geometry/*x /}"
 
 [[ $# -eq 2 ]] && width="$1" && height="$2"
 
@@ -153,161 +140,162 @@ g="0"
 [[ $padding -eq 0 ]] || padded="true"
 
 # Wait for lock file to go away
-for i in {1..20}; do
-    [[ -f ${snap_hist}.lock ]] || break
+for _ in {1..20}; do
+    [[ -f "$snap_hist.lock" ]] || break
     sleep 0.1
-done; unset i
-
-[[ ! -f ${snap_hist}.lock ]] || errx 3 "Lock file exists"
+done
+[[ ! -f "$snap_hist.lock" ]] || errx 3 "Lock file exists"
 
 # Lock
-touch ${snap_hist}.lock
+touch "$snap_hist.lock"
 
 # Get unique ID
 wid="$(xdotool getactivewindow)"
-wpid="$(xdotool getwindowpid $wid)"
+wpid="$(xdotool getwindowpid "$wid")"
 
 # Check history file for entry and see if matches current location
-previous="$(
-    perl -lne '/'$wid'-'$wpid' ('$snap_option')/ && print $1' \
-    $snap_hist 2>/dev/null
-)"
+previous="$(grep -oPs "^$wid-$wpid\s\K.+" "$snap_hist")"
 
-# Remove old entry and remove any maximized attributes
-cat $snap_hist 2>/dev/null | grep -v "$wid-$wpid" >$snap_hist
+# Remove old entry and any blank lines
+sed -i -r "/^$wid-$wpid\s|^\s*$/d" "$snap_hist"
+
+# Remove any maximized attributes
 wmctrl -r :ACTIVE: -b remove,maximized_vert,maximized_horz
 
-if [[ -z $previous ]]; then
-    # Calculate snap values
-    case "$snap_option" in
-        "bottom")
-            x="$padding"
-            y="$((hh + (padding / 2) + offset))"
-            w="$((width - (2 * padding)))"
-            h="$((hh - (3 * padding / 2) - frame))"
-            ;;
-        "bottom-left")
-            x="$padding"
-            y="$((hh + (padding / 2) + offset))"
-            w="$((hw - (3 * padding / 2)))"
-            h="$((hh - (3 * padding / 2) - frame))"
-            ;;
-        "bottom-right")
-            x="$((hw + (padding / 2)))"
-            y="$((hh + (padding /  2) + offset))"
-            w="$((hw - (3 * padding / 2)))"
-            h="$((hh - (3 * padding / 2) - frame))"
-            ;;
-        "center")
-            x="$((hhw + (padding / 2)))"
-            y="$((padding + offset))"
-            w="$((hw - (3 * padding / 2)))"
-            h="$((height - (2 * padding) - frame))"
-            ;;
-        "left")
-            x="$padding"
-            y="$((padding + offset))"
-            w="$((hw - (3 * padding / 2)))"
-            h="$((height - (2 * padding) - frame))"
-            ;;
-        "max")
-            x="$padding"
-            y="$((padding + offset))"
-            w="$((width - (2 * padding)))"
-            h="$((height - (2 * padding) - frame))"
-            ;;
-        "min")
-            x="$((hhw + (padding / 2)))"
-            y="$((hhh + (padding / 2) + offset))"
-            w="$((hw - (3 * padding / 2)))"
-            h="$((hh - (3 * padding / 2) - frame))"
-            ;;
-        "right")
-            x="$((hw + (padding / 2)))"
-            y="$((padding + offset))"
-            w="$((hw - (3 * padding / 2)))"
-            h="$((height - (2 * padding) - frame))"
-            ;;
-        "top")
-            x="$padding"
-            y="$((padding + offset))"
-            w="$((width - (2 * padding)))"
-            h="$((hh - (3 * padding / 2) - frame))"
-            ;;
-        "top-left")
-            x="$((padding))"
-            y="$((padding + offset))"
-            w="$((hw - (3 * padding / 2)))"
-            h="$((hh - (3 * padding / 2) - frame))"
-            ;;
-        "top-right")
-            x="$((hw + (padding / 2)))"
-            y="$((padding + offset))"
-            w="$((hw - (3 * padding / 2)))"
-            h="$((hh - (3 * padding / 2) - frame))"
-            ;;
-    esac
+case "$previous" in
+    "$snap_option" )
+        # Calculate snap values
+        x="$((hhw + (padding / 2)))"
+        y="$((hhh + (padding / 2) + offset))"
+        w="$((hw - (3 * padding / 2)))"
+        h="$((hh - (3 * padding / 2) - frame))"
 
-    # Snap
-    wmctrl -r :ACTIVE: -e $g,$x,$y,$w,$h
+        # Snap
+        wmctrl -r :ACTIVE: -e "$g,$x,$y,$w,$h"
 
-    # Set any needed maximized attributes
-    case "$snap_option" in
-        "bottom")
-            if [[ -z $padded ]]; then
-                wmctrl -r :ACTIVE: -b add,maximized_horz
-            fi
-            ;;
-        "bottom-left") ;;
-        "bottom-right") ;;
-        "center")
-            if [[ -z $padded ]]; then
-                wmctrl -r :ACTIVE: -b add,maximized_vert
-            fi
-            ;;
-        "left")
-            if [[ -z $padded ]]; then
-                wmctrl -r :ACTIVE: -b add,maximized_vert
-            fi
-            ;;
-        "max")
-            if [[ -z $padded ]]; then
-                wmctrl -r :ACTIVE: -b \
-                    add,maximized_vert,maximized_horz
-            fi
-            ;;
-        "min") wmctrl -r :ACTIVE: -b add,hidden ;;
-        "right")
-            if [[ -z $padded ]]; then
-                wmctrl -r :ACTIVE: -b add,maximized_vert
-            fi
-            ;;
-        "top")
-            if [[ -z $padded ]]; then
-                wmctrl -r :ACTIVE: -b add,maximized_horz
-            fi
-            ;;
-        "top-left") ;;
-        "top-right") ;;
-    esac
+        # Remove history file if empty
+        [[ -n $(cat "$snap_hist" 2>/dev/null) ]] || rm -f "$snap_hist"
+        ;;
+    *)
+        # Calculate snap values
+        case "$snap_option" in
+            "bottom")
+                x="$padding"
+                y="$((hh + (padding / 2) + offset))"
+                w="$((width - (2 * padding)))"
+                h="$((hh - (3 * padding / 2) - frame))"
+                ;;
+            "bottom-left")
+                x="$padding"
+                y="$((hh + (padding / 2) + offset))"
+                w="$((hw - (3 * padding / 2)))"
+                h="$((hh - (3 * padding / 2) - frame))"
+                ;;
+            "bottom-right")
+                x="$((hw + (padding / 2)))"
+                y="$((hh + (padding /  2) + offset))"
+                w="$((hw - (3 * padding / 2)))"
+                h="$((hh - (3 * padding / 2) - frame))"
+                ;;
+            "center")
+                x="$((hhw + (padding / 2)))"
+                y="$((padding + offset))"
+                w="$((hw - (3 * padding / 2)))"
+                h="$((height - (2 * padding) - frame))"
+                ;;
+            "left")
+                x="$padding"
+                y="$((padding + offset))"
+                w="$((hw - (3 * padding / 2)))"
+                h="$((height - (2 * padding) - frame))"
+                ;;
+            "max")
+                x="$padding"
+                y="$((padding + offset))"
+                w="$((width - (2 * padding)))"
+                h="$((height - (2 * padding) - frame))"
+                ;;
+            "min")
+                x="$((hhw + (padding / 2)))"
+                y="$((hhh + (padding / 2) + offset))"
+                w="$((hw - (3 * padding / 2)))"
+                h="$((hh - (3 * padding / 2) - frame))"
+                ;;
+            "right")
+                x="$((hw + (padding / 2)))"
+                y="$((padding + offset))"
+                w="$((hw - (3 * padding / 2)))"
+                h="$((height - (2 * padding) - frame))"
+                ;;
+            "top")
+                x="$padding"
+                y="$((padding + offset))"
+                w="$((width - (2 * padding)))"
+                h="$((hh - (3 * padding / 2) - frame))"
+                ;;
+            "top-left")
+                x="$((padding))"
+                y="$((padding + offset))"
+                w="$((hw - (3 * padding / 2)))"
+                h="$((hh - (3 * padding / 2) - frame))"
+                ;;
+            "top-right")
+                x="$((hw + (padding / 2)))"
+                y="$((padding + offset))"
+                w="$((hw - (3 * padding / 2)))"
+                h="$((hh - (3 * padding / 2) - frame))"
+                ;;
+        esac
 
-    # Create new entry
-    if [[ $snap_option != "min" ]]; then
-        echo "$wid-$wpid $snap_option" >>$snap_hist
-    fi
-else
-    # Calculate snap values
-    x="$((hhw + (padding / 2)))"
-    y="$((hhh + (padding / 2) + offset))"
-    w="$((hw - (3 * padding / 2)))"
-    h="$((hh - (3 * padding / 2) - frame))"
+        # Snap
+        wmctrl -r :ACTIVE: -e "$g,$x,$y,$w,$h"
 
-    # Snap
-    wmctrl -r :ACTIVE: -e $g,$x,$y,$w,$h
+        # Set any needed maximized attributes
+        case "$snap_option" in
+            "bottom")
+                if [[ -z $padded ]]; then
+                    wmctrl -r :ACTIVE: -b add,maximized_horz
+                fi
+                ;;
+            "bottom-left") ;;
+            "bottom-right") ;;
+            "center")
+                if [[ -z $padded ]]; then
+                    wmctrl -r :ACTIVE: -b add,maximized_vert
+                fi
+                ;;
+            "left")
+                if [[ -z $padded ]]; then
+                    wmctrl -r :ACTIVE: -b add,maximized_vert
+                fi
+                ;;
+            "max")
+                if [[ -z $padded ]]; then
+                    wmctrl -r :ACTIVE: -b \
+                        add,maximized_vert,maximized_horz
+                fi
+                ;;
+            "min") wmctrl -r :ACTIVE: -b add,hidden ;;
+            "right")
+                if [[ -z $padded ]]; then
+                    wmctrl -r :ACTIVE: -b add,maximized_vert
+                fi
+                ;;
+            "top")
+                if [[ -z $padded ]]; then
+                    wmctrl -r :ACTIVE: -b add,maximized_horz
+                fi
+                ;;
+            "top-left") ;;
+            "top-right") ;;
+        esac
 
-    # Remove history file if empty
-    [[ -n $(cat $snap_hist 2>/dev/null) ]] || rm -f $snap_hist
-fi
+        # Create new entry
+        if [[ $snap_option != "min" ]]; then
+            echo "$wid-$wpid $snap_option" >>"$snap_hist"
+        fi
+        ;;
+esac
 
 # Unlock
-rm -f ${snap_hist}.lock
+rm -f "$snap_hist.lock"

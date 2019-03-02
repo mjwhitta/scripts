@@ -29,15 +29,15 @@
 # --------------------------------------------------------------------
 
 ### Helpers begin
-checkdeps() {
+check_deps() {
     for d in "${deps[@]}"; do
-        [[ -n $(command -v $d) ]] || errx 128 "$d is not installed"
+        [[ -n $(command -v "$d") ]] || errx 128 "$d is not installed"
     done; unset d
 }
-err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
-errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
-good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
-info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+errx() { err "${*:2}"; exit "$1"; }
+good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
+info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
@@ -47,31 +47,31 @@ long_opt() {
     echo "$arg"
     return $shift
 }
-subinfo() { echo -e "${color:+\e[36m}[=] $@\e[0m"; }
-warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
+subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 ### Helpers end
 
 get_choices() {
-    while read h; do
-        echo "$h" | grep -Eqv "^ *$|^ *#" || continue
+    while read -r h; do
+        echo "$h" | grep -Pqsv "^ *$|^ *#" || continue
         echo -n "$h" | sed -e "s/ *|.*//g" -e "s/ /_/g"
         echo -n " . "
-    done <$hosts_file
+    done <"$hosts_file"
     echo -n "norc . "
     echo -n "quit . "
 }
 
 host_menu() {
-    [[ -e $hosts_file ]] || touch $hosts_file
-    if [[ $(grep -cEv "^ *$|^#" $hosts_file) -eq 0 ]]; then
-        echo "localhost | $(which_shell)" >>$hosts_file
+    [[ -e $hosts_file ]] || touch "$hosts_file"
+    if [[ $(grep -cPsv "^ *$|^#" "$hosts_file") -eq 0 ]]; then
+        echo "localhost | $(which_shell)" >>"$hosts_file"
     fi
 
     lines="$(tput lines)"
     columns="$(tput cols)"
     menu_height="$((lines - 7))"
     dialog --clear --nook --nocancel --no-shadow \
-        --menu "Choose a host" $lines $columns $menu_height \
+        --menu "Choose a host" "$lines" "$columns" "$menu_height" \
         $(get_choices) 2>/tmp/chost
     clear
 
@@ -86,21 +86,23 @@ start_shell() {
 }
 
 usage() {
-    echo "Usage: ${0##*/} [OPTIONS]"
-    echo
-    echo "Automate starting up a new shell"
-    echo
-    echo "Options:"
-    echo "    -c, --config=CONFIG    Use the specified config file"
-    echo "    -h, --help             Display this help message"
-    echo "    -l, --loop             Prompt for new host after exit"
-    echo "    --nocolor              Disable colorized output"
-    echo
-    exit $1
+    cat <<EOF
+Usage: ${0##*/} [OPTIONS]
+
+Automate starting up a new shell.
+
+Options:
+    -c, --config=CONF    Use the specified config file
+    -h, --help           Display this help message
+    -l, --loop           Prompt for new host after exit
+    --nocolor            Disable colorized output
+
+EOF
+    exit "$1"
 }
 
 which_shell() {
-    sh="$(awk -F ":" "/$(whoami)/ {print \$NF}" /etc/passwd)"
+    sh="$(grep -oPs "^$(id -nu).+:\K.+" /etc/passwd)"
     [[ -n $sh ]] && echo -n "$sh" && return
     [[ -n $SHELL ]] && echo -n "$SHELL" && return
     if [[ -n $(command -v zsh) ]]; then
@@ -121,7 +123,7 @@ deps+=("dialog")
 hosts_file="$HOME/.config/chost/config"
 
 # Check for missing dependencies
-checkdeps
+check_deps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
@@ -134,7 +136,7 @@ while [[ $# -gt 0 ]]; do
     esac
     shift
 done
-[[ -z ${args[@]} ]] || set -- "${args[@]}"
+[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
 # Check for valid params
 [[ -z $help ]] || usage 0
@@ -180,18 +182,19 @@ done; unset dir
 # Find missing from PATH
 while read -r dir; do
     [[ ! -d $dir ]] || PTH="${PTH:+$PTH:}$dir"
-done < <(echo "${PATH//:/\n}" | grep -Ev "${PTH//:/|}"); unset dir
+done < <(echo "${PATH//:/\n}" | grep -Psv "${PTH//:/|}"); unset dir
 
 # Set PATH
 [[ -z $PTH ]] || export PATH="${PTH/:/}"
 unset dir PTH
 
 # SSH agent
-if [[ -n $(command -v ssh-agent) ]]; then
-    [[ -f $HOME/.ssh/agent/env ]] && . $HOME/.ssh/agent/env >/dev/null
+if [[ -n $(command -v ssh-agent) ]] && [[ -f "$HOME/.ssh/agent/env" ]]
+then
+    . "$HOME/.ssh/agent/env" >/dev/null
 fi
 
-mkdir -p $(dirname $hosts_file)
+mkdir -p "$(dirname "$hosts_file")"
 
 while :; do
     host_menu
@@ -201,9 +204,9 @@ while :; do
         "quit") exit 0 ;;
         *)
             cmd="$(
-                grep -E "^ *$host *\|" $hosts_file | sed "s/.*|//g"
+                grep -Es "^ *$host *\|" "$hosts_file" | sed "s/.*|//g"
             )"
-            eval $cmd
+            eval "$cmd"
             [[ $? -eq 0 ]] || sleep 2
             ;;
     esac

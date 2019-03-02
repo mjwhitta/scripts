@@ -28,86 +28,82 @@
 # SOFTWARE.
 # --------------------------------------------------------------------
 
-function gen_passwd() {
-    gp_cleanup() {
-        unset arg args char help length passwd regex
-        unset -f gp_cleanup gp_usage
-    }
+### Helpers begin
+check_deps() {
+    for d in "${deps[@]}"; do
+        [[ -n $(command -v "$d") ]] || errx 128 "$d is not installed"
+    done; unset d
+}
+err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+errx() { err "${*:2}"; exit "$1"; }
+good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
+info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+    esac
+    echo "$arg"
+    return $shift
+}
+subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
+### Helpers end
 
-    gp_usage() {
-        echo "Usage: gen_passwd [OPTIONS]"
-        echo
-        echo "Generate passwords using /dev/urandom"
-        echo
-        echo "Options:"
-        echo "    -h, --help           Display this help message"
-        echo "    -l, --length=LEN     Use specified length (default:"
-        echo "                         $length)"
-        echo "    -r, --regex=REGEX    Generate password matching"
-        echo "                         specified regex (default:"
-        echo "                         $regex)"
-        echo
-        gp_cleanup
-    }
+usage() {
+    cat <<EOF
+Usage: ${0##*/} [OPTIONS]
 
-    declare -a args
-    unset help
-    length=64
-    regex="[-A-Za-z0-9\`~!@#$%^&*()_+={}|;:'\",<.>/?]"
+Generate passwords using /dev/urandom.
 
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            "--") shift && args+=("$@") && break ;;
-            "-h"|"--help") help="true" ;;
-            "-l"|"--length"*)
-                case "$1" in
-                    "--"*"="*)
-                        arg="${1#*=}"
-                        [[ -z $arg ]] && gp_usage && return 1
-                        ;;
-                    *)
-                        shift; [[ $# -eq 0 ]] && gp_usage && return 1
-                        arg="$1"
-                        ;;
-                esac
-                length="$arg"
-                ;;
-            "-r"|"--regex"*)
-                case "$1" in
-                    "--"*"="*)
-                        arg="${1#*=}"
-                        [[ -z $arg ]] && gp_usage && return 1
-                        ;;
-                    *)
-                        shift; [[ $# -eq 0 ]] && gp_usage && return 1
-                        arg="$1"
-                        ;;
-                esac
-                regex="$arg"
-                ;;
-            *) args+=("$1") ;;
-        esac
-        shift
-    done
-    [[ -z ${args[@]} ]] || set -- "${args[@]}"
+Options:
+    -h, --help           Display this help message
+    -l, --length=LEN     Use specified length (default: $length)
+    --nocolor            Disable colorized output
+    -r, --regex=REGEX    Generate password matching specified regex
+                         (default: $regex)
 
-    [[ -n $help ]] && gp_usage && return 0
-    [[ $# -gt 0 ]] && gp_usage && return 2
-
-    unset passwd
-    while [[ $(echo -n "$passwd" | wc -c) -lt $length ]]; do
-        char="$(head -c 1 /dev/urandom | grep -Es "$regex")"
-        [[ -z $char ]] || passwd="$passwd$char"
-    done
-
-    echo "$passwd"
-
-    gp_cleanup
+EOF
+    exit "$1"
 }
 
-if [[ -n ${BASH_SOURCE[0]} ]]; then
-    case "$0" in
-        *"bash") ;;
-        *) gen_passwd "$@" ;;
+declare -a args deps
+unset help
+color="true"
+# deps+=("todo")
+length="64"
+regex="[-A-Za-z0-9\`~!@#$%^&*()_+={}|;:'\",<.>/?]"
+
+# Check for missing dependencies
+check_deps
+
+# Parse command line options
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        "--") shift && args+=("$@") && break ;;
+        "-h"|"--help") help="true" ;;
+        "-l"|"--length"*) length="$(long_opt "$@")" || shift ;;
+        "--nocolor") unset color ;;
+        "-r"|"--regex"*) regex="$(long_opt "$@")" || shift ;;
+        *) args+=("$1") ;;
     esac
-fi
+    shift
+done
+[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
+
+# Check for valid params
+[[ -z $help ]] || usage 0
+[[ $# -eq 0 ]] || usage 1
+
+info "Generating password"
+subinfo "Length: $length"
+subinfo "Regex: $regex"
+
+unset passwd
+while [[ ${#passwd} -lt $length ]]; do
+    char="$(head -c 1 /dev/urandom | grep -Ps "$regex")"
+    [[ -z $char ]] || passwd="$passwd$char"
+done
+
+good "$passwd"

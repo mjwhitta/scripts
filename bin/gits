@@ -28,58 +28,79 @@
 # SOFTWARE.
 # --------------------------------------------------------------------
 
-function gits() {
-    gits_cleanup() {
-        unset args help
-        unset -f gits_cleanup gits_usage
-    }
+### Helpers begin
+check_deps() {
+    for d in "${deps[@]}"; do
+        [[ -n $(command -v "$d") ]] || errx 128 "$d is not installed"
+    done; unset d
+}
+err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+errx() { err "${*:2}"; exit "$1"; }
+good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
+info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+    esac
+    echo "$arg"
+    return $shift
+}
+subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
+### Helpers end
 
-    gits_usage() {
-        echo "Usage: gits [OPTIONS] [do] <command>"
-        echo
-        echo "Run a command in all git repos below current directory."
-        echo "If using \"do\", run shell command, else git command."
-        echo
-        echo "Options:"
-        echo "    -h, --help    Display this help message"
-        echo
-        gits_cleanup
-    }
+usage() {
+    cat <<EOF
+Usage: ${0##*/} [OPTIONS] [do] <command>
 
-    declare -a args
-    unset help
+Run a command in all git repos below current directory. If using
+\"do\", run shell command, else git command.
 
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            "--") shift && args+=("$@") && break ;;
-            "-h"|"--help") help="true" ;;
-            *) args+=("$1") ;;
-        esac
-        shift
-    done
-    [[ -z ${args[@]} ]] || set -- "${args[@]}"
+Options:
+    -h, --help    Display this help message
+    --nocolor     Disable colorized output
 
-    [[ -n $help ]] && gits_usage && return 0
-    [[ $# -eq 0 ]] && gits_usage && return 1
-
-    while read -r repo; do
-        (
-            echo -e "\e[37m$repo\e[0m"
-            \cd "$repo"
-            case "$1" in
-                "do") shift; sh -c $@ ;;
-                *) git $@ ;;
-            esac
-            echo
-        )
-    done < <(find . -name ".git" -type d -exec dirname {} + | sort)
-
-    gits_cleanup
+EOF
+    exit "$1"
 }
 
-if [[ -n ${BASH_SOURCE[0]} ]]; then
-    case "$0" in
-        *"bash") ;;
-        *) gits "$@" ;;
+declare -a args deps
+unset help
+color="true"
+deps+=("git")
+
+# Check for missing dependencies
+check_deps
+
+# Parse command line options
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        "--") shift && args+=("$@") && break ;;
+        "-h"|"--help") help="true" ;;
+        "--nocolor") unset color ;;
+        *) args+=("$1") ;;
     esac
-fi
+    shift
+done
+[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
+
+# Check for valid params
+[[ -z $help ]] || usage 0
+[[ $# -gt 0 ]] || usage 1
+
+git="true"
+case "$1" in
+    "do") shift; unset git ;;
+esac
+
+while read -r repo; do
+    info "$repo"
+    if [[ -n $git ]]; then
+        git -C "$repo" "$@"
+    else
+        bash -c "(cd \"$repo\" && $*)"
+    fi
+    echo
+done < <(find . -name ".git" -type d -exec dirname {} + | sort)

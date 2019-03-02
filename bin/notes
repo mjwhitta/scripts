@@ -28,85 +28,105 @@
 # SOFTWARE.
 # --------------------------------------------------------------------
 
-function notes() {
-    notes_cleanup() {
-        unset action args notes
-        unset -f notes_cleanup notes_usage
-    }
-
-    notes_usage() {
-        echo "Usage: notes [OPTIONS] [pattern]"
-        echo
-        echo "Quickly read/write notes"
-        echo
-        echo "Options:"
-        echo "    -c, --cat     Cat the notes"
-        echo "    -f, --find    Find notes matching pattern (default)"
-        echo "    -h, --help    Display this help message"
-        echo "    -n, --new     New notes using pattern as filename"
-        echo "    -o, --open    Open notes matching pattern"
-        echo
-        notes_cleanup
-    }
-
-    declare -a args
-    action="find"
-    notes="$HOME/notes"
-
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            "--") shift && args+=("$@") && break ;;
-            "-c"|"--cat") action="cat" ;;
-            "-f"|"--find") action="find" ;;
-            "-h"|"--help") notes_usage; return 0 ;;
-            "-n"|"--new") action="new" ;;
-            "-o"|"--open") action="open" ;;
-            *) args+=("$1") ;;
-        esac
-        shift
-    done
-    [[ -z ${args[@]} ]] || set -- "${args[@]}"
-
-    case "$action" in
-        "cat") [[ $# -ne 1 ]] && notes_usage && return 1 ;;
-        "find") [[ $# -gt 1 ]] && notes_usage && return 2 ;;
-        "new") [[ $# -ne 1 ]] && notes_usage && return 3 ;;
-        "open") [[ $# -ne 1 ]] && notes_usage && return 4 ;;
+### Helpers begin
+check_deps() {
+    for d in "${deps[@]}"; do
+        [[ -n $(command -v "$d") ]] || errx 128 "$d is not installed"
+    done; unset d
+}
+err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+errx() { err "${*:2}"; exit "$1"; }
+good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
+info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
     esac
-    [[ ! -d $notes ]] && echo "Directory $notes not found" && return 4
+    echo "$arg"
+    return $shift
+}
+subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
+### Helpers end
 
-    case "$action" in
-        "cat")
-            find -L $notes/ -type f -ipath "*$(basename $@)*" \
-                -exec cat {} +
-            ;;
-        "find")
-            if [[ $# -eq 0 ]]; then
-                find -L $notes/ -type f | \
-                    sed -r -e "s#$notes/##g" -e "s/\.md\$//g"
-            else
-                find -L $notes/ -type f -ipath "*$(basename $@)*" | \
-                    sed -r -e "s#$notes/##g" -e "s/\.md\$//g"
-            fi
-            ;;
-        "new")
-            case "$@" in
-                */*) mkdir -p $notes/$(dirname $@) ;;
-            esac
-            ${EDITOR:-vi} $notes/$@.md
-            ;;
-        "open")
-            find -L $notes/ -type f -ipath "*$(basename $@)*" \
-                -exec ${EDITOR:-vi} {} +
-            ;;
-    esac
+usage() {
+    cat <<EOF
+Usage: ${0##*/} [OPTIONS] [pattern]
 
-    notes_cleanup
+Quickly read/write notes.
+
+Options:
+    -c, --cat     Cat the notes
+    -f, --find    Find notes matching pattern (default)
+    -h, --help    Display this help message
+    -n, --new     New notes using pattern as filename
+    --nocolor     Disable colorized output
+    -o, --open    Open notes matching pattern
+
+EOF
+    exit "$1"
 }
 
-if [[ -n ${BASH_SOURCE[0]} ]]; then
-    case "$0" in
-        *"bash") ;;
-        *) notes "$@" ;;
+declare -a args deps
+unset help
+color="true"
+# deps+=("todo")
+notes="$HOME/notes"
+
+# Check for missing dependencies
+check_deps
+
+# Parse command line options
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        "--") shift && args+=("$@") && break ;;
+        "-c"|"--cat") action="cat" ;;
+        "-f"|"--find") action="find" ;;
+        "-h"|"--help") help="true" ;;
+        "-n"|"--new") action="new" ;;
+        "--nocolor") unset color ;;
+        "-o"|"--open") action="open" ;;
+        *) args+=("$1") ;;
     esac
-fi
+    shift
+done
+[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
+
+# Check for valid params
+[[ -z $help ]] || usage 0
+
+case "$action" in
+    "cat") [[ $# -eq 1 ]] || usage 1 ;;
+    "find") [[ $# -le 1 ]] || usage 1 ;;
+    "new") [[ $# -eq 1 ]] || usage 1 ;;
+    "open") [[ $# -eq 1 ]] || usage 1 ;;
+esac
+[[ -d "$notes" ]] || errx 2 "Directory $notes not found"
+
+case "$action" in
+    "cat")
+        find -L "$notes/" -type f -ipath "*$(basename "$*")*" \
+            -exec cat {} +
+        ;;
+    "find")
+        if [[ $# -eq 0 ]]; then
+            find -L "$notes/" -type f | \
+                sed -r -e "s#$notes/##g" -e "s/\.md\$//g"
+        else
+            find -L "$notes/" -type f -ipath "*$(basename "$*")*" | \
+                sed -r -e "s#$notes/##g" -e "s/\.md\$//g"
+        fi
+        ;;
+    "new")
+        case "$@" in
+            */*) mkdir -p "$notes/$(dirname "$*")" ;;
+        esac
+        ${EDITOR:-vi} "$notes/$*.md"
+        ;;
+    "open")
+        find -L "$notes/" -type f -ipath "*$(basename "$*")*" \
+            -exec "${EDITOR:-vi}" {} +
+        ;;
+esac

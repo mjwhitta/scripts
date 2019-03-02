@@ -28,111 +28,97 @@
 # SOFTWARE.
 # --------------------------------------------------------------------
 
-function tmussh() {
-    tmussh_cleanup() {
-        unset agent agent_cmd args cmd current_pane delay help
-        unset interactive keep_localhost window wname
-        unset -f tmussh_cleanup tmussh_usage
-    }
+### Helpers begin
+check_deps() {
+    for d in "${deps[@]}"; do
+        [[ -n $(command -v "$d") ]] || errx 128 "$d is not installed"
+    done; unset d
+}
+err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+errx() { err "${*:2}"; exit "$1"; }
+good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
+info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+    esac
+    echo "$arg"
+    return $shift
+}
+subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
+### Helpers end
 
-    tmussh_usage() {
-        echo "Usage: tmussh [OPTIONS] <host1>... [hostN]"
-        echo
-        echo "Open connections to multiple hosts using tmux and ssh."
-        echo "If a command is specified, it will run that command on"
-        echo "each host."
-        echo
-        echo "Options:"
-        echo "    -c, --cmd=CMD        Command to run on each host"
-        echo "    -d, --delay=SECS     Wait for specified time after"
-        echo "                         connecting (default: $delay)"
-        echo "    -h, --help           Display this help message"
-        echo "    -i, --interactive    Do not close connection"
-        echo "                         (default: true if no cmd)"
-        echo "    -w, --window         Run in new tmux window"
-        echo
-        tmussh_cleanup
-    }
+usage() {
+    cat <<EOF
+Usage: ${0##*/} [OPTIONS] <host1>... [hostN]
 
-    declare -a args
-    unset cmd help interactive keep_localhost window
-    delay="3"
+Open connections to multiple hosts using tmux and ssh. If a command is
+specified, it will run that command on each host.
 
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            "--") shift && args+=("$@") && break ;;
-            "-c"|"--cmd"*)
-                case "$1" in
-                    "--"*"="*)
-                        arg="${1#*=}"
-                        [[ -z $arg ]] && tmussh_usage && return 1
-                        ;;
-                    *)
-                        shift
-                        [[ $# -eq 0 ]] && tmussh_usage && return 1
-                        arg="$1"
-                        ;;
-                esac
-                cmd="$arg"
-                ;;
-            "-d"|"--delay"*)
-                case "$1" in
-                    "--"*"="*)
-                        arg="${1#*=}"
-                        [[ -z $arg ]] && tmussh_usage && return 1
-                        ;;
-                    *)
-                        shift
-                        [[ $# -eq 0 ]] && tmussh_usage && return 1
-                        arg="$1"
-                        ;;
-                esac
-                delay="$arg"
-                ;;
-            "-h"|"--help") help="true" ;;
-            "-i"|"--interactive") interactive="true" ;;
-            "-w"|"--window") window="true" ;;
-            *) args+=("$1") ;;
-        esac
-        shift
-    done
-    [[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
+Options:
+    -c, --cmd=CMD        Command to run on each host
+    -d, --delay=SECS     Wait for specified time after connecting
+                         (default: $delay)
+    -h, --help           Display this help message
+    -i, --interactive    Do not close connection (default: true if no
+                         cmd)
+    --nocolor            Disable colorized output
 
-    [[ -n $help ]] && tmussh_usage && return 0
-
-    wname="tmussh_$(head -c 4 /dev/urandom | xxd -p)"
-    [[ -z $window ]] || tmux new-window -n "$wname"
-
-    agent="$HOME/.ssh/agent/env"
-    agent_cmd="[[ ! -f $agent ]] || . $agent >/dev/null"
-    current_pane="$(tmux display -p "#{pane_id}")"
-    for host in "$@"; do
-        case "$host" in
-            "localhost") keep_localhost="true" ;;
-            *) tmux split-window -h "$agent_cmd; ssh $host" ;;
-        esac
-    done
-    [[ -n $keep_localhost ]] || tmux kill-pane -t "$current_pane"
-
-    [[ -z $window ]] || tmux select-pane -t 0
-    tmux select-layout tiled
-    tmux set-option -w synchronize-panes on
-
-    if [[ -n $cmd ]]; then
-        sleep "$delay"
-        tmux send-keys "$cmd"
-        if [[ -z $interactive ]]; then
-            tmux send-keys "exit"
-            tmux set-option -w synchronize-panes off
-        fi
-    fi
-
-    tmussh_cleanup
+EOF
+    exit "$1"
 }
 
-if [[ -n ${BASH_SOURCE[0]} ]]; then
-    case "$0" in
-        *"bash") ;;
-        *) tmussh "$@" ;;
+declare -a args deps
+unset cmd help interactive keep_localhost
+color="true"
+delay="1"
+deps+=("tmux")
+
+# Check for missing dependencies
+check_deps
+
+# Parse command line options
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        "--") shift && args+=("$@") && break ;;
+        "-c"|"--cmd"*) cmd="$(long_opt "$@")" || shift ;;
+        "-d"|"--delay"*) delay="$(long_opt "$@")" || shift ;;
+        "-h"|"--help") help="true" ;;
+        "-i"|"--interactive") interactive="true" ;;
+        *) args+=("$1") ;;
     esac
+    shift
+done
+[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
+
+# Check for valid params
+[[ -z $help ]] || usage 0
+[[ $# -gt 0 ]] || usage 1
+[[ -n $TMUX ]] || errx 2 "You are not in a tmux session"
+
+wname="tmussh_$(head -c 4 /dev/urandom | xxd -p)"
+tmux new-window -n "$wname"
+
+agent="$HOME/.ssh/agent/env"
+agent_cmd="[[ ! -f \"$agent\" ]] || . \"$agent\" >/dev/null"
+current_pane="$(tmux display -p "#{pane_id}")"
+for host in "$@"; do
+    case "$host" in
+        "localhost") tmux split-window -h ;;
+        *) tmux split-window -h "$agent_cmd; ssh $host" ;;
+    esac
+done
+
+tmux kill-pane -t "$current_pane"
+tmux select-pane -t 0
+tmux select-layout tiled
+tmux set-option -w synchronize-panes on
+
+if [[ -n $cmd ]]; then
+    sleep "$delay"
+    tmux send-keys "$cmd"
+    [[ -n $interactive ]] || tmux send-keys "exit"
 fi

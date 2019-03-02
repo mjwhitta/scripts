@@ -29,15 +29,15 @@
 # --------------------------------------------------------------------
 
 ### Helpers begin
-checkdeps() {
+check_deps() {
     for d in "${deps[@]}"; do
-        [[ -n $(command -v $d) ]] || errx 128 "$d is not installed"
+        [[ -n $(command -v "$d") ]] || errx 128 "$d is not installed"
     done; unset d
 }
-err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
-errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
-good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
-info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+errx() { err "${*:2}"; exit "$1"; }
+good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
+info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
@@ -47,8 +47,8 @@ long_opt() {
     echo "$arg"
     return $shift
 }
-subinfo() { echo -e "${color:+\e[36m}[=] $@\e[0m"; }
-warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
+subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 ### Helpers end
 
 update_dns() {
@@ -59,43 +59,43 @@ update_dns() {
 }
 
 usage() {
-    echo "Usage: ${0##*/} [OPTIONS]"
-    echo
-    echo "Detect when IP changes and update dynamic DNS entry using"
-    echo "Google Domains API"
-    echo
-    echo "Options:"
-    echo "    -d, --domain=DOMAIN    Domain entry to update"
-    echo "    -e, --external         Use external IP (default)"
-    echo "    -f, --file=FILE        Compare to IP in specified file"
-    echo "    --force                Update even if IP hasn't changed"
-    echo "    -h, --helpo            Display this help message"
-    echo "    -i, --internal         Use internal IP"
-    echo "    --iface=IFACE          Use specified interface"
-    echo "                           (default: $iface)"
-    echo "    --ip=IP                Compare to specified IP"
-    echo "    --nocolor              Disable colorized output"
-    echo "    -p, --pass=PASSWD      Password for API"
-    echo "    --url=URL              URL that returns just an IP"
-    echo "                           (default: $ip_url)"
-    echo "    -u, --user=USER        Username for API"
-    echo
-    exit $1
+    cat <<EOF
+Usage: ${0##*/} [OPTIONS]
+
+Detect when IP changes and update dynamic DNS entry using Google
+Domains API.
+
+Options:
+    -d, --domain=DOMAIN    Domain entry to update
+    -e, --external         Use external IP (default)
+    -f, --file=FILE        Compare to IP in specified file
+    --force                Update even if IP hasn't changed
+    -h, --helpo            Display this help message
+    -i, --internal         Use internal IP
+    --iface=IFACE          Use specified interface (default: $iface)
+    --ip=IP                Compare to specified IP
+    --nocolor              Disable colorized output
+    -p, --pass=PASSWD      Password for API
+    --url=URL              URL that returns just an IP (default: $url)
+    -u, --user=USER        Username for API
+
+EOF
+    exit "$1"
 }
 
 declare -a args deps
 unset domain file force help old_ip password username
 color="true"
-curl_cmd="curl --connect-timeout 7 -kLm 7 -s"
+curl_cmd="curl --connect-timeout 8 -kLm 8 -s"
 deps+=("curl")
 deps+=("ip")
 external="true"
-ip_url="https://icanhazip.com"
+url="https://icanhazip.com"
 
 # Check for missing dependencies
-checkdeps
+check_deps
 
-iface="$(ip -o a | awk '!/\slo\s/ && /inet\s/ {print $2; exit}')"
+iface="$(ip -o a | grep -m 1 -oPs "\d:\s+\K[^l][^o]\S*")"
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
@@ -111,13 +111,13 @@ while [[ $# -gt 0 ]]; do
         "--ip"*) old_ip="$(long_opt "$@")" || shift ;;
         "--nocolor") unset color ;;
         "-p"|"--pass"*) password="$(long_opt "$@")" || shift ;;
-        "--url"*) ip_url="$(long_opt "$@")" || shift ;;
+        "--url"*) url="$(long_opt "$@")" || shift ;;
         "-u"|"--user"*) username="$(long_opt "$@")" || shift ;;
         *) args+=("$1") ;;
     esac
     shift
 done
-[[ -z ${args[@]} ]] || set -- "${args[@]}"
+[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
 # Check for valid params
 [[ -z $help ]] || usage 0
@@ -128,9 +128,9 @@ done
 [[ -n $username ]] || usage 5
 
 # Get data
-[[ -z $file ]] || [[ ! -f $file ]] || old_ip="$(head -n 1 $file)"
+[[ -z $file ]] || [[ ! -f "$file" ]] || old_ip="$(head -n 1 "$file")"
 if [[ -n $external ]]; then
-    new_ip="$($curl_cmd --interface $iface "$ip_url")"
+    new_ip="$($curl_cmd --interface "$iface" "$url")"
 else
     new_ip="$(ip -o a | awk "/$iface\s+inet\s/ {print \$4}")"
     new_ip="${new_ip%/*}"
@@ -139,8 +139,8 @@ fi
 # Compare and update
 if [[ -n $force ]] ||
    [[ -z $old_ip ]] ||
-   [[ $new_ip != $old_ip ]]
+   [[ "$new_ip" != "$old_ip" ]]
 then
-    echo "$new_ip" | tee $file
+    echo "$new_ip" | tee "$file"
     update_dns "$new_ip"
 fi

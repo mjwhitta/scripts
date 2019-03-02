@@ -35,7 +35,7 @@ check_deps() {
     done; unset d
 }
 err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
-errx() { echo -e "${color:+\e[31m}[!] ${*:2}\e[0m"; exit "$1"; }
+errx() { err "${*:2}"; exit "$1"; }
 good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
 info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
@@ -56,8 +56,8 @@ usage() {
 Usage: ${0##*/} [OPTIONS] [directory]
 
 Rotate wallpaper using images from specified directory or config file.
-Currently it uses nitrogen but it could be extended to use
-other background setters.
+Currently it uses nitrogen but it could be extended to use other
+background setters.
 
 Options:
     -d, --delay=NUM    Rotate image every NUM secs (default: 120)

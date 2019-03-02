@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 
 ### Helpers begin
-checkdeps() {
+check_deps() {
     for d in "${deps[@]}"; do
-        [[ -n $(command -v $d) ]] || errx 128 "$d is not installed"
+        [[ -n $(command -v "$d") ]] || errx 128 "$d is not installed"
     done; unset d
 }
-err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
-errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
-good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
-info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+errx() { err "${*:2}"; exit "$1"; }
+good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
+info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
@@ -19,32 +19,33 @@ long_opt() {
     echo "$arg"
     return $shift
 }
-subinfo() { echo -e "${color:+\e[36m}[=] $@\e[0m"; }
-warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
+subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 ### Helpers end
 
 usage() {
-    echo "Usage: ${0##*/} [OPTIONS] <WxH>"
-    echo
-    echo "Use xrandr and cvt to generate a valid config for"
-    echo "/etc/X11/xorg.conf.d/"
-    echo
-    echo "Options:"
-    echo "    -h, --help    Display this help message"
-    echo "    --nocolor     Disable colorized output"
-    echo
-    exit $1
+    cat <<EOF
+Usage: ${0##*/} [OPTIONS] <WxH>
+
+Use xrandr and cvt to generate a valid config for X11. Store config
+in /etc/X11/xorg.conf.d/.
+
+Options:
+    -h, --help    Display this help message
+    --nocolor     Disable colorized output
+
+EOF
+    exit "$1"
 }
 
 declare -a args deps
 unset help
 color="true"
 deps+=("cvt")
-deps+=("perl")
 deps+=("xrandr")
 
 # Check for missing dependencies
-checkdeps
+check_deps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
@@ -56,17 +57,16 @@ while [[ $# -gt 0 ]]; do
     esac
     shift
 done
-[[ -z ${args[@]} ]] || set -- "${args[@]}"
+[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
 # Check for valid params
 [[ -z $help ]] || usage 0
 [[ $# -eq 1 ]] || usage 1
 
-display="$(
-    xrandr | perl -lne '/^(\S+) connected primary/ && print $1'
-)"
+display="$(xrandr | grep -oPs "\S+(?=\s+connected\sprimary)")"
 modeline="$(
-    cvt ${1/x/ } | tail -n 1 | sed -r "s/^Modeline |\"|_60\.00//g"
+    cvt "${1%%x*}" "${1##*x}" | tail -n 1 | \
+    sed -r "s/^Modeline |\"|_60\.00//g"
 )"
 name="$(echo "$modeline" | awk '{print $1}')"
 
