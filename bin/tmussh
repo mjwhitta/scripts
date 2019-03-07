@@ -110,11 +110,13 @@ for host in "$@"; do
         "localhost") tmux split-window -h ;;
         *) tmux split-window -h "$agent_cmd; ssh $host" ;;
     esac
+    tmux select-layout tiled
 done
 
 tmux kill-pane -t "$current_pane"
-tmux select-pane -t 0
 tmux select-layout tiled
+
+tmux select-pane -t 0
 tmux set-option -w synchronize-panes on
 
 if [[ -n $cmd ]]; then
