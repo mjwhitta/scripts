@@ -71,6 +71,7 @@ EOF
 
 declare -a args deps
 unset help
+action="find"
 color="true"
 # deps+=("todo")
 notes="$HOME/notes"
