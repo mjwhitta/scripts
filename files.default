@@ -6,6 +6,6 @@ bin/tmussh:$HOME/bin/tmussh
 bin/update_repos:$HOME/bin/update_repos
 bin/update_vim_plugins:$HOME/bin/update_vim_plugins
 security/fw:$HOME/bin/fw
-security/fw6:$HOME/bin/fw6
+security/fw:$HOME/bin/fw6
 security/netstatplus:$HOME/bin/netstatplus
 security/ssplus:$HOME/bin/ssplus
