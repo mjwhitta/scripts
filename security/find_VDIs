@@ -2,35 +2,77 @@
 
 ### Helpers begin
 set -o noglob
-checkdeps() {
+trap "clean 128" SIGINT # Ensure cleanup on ^C
+check_deps() {
     for d in "${deps[@]}"; do
-        [[ -n $(command -v $d) ]] || errx 128 "$d is not installed"
+        [[ -n $(command -v "$d") ]] || errx 127 "$d is not installed"
     done; unset d
 }
-clean() {
-    [[ ${1:-0} -ne 0 ]] || [[ ! -d $cache ]] || rm -rf $cache
-    [[ -z $script ]] || [[ ! -f $script ]] || rm -f $script
-    echo -en "\e[?25h" # Show cursor again
-    exit ${1:-0}
+check_lock() {
+    [[ -n $cache ]] || errx 126 "Cache is not defined"
+    mkdir -p "$cache"
+    if [[ -f "$cache.lock" ]]; then
+        errx 125 "$cache.lock already exists"
+    fi
+    echo "$$" >"$cache.lock"
 }
-err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
-errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; clean $1; }
-good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
-info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+check_resume_file() {
+    if [[ -f "$json" ]] && [[ -z $resume ]]; then
+        warn "Resume file found" >&2
+        while :; do
+            # Prompt whether to overwrite or resume
+            local a
+            read -n 1 -p "Would you like to resume [y/n/q/c]: " -rs a
+            echo
+
+            case "$a" in
+                "c") clean 0 ;;
+                "n") write_resume_file; break ;;
+                "q") exit 0 ;;
+                "y") read_resume_file; resume="--resume"; break ;;
+                *) echo "Invalid response, try again!" ;;
+            esac
+        done
+    elif [[ -f "$json" ]]; then
+        read_resume_file
+    elif [[ -n $resume ]]; then
+        errx 124 "No resume file found"
+    else
+        write_resume_file
+    fi
+}
+clean() {
+    if [[ ${1:-0} -eq 0 ]]; then
+        [[ -z $cache ]] || [[ ! -d "$cache" ]] || rm -rf "$cache"
+    fi
+    [[ -z $script ]] || [[ ! -f "$script" ]] || rm -f "$script"
+    [[ ${1:-0} -eq 125 ]] || [[ -z $cache ]] || rm -f "$cache.lock"
+    show_cursor
+    exit "${1:-0}"
+}
+err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+errx() { err "${*:2}"; clean "$1"; }
+good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
+hide_cursor() { echo -en "\e[?25l"; }
+info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 json_get() {
-    [[ -z $json ]] || jq -cr ".$@" $json | sed -r "s/^null$//g"
+    if [[ -z $json ]] || [[ ! -f "$json" ]]; then
+        return
+    fi
+    jq -cr ".$*" "$json" | sed -r "s/^null$//g"
 }
 long_opt() {
     local arg shift="0"
     case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 123 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 123; arg="$1" ;;
     esac
     echo "$arg"
     return $shift
 }
-subinfo() { echo -e "${color:+\e[36m}[=] $@\e[0m"; }
-warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
+show_cursor() { echo -en "\e[?25h"; }
+subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 ### Helpers end
 
 read_resume_file() {
@@ -41,30 +83,33 @@ read_resume_file() {
 }
 
 usage() {
-    echo "Usage: ${0##*/} [OPTIONS] <file1>... [fileN]"
-    echo
-    echo "Find valid VDI endpoints"
-    echo
-    echo "Options:"
-    echo "    -d, --debug          Keep log files for debugging"
-    echo "    -h, --help           Display this help message"
-    echo "    --nocolor            Disable colorized output"
-    echo "    -o, --output=FILE    Write output to a file"
-    echo "    -r, --resume         Resume from a previous run"
-    echo "    -t, --threads=NUM    Use the specied number of threads"
-    echo "                         (default: $threads)"
-    echo "    --timeout=SECS       Timeout (default: $timeout)"
-    echo "    -v, --verbose        Do not hide parallel errors"
-    echo "    -w, --web            Scrape web instead of trying to"
-    echo "                         connect"
-    echo
-    exit $1
+    cat <<EOF
+Usage: ${0##*/} [OPTIONS] <file1>... [fileN]
+
+Find valid VDI endpoints
+
+Options:
+    -d, --debug          Keep log files for debugging
+    -h, --help           Display this help message
+    --no-color           Disable colorized output
+    -o, --output=FILE    Write output to a file
+    -r, --resume         Resume from a previous run
+    -t, --threads=NUM    Use specified number of threads (default: 32)
+    --timeout=SECS       Timeout (default: $timeout)
+    -v, --verbose        Do not hide parallel errors
+    -w, --web            Scrape web instead of trying to connect
+
+EOF
+    exit "$1"
 }
 
 write_resume_file() {
-    [[ -z $cache ]] || rm -rf $cache
-    mkdir -p $cache
-    cat >$json <<EOF
+    [[ -n $cache ]] || return
+    [[ -n $json ]] || return
+    rm -rf "$cache"
+    mkdir -p "$cache"
+
+    cat >"$json" <<EOF
 {
   "debug": "$debug",
   "index": "$index",
@@ -74,23 +119,20 @@ write_resume_file() {
 EOF
 }
 
-declare -a args
-unset debug deps help output web
-cache="${0##*/}.resume"
+declare -a args deps
+unset debug help output resume verbose web
 color="true"
 deps+=("curl")
 deps+=("jq")
 deps+=("nslookup")
 deps+=("vmware-view")
 index="portal/webclient/index.html"
-joblog="$cache/joblog.txt"
-json="$cache/${0##*/}.json"
 parallel="true"
 threads="32"
 timeout="2"
 
 # Check for missing dependencies
-checkdeps
+check_deps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
@@ -98,7 +140,7 @@ while [[ $# -gt 0 ]]; do
         "--") shift && args+=("$@") && break ;;
         "-d"|"--debug") debug="true" ;;
         "-h"|"--help") help="true" ;;
-        "--nocolor") unset color ;;
+        "--no-color") unset color ;;
         "-o"|"--output"*) output="$(long_opt "$@")" || shift ;;
         "-r"|"--resume") resume="--resume" ;;
         "-t"|"--threads"*) threads="$(long_opt "$@")" || shift ;;
@@ -109,7 +151,7 @@ while [[ $# -gt 0 ]]; do
     esac
     shift
 done
-[[ -z ${args[@]} ]] || set -- "${args[@]}"
+[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
 # Check for valid params
 [[ -z $help ]] || usage 0
@@ -122,79 +164,58 @@ if [[ -n $parallel ]] && [[ -z $(command -v parallel) ]]; then
 fi
 
 # Cite if needed
-if [[ -n $parallel ]] && [[ ! -f $HOME/.parallel/will-cite ]]; then
-    mkdir -p $HOME/.parallel
-    parallel --citation
-fi
-
-if [[ -n $parallel ]]; then
-    # Ensure resume directory exists
-    mkdir -p $cache
-
-    # Check for resume file
-    if [[ -f $json ]] && [[ -z $resume ]]; then
-        warn "Resume file found" >&2
-        while :; do
-            # Prompt whether to overwrite or resume
-            read -n 1 -p "Would you like to resume [y/n/q]: " -s ans
-            echo
-
-            case "$ans" in
-                "n") write_resume_file; break ;;
-                "q") exit 0 ;;
-                "y") read_resume_file; resume="--resume"; break ;;
-                *) echo "Invalid response, try again!" ;;
-            esac
-        done
-    elif [[ -f $json ]]; then
-        read_resume_file
-    elif [[ -n $resume ]]; then
-        errx 2 "No resume file found in current directory"
-    else
-        write_resume_file
+if [[ -n $parallel ]] && [[ ! -f "$HOME/.parallel/will-cite" ]]; then
+    pvers="$(parallel --version | grep -ioPs "parallel \K\d+")"
+    if [[ $pvers -lt 20181122 ]]; then
+        mkdir -p "$HOME/.parallel"
+        parallel --citation
     fi
+    unset pvers
 fi
 
-# Dataset used by parallel
-dataset="$cache/${0##*/}.dataset"
+# Cache variables
+hash="$(echo -n "$@" | sha256sum | awk '{print $1}')"
+cache="$HOME/.cache/${0##*/}/$hash"
+joblog="$cache/joblog.txt"
+json="$cache/${0##*/}.json"
 
-# Script used by parallel
-script="/tmp/${0##*/}.parallel"
+# Lock to prevent parallel issues
+check_lock
 
-# Ensure cleanup on ^C
-trap "clean 126" SIGINT
+# Check for resume file
+[[ -z $parallel ]] || check_resume_file
+hide_cursor
 
-# Hide cursor
-echo -en "\e[?25l"
+[[ -z $resume ]] || info "Resuming..."
 
-# Process dataset
 info "Processing dataset for jobs"
 
-if [[ ! -f $dataset ]]; then
-    total="0"
+dataset="$cache/${0##*/}.dataset"
+if [[ ! -f "$dataset" ]]; then
+    touch "$dataset"
+
     while read -r data; do
-        ((total += 1))
-        echo "$data" >>$dataset
-    done < <(cat $@ 2>/dev/null | sort -u); unset data
-else
-    total="$(cat $dataset | wc -l)"
+        echo "$data" >>"$dataset"
+    done < <(cat "$@" 2>/dev/null | sort -u); unset data
 fi
-[[ $total -gt 0 ]] || errx 0 "No dataset provided"
+total="$(wc -l "$dataset" | awk '{print $1}')"
+[[ $total -gt 0 ]] || errx 2 "No dataset provided"
 
 subinfo "$total jobs to run"
 
 # Create sub-script
-cat >$script <<EOF
+script="/tmp/${0##*/}.parallel"
+cat >"$script" <<EOF
 #!/usr/bin/env bash
 
 ### Helpers begin
 set -o noglob
-err() { echo -e "\r${color:+\e[31m}[!] \$@\e[0m\e[K"; }
-errx() { echo -e "\r${color:+\e[31m}[!] \${@:2}\e[0m\e[K"; exit \$1; }
-good() { echo -e "\r${color:+\e[32m}[+] \$@\e[0m\e[K"; }
-info() { echo -e "\r${color:+\e[37m}[*] \$@\e[0m\e[K"; }
-subinfo() { echo -e "\r${color:+\e[36m}[=] \$@\e[0m\e[K"; }
-warn() { echo -e "\r${color:+\e[33m}[-] \$@\e[0m\e[K"; }
+err() { echo -e "\r${color:+\e[31m}[!] \$*\e[0m\e[K"; }
+errx() { err "\${*:2}"; exit "\$1"; }
+good() { echo -e "\r${color:+\e[32m}[+] \$*\e[0m\e[K"; }
+info() { echo -e "\r${color:+\e[37m}[*] \$*\e[0m\e[K"; }
+subinfo() { echo -e "\r${color:+\e[36m}[=] \$*\e[0m\e[K"; }
+warn() { echo -e "\r${color:+\e[33m}[-] \$*\e[0m\e[K"; }
 ### Helpers end
 
 check_vmware_viewer() {
@@ -246,12 +267,12 @@ else
     check_vmware_viewer \$1
 fi
 EOF
-chmod 700 $script
+chmod 700 "$script"
 
 # Run sub-script
 if [[ -n $parallel ]]; then
-    parallel -a $dataset --bar --joblog ${resume:++}$joblog --lb \
-        -P $threads -r $resume $script {} | tee -a $output
+    parallel -a "$dataset" --bar --joblog ${resume:++}"$joblog" --lb \
+        -P "$threads" -r $resume "$script" {} | tee -a "$output"
     [[ -n $verbose ]] || echo -en "\e[1A\e[K" >&2
 else
     count="1"
@@ -260,7 +281,7 @@ else
         echo -en "${color:+\e[37m}[$count/$total]\e[0m\e[K\e[1A" >&2
         $script "$data"
         ((count += 1))
-    done <$dataset | tee -a $output; unset data
+    done <"$dataset" | tee -a "$output"; unset data
 fi
 
 clean

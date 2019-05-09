@@ -118,7 +118,7 @@ Create wallpapers from images.
 Options:
     -h, --help           Display this help message
     -i, --info           Display background color that would be used
-    --nocolor            Disable colorized output
+    --no-color           Disable colorized output
     -o, --output=DIR     Save to the specified directory (default: .)
     -r, --resume         Resume from a previous run
     -s, --size=WxH       Use the specified resolution (default:
@@ -165,7 +165,7 @@ while [[ $# -gt 0 ]]; do
         "--") shift && args+=("$@") && break ;;
         "-h"|"--help") help="true" ;;
         "-i"|"--info") action="info" ;;
-        "--nocolor") unset color ;;
+        "--no-color") unset color ;;
         "-o"|"--output"*) output="$(long_opt "$@")" || shift ;;
         "-r"|"--resume") resume="--resume" ;;
         "-s"|"--size"*) resolution="$(long_opt "$@")" || shift ;;
@@ -189,8 +189,12 @@ fi
 
 # Cite if needed
 if [[ -n $parallel ]] && [[ ! -f "$HOME/.parallel/will-cite" ]]; then
-    mkdir -p "$HOME/.parallel"
-    parallel --citation
+    pvers="$(parallel --version | grep -ioPs "parallel \K\d+")"
+    if [[ $pvers -lt 20181122 ]]; then
+        mkdir -p "$HOME/.parallel"
+        parallel --citation
+    fi
+    unset pvers
 fi
 
 # Cache variables
@@ -212,6 +216,8 @@ info "Processing dataset for jobs"
 
 dataset="$cache/${0##*/}.dataset"
 if [[ ! -f "$dataset" ]]; then
+    touch "$dataset"
+
     for data in "$@"; do
         echo "$data" >>"$dataset"
     done; unset data

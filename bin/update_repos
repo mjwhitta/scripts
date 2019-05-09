@@ -113,7 +113,7 @@ Update git repos under specified directory.
 
 Options:
     -h, --help           Display this help message
-    --nocolor            Disable colorized output
+    --no-color           Disable colorized output
     -r, --resume         Resume from a previous run
     -t, --threads=NUM    Use specified number of threads (default: 32)
     -v, --verbose        Do not hide parallel errors
@@ -149,7 +149,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
         "-h"|"--help") help="true" ;;
-        "--nocolor") unset color ;;
+        "--no-color") unset color ;;
         "-r"|"--resume") resume="--resume" ;;
         "-t"|"--threads"*) threads="$(long_opt "$@")" || shift ;;
         "-v"|"--verbose") verbose="true" ;;
@@ -171,8 +171,12 @@ fi
 
 # Cite if needed
 if [[ -n $parallel ]] && [[ ! -f "$HOME/.parallel/will-cite" ]]; then
-    mkdir -p "$HOME/.parallel"
-    parallel --citation
+    pvers="$(parallel --version | grep -ioPs "parallel \K\d+")"
+    if [[ $pvers -lt 20181122 ]]; then
+        mkdir -p "$HOME/.parallel"
+        parallel --citation
+    fi
+    unset pvers
 fi
 
 # Cache variables
@@ -194,6 +198,8 @@ info "Processing dataset for jobs"
 
 dataset="$cache/${0##*/}.dataset"
 if [[ ! -f "$dataset" ]]; then
+    touch "$dataset"
+
     while read -r data; do
         echo "$data" >>"$dataset"
     done < <(

@@ -678,7 +678,7 @@ Options:
                          more than once)
     -l, --list=LIST      Use the specified wordlist (can be used more
                          than once)
-    --nocolor            Disable colorized output
+    --no-color           Disable colorized output
     -p, --proxy=PROXY    Proxy traffic through PROXY
     -r, --resume         Resume from a previous run
     --simulate           Simulate output but do nothing
@@ -741,7 +741,7 @@ while [[ $# -gt 0 ]]; do
         "-h"|"--help") help="true" ;;
         "-i"|"--ignore"*) ignores+=("$(long_opt "$@")") || shift ;;
         "-l"|"--list"*) wordlists+=("$(long_opt "$@")") || shift ;;
-        "--nocolor") unset color ;;
+        "--no-color") unset color ;;
         "-p"|"--proxy"*) proxy="--proxy $(long_opt "$@")" || shift ;;
         "-r"|"--resume") resume="--resume" ;;
         "--simulate") simulate="true" ;;
@@ -762,8 +762,12 @@ done
 
 # Cite if needed
 if [[ ! -f "$HOME/.parallel/will-cite" ]]; then
-    mkdir -p "$HOME/.parallel"
-    parallel --citation
+    pvers="$(parallel --version | grep -ioPs "parallel \K\d+")"
+    if [[ $pvers -lt 20181122 ]]; then
+        mkdir -p "$HOME/.parallel"
+        parallel --citation
+    fi
+    unset pvers
 fi
 
 # Save host
