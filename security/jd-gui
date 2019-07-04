@@ -27,10 +27,10 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS]
 
-Run the community edition of BurpSuite.
+Run JD-GUI.
 
 Options:
-    -c, --clear    Clear cache and download new BurpSuite
+    -c, --clear    Clear cache and download new JD-GUI
     -h, --help     Display this help message
     --no-color     Disable colorized output
 
@@ -64,25 +64,30 @@ done
 [[ -z $help ]] || usage 0
 [[ $# -eq 0 ]] || usage 1
 
-cache="$HOME/.cache/burp"
+cache="$HOME/.cache/jd-gui"
 mkdir -p "$cache"
 
-# Ensure json config exists
-[[ -f "$cache/burp.json" ]] || echo "{}" >"$cache/burp.json"
-
-# Clear cached BurpSuite if requested
+# Clear cached JD-GUI if requested
 [[ -z $clear ]] || find "$cache" -name "*.jar" -exec rm -f {} +
 
-# Get BurpSuite if missing
-burpsuite="$(find "$cache" -name "burp*.jar" | sort -nr | head -n 1)"
-if [[ -z $burpsuite ]]; then
-    url="https://portswigger.net/burp/releases/download"
-    query="?type=jar&product=community"
+# Get JD-GUI if missing
+jd="$(find "$cache" -name "jd-gui*.jar" | sort -nr | head -n 1)"
+if [[ -z $jd ]]; then
+    url="https://github.com"
+    path="/java-decompiler/jd-gui/releases"
 
-    curl -Lo "$cache/burpsuite_community.jar" "$url$query"
-    [[ $? -eq 0 ]] || errx 2 "Failed to download burpsuite jar"
+    path="$(
+        curl -Ls "$url$path" | grep -ioPs "java.+\d\.\d\.\d\.jar" | \
+        head -n 1
+    )"
 
-    burpsuite="$cache/burpsuite_community.jar"
+    [[ -n $path ]] || errx 2 "Failed to download jd-gui jar"
+
+    name="$(basename "$path")"
+    curl -Lo "$cache/$name" "$url/$path"
+    [[ $? -eq 0 ]] || errx 2 "Failed to download jd-gui jar"
+
+    jd="$(find "$cache" -name "jd-gui*.jar" | sort -nr | head -n 1)"
 fi
 
-java -jar "$burpsuite" --config-file="$cache/burp.json" "$@"
+java -jar "$jd" "$@"
