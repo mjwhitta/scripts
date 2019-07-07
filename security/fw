@@ -52,15 +52,8 @@ warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 ### Helpers end
 
 fw_clear() {
-    # Ignore Docker as those should be managed by docker.service
-    docker_ips="$(
-        ip -o a | \
-        grep -ioP "docker[0-9]+\s+inet\s+\K[0-9]{1,3}\.[0-9]{1,3}"
-    )"
-
     # Save Docker rules
-    sudo "${iptables}-save" | \
-        grep -iP "^\*|^commit$|docker|\s+$docker_ips\." \
+    sudo "${iptables}-save" | grep -iPs "^\*|^commit$|$dreg" \
         >/tmp/fw.docker.rules
 
     for tbl in "${tbls[@]}"; do
@@ -79,7 +72,7 @@ fw_clear() {
 
     # Restore Docker rules
     sudo cat /tmp/fw.docker.rules | sudo "${iptables}-restore"
-    rm -f /tmp/fw.docker.rules
+    sudo rm -f /tmp/fw.docker.rules
 }
 
 fw_close() {
@@ -90,14 +83,8 @@ fw_close() {
 fw_list() {
     for tbl in "${tbls[@]}"; do
         info "$tbl"
-        # Ignore Docker
-        docker_ips="$(
-            ip -o a | \
-            grep -ioP "docker[0-9]+\s+inet\s+\K[0-9]+\.[0-9]+"
-        )"
         if [[ $# -eq 0 ]]; then
-            sudo "$iptables" -S -t "$tbl" | \
-                grep -iPv "docker|\s+$docker_ips\."
+            sudo "$iptables" -S -t "$tbl" | grep -iPsv "$dreg"
         else
             sudo "$iptables" -S -t "$tbl"
         fi
@@ -116,6 +103,8 @@ fw_reset() {
             sudo "${iptables}-restore" -n
     fi
 }
+
+join_with() { local IFS="$1"; echo "${*:2}"; }
 
 usage() {
     cat <<EOF
@@ -184,6 +173,32 @@ done
 # Check for valid params
 [[ -z $help ]] || usage 0
 [[ $# -eq 0 ]] || usage 1
+
+declare -a dignore
+if [[ -n $(command -v docker) ]]; then
+    # Ignore Docker interfaces
+    while read -r dint; do
+        dignore+=("$dint")
+    done < <(ip -o a | grep -ioPs "\d+:\s+\Kdocker\d+"); unset dint
+
+    # Ignore Docker networks
+    while read -r dnet; do
+        dignore+=("br-$dnet")
+    done < <(sudo docker network list -q); unset dnet
+
+    # Ignore Docker IPs
+    if [[ ${#dignore[@]} -gt 0 ]]; then
+        dreg="$(join_with "|" "${dignore[@]}")"
+        while read -r dip; do
+            dignore+=("$dip")
+        done < <(
+            ip -o a | grep -ioPs "($dreg)\s+inet\s+\K(\d{1,3}\.){3}"
+        ); unset dip
+        unset dreg
+    fi
+fi
+dignore+=("docker")
+dreg="$(join_with "|" "${dignore[@]}")"
 
 case "$action" in
     "close") fw_close "$port" ;;
