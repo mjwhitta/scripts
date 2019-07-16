@@ -27,11 +27,12 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS]
 
-Launch JD-GUI.
+Launch sqlmap.
 
 Options:
-    -c, --clear    Clear cache and download the newest JD-GUI
-    -h, --help     Display this help message
+    -c, --clear    Clear cache and download the newest sqlmap
+    -h             Display this help message
+    --help         Pass-thru to sqlmap
     --no-color     Disable colorized output
 
 EOF
@@ -41,8 +42,8 @@ EOF
 declare -a args deps
 unset clear help
 color="true"
-deps+=("curl")
-deps+=("java")
+deps+=("git")
+deps+=("python3")
 
 # Check for missing dependencies
 check_deps
@@ -52,7 +53,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
         "-c"|"--clear-cache") clear="true" ;;
-        "-h"|"--help") help="true" ;;
+        "-h") help="true" ;;
         "--no-color") unset color ;;
         *) args+=("$1") ;;
     esac
@@ -63,30 +64,20 @@ done
 # Check for valid params
 [[ -z $help ]] || usage 0
 
-cache="$HOME/.cache/jd-gui"
-mkdir -p "$cache"
+cache="$HOME/.cache/sqlmap"
+mkdir -p "$(dirname "$cache")"
 
-# Clear cached JD-GUI if requested
-[[ -z $clear ]] || find "$cache" -name "*.jar" -exec rm -f {} +
+# Clear cached sqlmap if requested
+[[ -z $clear ]] || rm -rf "$cache"
 
 # Get JD-GUI if missing
-jd="$(find "$cache" -name "jd-gui*.jar" | sort -nr | head -n 1)"
-if [[ -z $jd ]]; then
-    url="https://github.com"
-    path="/java-decompiler/jd-gui/releases"
-
-    path="$(
-        curl -Ls "$url$path" | grep -ioPs "java.+\d\.\d\.\d\.jar" | \
-        head -n 1
-    )"
-
-    [[ -n $path ]] || errx 1 "Failed to download jd-gui jar"
-
-    name="$(basename "$path")"
-    curl -Lo "$cache/$name" "$url/$path"
-    [[ $? -eq 0 ]] || errx 1 "Failed to download jd-gui jar"
-
-    jd="$(find "$cache" -name "jd-gui*.jar" | sort -nr | head -n 1)"
+if [[ ! -d $cache ]]; then
+    git clone https://github.com/sqlmapproject/sqlmap.git "$cache"
+    [[ $? -eq 0 ]] || errx 1 "Failed to download sqlmap"
+else
+    git -C "$cache" pull -r >/dev/null
+    [[ $? -eq 0 ]] || errx 1 "Failed to update sqlmap"
 fi
 
-java -jar "$jd" "$@"
+cd "$cache"
+./sqlmap.py "$@"

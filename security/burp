@@ -27,11 +27,12 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS]
 
-Run the community edition of BurpSuite.
+Launch the community edition of BurpSuite.
 
 Options:
-    -c, --clear    Clear cache and download new BurpSuite
-    -h, --help     Display this help message
+    -c, --clear    Clear cache and download the newest BurpSuite
+    -h             Display this help message
+    --help         Pass-thru to the BurpSuite jar
     --no-color     Disable colorized output
 
 EOF
@@ -52,7 +53,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
         "-c"|"--clear-cache") clear="true" ;;
-        "-h"|"--help") help="true" ;;
+        "-h") help="true" ;;
         "--no-color") unset color ;;
         *) args+=("$1") ;;
     esac
@@ -62,7 +63,6 @@ done
 
 # Check for valid params
 [[ -z $help ]] || usage 0
-[[ $# -eq 0 ]] || usage 1
 
 cache="$HOME/.cache/burp"
 mkdir -p "$cache"
@@ -80,7 +80,7 @@ if [[ -z $burpsuite ]]; then
     query="?type=jar&product=community"
 
     curl -Lo "$cache/burpsuite_community.jar" "$url$query"
-    [[ $? -eq 0 ]] || errx 2 "Failed to download burpsuite jar"
+    [[ $? -eq 0 ]] || errx 1 "Failed to download burpsuite jar"
 
     burpsuite="$cache/burpsuite_community.jar"
 fi
