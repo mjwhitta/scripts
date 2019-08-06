@@ -93,19 +93,32 @@ done
 [[ -z $help ]] || usage 0
 [[ $# -le 1 ]] || usage 1
 
+declare -a dirs
 if [[ $# -eq 1 ]]; then
-    dir="$1"
+    for dir in "$@"; do
+        if [[ -d "$dir" ]]; then
+            dirs+=("$dir")
+        else
+            err "$dir doesn't exist"
+        fi
+    done; unset dir
 else
     [[ -f "$HOME/.wallpaper_slideshow_rc" ]] || usage 1
-    dir="$(cat "$HOME/.wallpaper_slideshow_rc")"
+    while read -r dir; do
+        if [[ -d "$dir" ]]; then
+            dirs+=("$dir")
+        else
+            err "$dir doesn't exist"
+        fi
+    done <"$HOME/.wallpaper_slideshow_rc"; unset dir
 fi
 
-[[ -d "$dir" ]] || usage 2
+[[ ${#dirs[@]} -gt 0 ]] || usage 2
 
 while :; do
     while read -r wallpaper; do
         nitrogen --set-scaled --save "$wallpaper"
         sleep "$delay"
-    done < <(find "$dir" -mindepth 1 -type f | sort -R)
+    done < <(find "${dirs[@]}" -mindepth 1 -type f | sort -R)
     unset wallpaper
 done
