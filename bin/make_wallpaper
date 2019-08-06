@@ -244,11 +244,6 @@ warn() { echo -e "\r${color:+\e[33m}[-] \$*\e[0m\e[K"; }
 
 [[ -f "\$1" ]] || exit 1
 
-bgcolor="\$(
-    convert "\$1" -depth 8 +dither -format %c histogram:info: | \
-    sort -n | tail -n 1 | grep -oPs "#[A-Fa-f0-9]{6}"
-)"
-
 case "$action" in
     "convert")
         name="\$(
@@ -256,9 +251,19 @@ case "$action" in
             -e "s/[^A-Za-z0-9]+/_/g"
         )_$resolution.png"
         if [[ -f "$output/\$name" ]]; then
-            warn "$output/\$name already exists!"
+            warn "$output/\$name already exists"
             exit 3
         fi
+        ;;
+esac
+
+bgcolor="\$(
+    convert "\$1" -depth 8 +dither -format %c histogram:info: | \
+    sort -n | tail -n 1 | grep -oPs "#[A-Fa-f0-9]{6}"
+)"
+
+case "$action" in
+    "convert")
         if [[ -n \$bgcolor ]]; then
             good "Creating $output/\$name"
             convert "\$1" -background "\$bgcolor" -gravity center \
@@ -268,7 +273,13 @@ case "$action" in
             errx 4 "Couldn't create $output/\$name"
         fi
         ;;
-    "info") subinfo "\$bgcolor" ;;
+    "info")
+        if [[ -n \$bgcolor ]]; then
+            subinfo "\$bgcolor"
+        else
+            errx 5 "No bgcolor found"
+        fi
+        ;;
 esac
 EOF
 chmod 700 "$script"
