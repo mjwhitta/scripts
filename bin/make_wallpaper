@@ -256,7 +256,8 @@ case "$action" in
             -e "s/[^A-Za-z0-9]+/_/g"
         )_$resolution.png"
         if [[ -f "$output/\$name" ]]; then
-            errx 3 "$output/\$name already exists!"
+            warn "$output/\$name already exists!"
+            exit 3
         fi
         if [[ -n \$bgcolor ]]; then
             good "Creating $output/\$name"
