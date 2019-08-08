@@ -51,6 +51,11 @@ subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
 warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 ### Helpers end
 
+next_wallpaper() {
+    local ppid="$(pgrep -fo "^\S*sh\s+$0")"
+    pkill -oP "$ppid" sleep
+}
+
 usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS] [directory]
@@ -62,13 +67,15 @@ background setters.
 Options:
     -d, --delay=NUM    Rotate image every NUM secs (default: 120)
     -h, --help         Display this help message
-    --nocolor          Disable colorized output
+    -n, --next         Cycle to the next wallpaper
+    --no-color         Disable colorized output
 EOF
     exit "$1"
 }
 
 declare -a args deps
 unset help
+action="slideshow"
 color="true"
 delay="120"
 deps+=("nitrogen")
@@ -82,7 +89,8 @@ while [[ $# -gt 0 ]]; do
         "--") shift && args+=("$@") && break ;;
         "-d"|"--delay"*) delay="$(long_opt "$@")" || shift ;;
         "-h"|"--help") help="true" ;;
-        "--nocolor") unset color ;;
+        "-n"|"--next") action="next" ;;
+        "--no-color") unset color ;;
         *) args+=("$1") ;;
     esac
     shift
@@ -92,6 +100,13 @@ done
 # Check for valid params
 [[ -z $help ]] || usage 0
 [[ $# -le 1 ]] || usage 1
+
+case "$action" in
+    "next") next_wallpaper; exit 0 ;;
+esac
+
+# Ensure only 1 instance is running
+[[ $(pgrep -cf "sh\s+$0") -le 1 ]] || errx 2 "Already running"
 
 declare -a dirs
 if [[ $# -eq 1 ]]; then
@@ -103,7 +118,7 @@ if [[ $# -eq 1 ]]; then
         fi
     done; unset dir
 else
-    [[ -f "$HOME/.wallpaper_slideshow_rc" ]] || usage 1
+    [[ -f "$HOME/.wallpaper_slideshow_rc" ]] || usage 3
     while read -r dir; do
         if [[ -d "$dir" ]]; then
             dirs+=("$dir")
@@ -113,7 +128,7 @@ else
     done <"$HOME/.wallpaper_slideshow_rc"; unset dir
 fi
 
-[[ ${#dirs[@]} -gt 0 ]] || usage 2
+[[ ${#dirs[@]} -gt 0 ]] || usage 4
 
 while :; do
     while read -r wallpaper; do
