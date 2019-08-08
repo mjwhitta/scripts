@@ -78,6 +78,8 @@ unset help
 action="slideshow"
 color="true"
 delay="120"
+deps+=("pgrep")
+deps+=("pkill")
 deps+=("nitrogen")
 
 # Check for missing dependencies
