@@ -58,6 +58,11 @@ perform_snap() {
     local previous="${2:-null}"
     local new="$3"
 
+    local h
+    local w
+    local x
+    local y
+
     # Remove any maximized attributes
     wmctrl -b remove,maximized_vert,maximized_horz -ir "$id"
 
@@ -70,7 +75,7 @@ perform_snap() {
             h="$((hh - (3 * padding / 2) - frame))"
 
             # Snap
-            wmctrl -e "$g,$x,$y,$w,$h" -ir "$id"
+            wmctrl -e "0,$x,$y,$w,$h" -ir "$id"
 
             # Remove history file if empty
             find "$snap_hist" -empty -delete
@@ -133,7 +138,7 @@ perform_snap() {
                     h="$((hh - (3 * padding / 2) - frame))"
                     ;;
                 "top-left")
-                    x="$((padding))"
+                    x="$padding"
                     y="$((padding + offset))"
                     w="$((hw - (3 * padding / 2)))"
                     h="$((hh - (3 * padding / 2) - frame))"
@@ -147,7 +152,7 @@ perform_snap() {
             esac
 
             # Snap
-            wmctrl -e "$g,$x,$y,$w,$h" -ir "$id"
+            wmctrl -e "0,$x,$y,$w,$h" -ir "$id"
 
             # Set any needed maximized attributes
             # if [[ $padding -eq 0 ]]; then <-- handled by case below
@@ -173,7 +178,6 @@ perform_snap() {
 replay_snaps() {
     local id
     local previous
-    local snap_replay="/tmp/snap.replay"
 
     mv "$snap_hist" "$snap_replay"
     while read -r id previous; do
@@ -237,6 +241,7 @@ frame="20"
 offset="0"
 padding="0"
 snap_hist="/tmp/snap.hist"
+snap_replay="/tmp/snap.hist"
 
 # Check for missing dependencies
 check_deps
@@ -282,12 +287,11 @@ else
     width="${geometry/ x*/}"
 fi
 
-height="$((height - offset))"
+((height -= offset))
 hw="$((width / 2))"
 hhw="$((width / 4))"
 hh="$((height / 2))"
 hhh="$((height / 4))"
-g="0"
 
 # Wait for lock file to go away
 for _ in {1..20}; do
