@@ -179,10 +179,13 @@ replay_snaps() {
     local id
     local previous
 
-    mv "$snap_hist" "$snap_replay"
+    rm -f "$snap_replay"
+    mv -f "$snap_hist" "$snap_replay"
+
     while read -r id previous; do
         perform_snap "$id" "" "$previous"
     done <"$snap_replay"; unset id previous
+
     rm -f "$snap_replay"
 }
 
@@ -241,7 +244,7 @@ frame="20"
 offset="0"
 padding="0"
 snap_hist="/tmp/snap.hist"
-snap_replay="/tmp/snap.hist"
+snap_replay="/tmp/snap.replay"
 
 # Check for missing dependencies
 check_deps
