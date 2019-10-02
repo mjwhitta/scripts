@@ -183,7 +183,7 @@ replay_snaps() {
     mv -f "$snap_hist" "$snap_replay"
 
     while read -r id previous; do
-        perform_snap "$id" "null" "$previous"
+        perform_snap "$id" "" "$previous"
     done <"$snap_replay"; unset id previous
 
     rm -f "$snap_replay"
@@ -224,6 +224,7 @@ Options:
     -o, --offset=SIZE     Specify offset from top (default: $offset)
     -p, --padding=SIZE    Specify padding (default: $padding)
     --replay              Replay all snaps with current geometry
+                          (default)
     -r, --right           Snap active window to right
     -t, --top             Snap active window to top
     --top-left            Snap active window to top-left
@@ -235,7 +236,6 @@ EOF
 
 declare -a args deps
 unset help
-action="current"
 color="true"
 deps+=("wmctrl")
 deps+=("xdotool")
@@ -244,6 +244,7 @@ frame="20"
 offset="0"
 padding="0"
 snap_hist="/tmp/snap.hist"
+snap_option="replay"
 snap_replay="/tmp/snap.replay"
 
 # Check for missing dependencies
@@ -265,7 +266,7 @@ while [[ $# -gt 0 ]]; do
         "--nocolor") unset color ;;
         "-o"|"--offset"*) offset="$(long_opt "$@")" || shift ;;
         "-p"|"--padding"*) padding="$(long_opt "$@")" || shift ;;
-        "--replay") action="replay" ;;
+        "--replay") snap_option="replay" ;;
         "-r"|"--right") snap_option="right" ;;
         "-t"|"--top") snap_option="top" ;;
         "--top-left") snap_option="top-left" ;;
@@ -306,9 +307,9 @@ done
 # Lock
 touch "$snap_hist.lock"
 
-case "$action" in
-    "current") snap_current_window ;;
+case "$snap_option" in
     "replay") replay_snaps ;;
+    *) snap_current_window ;;
 esac
 
 # Unlock
