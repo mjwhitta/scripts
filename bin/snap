@@ -183,7 +183,7 @@ replay_snaps() {
     mv -f "$snap_hist" "$snap_replay"
 
     while read -r id previous; do
-        perform_snap "$id" "" "$previous"
+        perform_snap "$id" "null" "$previous"
     done <"$snap_replay"; unset id previous
 
     rm -f "$snap_replay"
