@@ -35,7 +35,7 @@ check_deps() {
     done; unset d
 }
 err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
-errx() { err "${*:2}"; exit "$1"; }
+errx() { err "${*:2}"; unlock; exit "$1"; }
 good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
 info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
@@ -52,6 +52,8 @@ warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 ### Helpers end
 
 get_previous() { grep -oPs "^$1\s+\K.+" "$snap_hist"; }
+
+lock() { touch "$snap_hist.lock"; locked="true"; }
 
 perform_snap() {
     local id="$1"
@@ -192,8 +194,10 @@ replay_snaps() {
 snap_current_window() {
     # Get unique ID
     local wid="$(xdotool getactivewindow)"
-    local id="$wid-$(xdotool getwindowpid "$wid")"
-    [[ -n $id ]] || errx 4 "Could not determine window identifiers"
+    local pid="$(xdotool getwindowpid "$wid")"
+    [[ -n $pid ]] || errx 4 "Could not determine PID"
+    local id="$wid-$pid"
+    [[ -n $id ]] || errx 5 "Could not determine window identifiers"
 
     # Check history file for entry and see if matches current location
     local previous="$(get_previous "$id")"
@@ -203,6 +207,8 @@ snap_current_window() {
 
     perform_snap "$id" "$previous" "$snap_option"
 }
+
+unlock() { [[ -z $locked ]] || rm -f "$snap_hist.lock"; }
 
 usage() {
     cat <<EOF
@@ -234,8 +240,16 @@ EOF
     exit "$1"
 }
 
+wait_for_lock() {
+    for _ in {1..20}; do
+        [[ -f "$snap_hist.lock" ]] || break
+        sleep 0.1
+    done
+    [[ ! -f "$snap_hist.lock" ]] || errx 3 "Lock file exists"
+}
+
 declare -a args deps
-unset help
+unset help locked
 color="true"
 deps+=("wmctrl")
 deps+=("xdotool")
@@ -297,20 +311,12 @@ hhw="$((width / 4))"
 hh="$((height / 2))"
 hhh="$((height / 4))"
 
-# Wait for lock file to go away
-for _ in {1..20}; do
-    [[ -f "$snap_hist.lock" ]] || break
-    sleep 0.1
-done
-[[ ! -f "$snap_hist.lock" ]] || errx 3 "Lock file exists"
-
-# Lock
-touch "$snap_hist.lock"
+wait_for_lock
+lock
 
 case "$snap_option" in
     "replay") replay_snaps ;;
     *) snap_current_window ;;
 esac
 
-# Unlock
-rm -f "$snap_hist.lock"
+unlock
