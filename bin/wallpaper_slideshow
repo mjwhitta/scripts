@@ -103,12 +103,14 @@ done
 [[ -z $help ]] || usage 0
 [[ $# -le 1 ]] || usage 1
 
+# If --next or instance already running
 case "$action" in
     "next") next_wallpaper; exit 0 ;;
 esac
-
-# Ensure only 1 instance is running
-[[ $(pgrep -cf "sh\s+$0") -le 1 ]] || errx 2 "Already running"
+if [[ $(pgrep -cf "sh\s+$0") -gt 1 ]]; then
+    next_wallpaper
+    exit 0
+fi
 
 declare -a dirs
 if [[ $# -eq 1 ]]; then
