@@ -195,9 +195,8 @@ snap_current_window() {
     # Get unique ID
     local wid="$(xdotool getactivewindow)"
     local pid="$(xdotool getwindowpid "$wid")"
-    [[ -n $pid ]] || errx 4 "Could not determine PID"
-    local id="$wid-$pid"
-    [[ -n $id ]] || errx 5 "Could not determine window identifiers"
+    local id="$wid${pid:+-$pid}"
+    [[ -n $id ]] || errx 4 "Could not determine window identifiers"
 
     # Check history file for entry and see if matches current location
     local previous="$(get_previous "$id")"
