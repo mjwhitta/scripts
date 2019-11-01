@@ -74,7 +74,7 @@ Options:
     -i, --internal         Use internal IP
     --iface=IFACE          Use specified interface (default: $iface)
     --ip=IP                Compare to specified IP
-    --nocolor              Disable colorized output
+    --no-color             Disable colorized output
     -p, --pass=PASSWD      Password for API
     --url=URL              URL that returns just an IP (default: $url)
     -u, --user=USER        Username for API
@@ -109,7 +109,7 @@ while [[ $# -gt 0 ]]; do
         "-i"|"--internal") unset external ;;
         "--iface"*) iface="$(long_opt "$@")" || shift ;;
         "--ip"*) old_ip="$(long_opt "$@")" || shift ;;
-        "--nocolor") unset color ;;
+        "--no-color") unset color ;;
         "-p"|"--pass"*) password="$(long_opt "$@")" || shift ;;
         "--url"*) url="$(long_opt "$@")" || shift ;;
         "-u"|"--user"*) username="$(long_opt "$@")" || shift ;;
