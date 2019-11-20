@@ -113,41 +113,15 @@ cache_default_lists() {
     local dirbuster_list="directory-list-2.3-medium.txt"
     local list wordlist
 
-    # Find dirb directory
-    local dirb="$(
-        find -O3 /usr -maxdepth 4 -name "dirb" -type d -print -quit \
-        2>/dev/null
-    )"
-
-    # If dirb was found, find the lists
-    if [[ -n $dirb ]]; then
-        for list in $dirb_blist $dirb_clist; do
-            wordlist="$(
-                find "$dirb" -name "$list" -type f -print -quit \
-                2>/dev/null
-            )"
-
-            # Cache location of list
-            [[ -z $wordlist ]] || echo "$wordlist" >>"$dcache"
-        done; unset list
-    fi
-
-    # Find dirbuster directory
-    local dirbuster="$(
-        find -O3 /usr -maxdepth 4 -name "dirbuster" -type d -print \
-        -quit 2>/dev/null
-    )"
-
-    # If dirbuster was found, find the list
-    if [[ -n $dirbuster ]]; then
+    # Find the lists
+    for list in $dirb_blist $dirb_clist $dirbuster_list; do
         wordlist="$(
-            find "$dirbuster" -name "$dirbuster_list" -type f -print \
-            -quit 2>/dev/null
+            find /usr -name "$list" -type f -print -quit 2>/dev/null
         )"
 
         # Cache location of list
         [[ -z $wordlist ]] || echo "$wordlist" >>"$dcache"
-    fi
+    done; unset list
 
     touch "$dcache"
     (
@@ -834,7 +808,8 @@ while read -r count; do
 done < <(grep -chPvs "^( *#.*)?$" "${wordlists[@]}"); unset count
 [[ $total -gt 0 ]] || errx 2 "No ammo"
 
-subinfo "$total shots to fire"
+info "$total shots to fire"
+info "$threads round burst"
 
 # Create sub-script
 script="/tmp/${0##*/}.parallel"
