@@ -787,7 +787,7 @@ dcache="$HOME/.cache/${0##*/}/default_list.locations"
 dlist="$HOME/.cache/${0##*/}/default_list"
 [[ -f "$dcache" ]] || docache="true"
 [[ -z $docache ]] || cache_default_lists
-[[ -n $host ]] || exit
+[[ -n $host ]] || exit 0
 
 # Ensure host is reachable
 if [[ -z $simulate ]]; then
