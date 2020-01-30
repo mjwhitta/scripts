@@ -115,7 +115,7 @@ Options:
     --hosts=FILE            Use hosts from file (split on whitespace
                             and use first token from each line)
     -i, --iface=IFACE       Use the specified interface for scanning
-    --nocolor               Disable colorized output
+    --no-color              Disable colorized output
     -o, --os                Enable OS detection
     --output=DIR            Output scans to specified directory
                             (default: $output)
@@ -153,6 +153,7 @@ while [[ $# -gt 0 ]]; do
         "-h"|"--help") help="true" ;;
         "--hosts"*) hosts+=("$(long_opt "$@")") || shift ;;
         "-i"|"--iface"*) iface="-e $(long_opt "$@")" || shift ;;
+        "--no-color") unset color ;;
         "-o"|"--os") os="-A" ;;
         "--output"*) output="$(long_opt "$@")" || shift ;;
         "-p"|"--ports"*) ports="-p $(long_opt "$@")" || shift ;;

@@ -29,15 +29,23 @@
 # --------------------------------------------------------------------
 
 ### Helpers begin
-checkdeps() {
+check_deps() {
+    local missing
     for d in "${deps[@]}"; do
-        [[ -n $(command -v $d) ]] || errx 128 "$d is not installed"
+        if [[ -z $(command -v "$d") ]]; then
+            # Force absolute path
+            if [[ ! -f "/$d" ]]; then
+                err "$d was not found"
+                missing="true"
+            fi
+        fi
     done; unset d
+    [[ -z $missing ]] || exit 128
 }
-err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
-errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
-good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
-info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+errx() { err "${*:2}"; exit "$1"; }
+good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
+info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
@@ -47,41 +55,46 @@ long_opt() {
     echo "$arg"
     return $shift
 }
-subinfo() { echo -e "${color:+\e[36m}[=] $@\e[0m"; }
-warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
+subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 ### Helpers end
 
 usage() {
-    echo "Usage: ${0##*/} [OPTIONS] [host1]... [hostN]"
-    echo
-    echo "Searches for *.nmap files and greps for open ports"
-    echo
-    echo "Options:"
-    echo "    -h, --help    Display this help message"
-    echo "    --nocolor     Disable colorized output"
-    echo
-    exit $1
+    cat <<EOF
+Usage: ${0##*/} [OPTIONS] [host1]... [hostN]
+
+Searches for *.nmap files and greps for open ports
+
+Options:
+    -h, --help    Display this help message
+    --no-color    Disable colorized output
+
+EOF
+    exit "$1"
 }
 
 declare -a args deps
 unset help
 color="true"
+deps+=("find")
+deps+=("grep")
+deps+=("sort")
 hosts="."
 
 # Check for missing dependencies
-checkdeps
+check_deps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
         "-h"|"--help") help="true" ;;
-        "--nocolor") unset color ;;
+        "--no-color") unset color ;;
         *) args+=("$1") ;;
     esac
     shift
 done
-[[ -z ${args[@]} ]] || set -- "${args[@]}"
+[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
 # Check for valid params
 [[ -z $help ]] || usage 0
@@ -96,14 +109,14 @@ while read -r line; do
 
     if [[ $newhost != $oldhost ]]; then
         [[ -z $oldhost ]] || echo
-        echo -e "${color:+\e[37m}# ${newhost/.\//}\e[0m"
+        info "${newhost/.\//}"
     fi
-    echo "$match"
+    good "$match"
 
     oldhost="$newhost"
 done < <(
     LC_ALL=C find $hosts -type f -name "*.nmap" -exec \
-    grep -EHIis "[0-9]+/.*open" {} + | sed -r "s#/[^/]+\.nmap##g" | \
+    grep -HIiPs "\d+/.*open" {} + | sed "s/.nmap//g" | \
     sort -k 1,1 -k 2,2n -t ":"
 )
 
@@ -117,15 +130,15 @@ while read -r line; do
 
     if [[ $newhost != $oldhost ]]; then
         [[ -z $oldhost ]] || echo
-        echo -e "${color:+\e[37m}# ${newhost/.\//}\e[0m"
-        echo "No open ports"
+        info "${newhost/.\//}"
+        warn "No open ports"
         echo
     fi
 
     oldhost="$newhost"
 done < <(
     LC_ALL=C find $hosts -type f -name "*.nmap" -exec \
-    grep -EHIiLs "[0-9]+/.*open" {} + | sed -r "s#/[^/]+\.nmap##g" | \
+    grep -HIiLPs "\d+/.*open" {} + | sed "s/.nmap//g" | \
     sort -k 1,1 -k 2,2n -t ":"
 )
 
