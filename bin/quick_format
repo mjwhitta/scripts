@@ -30,9 +30,17 @@
 
 ### Helpers begin
 check_deps() {
+    local missing
     for d in "${deps[@]}"; do
-        [[ -n $(command -v "$d") ]] || errx 128 "$d is not installed"
+        if [[ -z $(command -v "$d") ]]; then
+            # Force absolute path
+            if [[ ! -f "/$d" ]]; then
+                err "$d was not found"
+                missing="true"
+            fi
+        fi
     done; unset d
+    [[ -z $missing ]] || exit 128
 }
 err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
 errx() { err "${*:2}"; exit "$1"; }
@@ -77,8 +85,8 @@ color="true"
 deps+=("fdisk")
 deps+=("lsblk")
 deps+=("mkfs.ext4")
+deps+=("mkfs.fat")
 deps+=("mkfs.ntfs")
-deps+=("mkfs.vfat")
 deps+=("wipefs")
 format="ext4"
 
@@ -209,7 +217,7 @@ err="$?"
 case "$format" in
     "ext4") sudo mkfs.ext4 -F -O "^64bit" ${lbl:+-L "$lbl"} "${dev}1"
         ;;
-    "fat32") sudo mkfs.vfat -F 32 "${dev}1" ;;
+    "fat32") sudo mkfs.fat -F 32 "${dev}1" ;;
     "ntfs") sudo mkfs.ntfs --force --fast ${lbl:+-L "$lbl"} "${dev}1"
         ;;
 esac
