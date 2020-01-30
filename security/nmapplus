@@ -29,15 +29,23 @@
 # --------------------------------------------------------------------
 
 ### Helpers begin
-checkdeps() {
+check_deps() {
+    local missing
     for d in "${deps[@]}"; do
-        [[ -n $(command -v $d) ]] || errx 128 "$d is not installed"
+        if [[ -z $(command -v "$d") ]]; then
+            # Force absolute path
+            if [[ ! -f "/$d" ]]; then
+                err "$d was not found"
+                missing="true"
+            fi
+        fi
     done; unset d
+    [[ -z $missing ]] || exit 128
 }
-err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
-errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
-good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
-info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+errx() { err "${*:2}"; exit "$1"; }
+good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
+info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
@@ -47,8 +55,8 @@ long_opt() {
     echo "$arg"
     return $shift
 }
-subinfo() { echo -e "${color:+\e[36m}[=] $@\e[0m"; }
-warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
+subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 ### Helpers end
 
 scan_host() {
@@ -95,35 +103,34 @@ scan_hosts() {
 }
 
 usage() {
-    echo "Usage: ${0##*/} [OPTIONS] [host1]... [hostN]"
-    echo
-    echo "Organizes your nmap scans"
-    echo
-    echo "Options:"
-    echo "    -6                      Enable IPv6 scanning"
-    echo "    -f, --force             Force scan"
-    echo "    -h, --help              Display this help message"
-    echo "    --hosts=FILE            Use hosts from file (split on"
-    echo "                            whitespace and use first token"
-    echo "                            from each line)"
-    echo "    -i, --iface=IFACE       Use the specified interface for"
-    echo "                            scanning"
-    echo "    --nocolor               Disable colorized output"
-    echo "    -o, --os                Enable OS detection"
-    echo "    --output=DIR            Output scans to specified"
-    echo "                            directory (default: $output)"
-    echo "    -p, --ports=PORTS       Only scan specified ports"
-    echo "                            (default: all ports)"
-    echo "    -s, --services          Identity running services"
-    echo "    -t, --technique=TECH    Scan technique: syn, connect"
-    echo "                            ack, window, maimon, null, fin"
-    echo "                            xmas"
-    echo "    --timeout=TIMEOUT       Give up on host after specified"
-    echo "                            time (e.g. 15m)"
-    echo "    -n, --topn=NUM          Only scan the top N ports"
-    echo "    -u, --udp               UDP scan"
-    echo
-    exit $1
+    cat <<EOF
+Usage: ${0##*/} [OPTIONS] [host1]... [hostN]
+
+Organizes your nmap scans
+
+Options:
+    -6                      Enable IPv6 scanning
+    -f, --force             Force scan
+    -h, --help              Display this help message
+    --hosts=FILE            Use hosts from file (split on whitespace
+                            and use first token from each line)
+    -i, --iface=IFACE       Use the specified interface for scanning
+    --nocolor               Disable colorized output
+    -o, --os                Enable OS detection
+    --output=DIR            Output scans to specified directory
+                            (default: $output)
+    -p, --ports=PORTS       Only scan specified ports (default: all
+                            ports)
+    -s, --services          Identity running services
+    -t, --technique=TECH    Scan technique: syn, connect, ack, window,
+                            maimon, null, fin, xmas
+    --timeout=TIMEOUT       Give up on host after specified time (e.g.
+                            15m)
+    -n, --topn=NUM          Only scan the top N ports
+    -u, --udp               UDP scan
+
+EOF
+    exit "$1"
 }
 
 declare -a args deps
@@ -135,7 +142,7 @@ prot="tcp"
 ports="-p 1-65535"
 
 # Check for missing dependencies
-checkdeps
+check_deps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
@@ -147,6 +154,7 @@ while [[ $# -gt 0 ]]; do
         "--hosts"*) hosts+=("$(long_opt "$@")") || shift ;;
         "-i"|"--iface"*) iface="-e $(long_opt "$@")" || shift ;;
         "-o"|"--os") os="-A" ;;
+        "--output"*) output="$(long_opt "$@")" || shift ;;
         "-p"|"--ports"*) ports="-p $(long_opt "$@")" || shift ;;
         "-s"|"--services") services="-sV" ;;
         "-t"|"--technique"*)
@@ -164,14 +172,17 @@ while [[ $# -gt 0 ]]; do
             esac
             ;;
         "--timeout"*)
-            timeout="--host-timeout $(long_opt "$@")" || shift ;;
-        "-n"|"--topn"*) ports="--top-ports $(long_opt "$@")" || shift ;;
+            timeout="--host-timeout $(long_opt "$@")" || shift
+            ;;
+        "-n"|"--topn"*)
+            ports="--top-ports $(long_opt "$@")" || shift
+            ;;
         "-u"|"--udp") udp="-sU"; prot="udp" ;;
         *) args+=("$1") ;;
     esac
     shift
 done
-[[ -z ${args[@]} ]] || set -- "${args[@]}"
+[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
 # Check for valid params
 [[ -z $help ]] || usage 0
