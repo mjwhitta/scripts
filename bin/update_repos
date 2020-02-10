@@ -229,7 +229,7 @@ warn() { echo -e "\r${color:+\e[33m}[-] \$*\e[0m\e[K"; }
 
 if [[ -n \$(git -C "\$1" config remote.origin.url) ]]; then
     stash="\$(
-        git -C "\$1" status --ignore-submodules --porcelain -u no | \
+        git -C "\$1" status --ignore-submodules --porcelain | \
         grep -Ps "^[^#?]{2}"
     )"
     if [[ -n \$stash ]]; then
