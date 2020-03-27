@@ -130,18 +130,15 @@ EOF
 unset iptables
 case "${0##*/}" in
     *"6") iptables="ip6tables" ;;
+    *) iptables="iptables" ;;
 esac
 
 declare -a args deps tbls
 unset all help port
 action="list"
 color="true"
-deps+=("${iptables:-iptables}")
-tbls+=("filter")
-while read -r tbl; do
-    [[ "$tbl" == "filter" ]] || tbls+=("$tbl")
-done < <(lsmod | grep -ioPs "^ip${iptables:+6}table_\K\S+" | sort)
-iptables="${iptables:-iptables}"
+deps+=("$iptables")
+deps+=("lsmod")
 
 # Check for missing dependencies
 check_deps
@@ -173,6 +170,11 @@ done
 # Check for valid params
 [[ -z $help ]] || usage 0
 [[ $# -eq 0 ]] || usage 1
+
+tbls+=("filter")
+while read -r tbl; do
+    [[ "$tbl" == "filter" ]] || tbls+=("$tbl")
+done < <(lsmod | grep -ioPs "^${iptables%s}_\K\S+" | sort)
 
 declare -a dignore
 if [[ -n $(command -v docker) ]]; then
