@@ -294,6 +294,8 @@ done
 [[ -z $help ]] || usage 0
 [[ $# -eq 0 ]] || [[ $# -eq 2 ]] || usage 1
 
+touch "$snap_hist"
+
 if [[ $# -eq 2 ]]; then
     height="$2"
     width="$1"
