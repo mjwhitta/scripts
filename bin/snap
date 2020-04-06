@@ -30,9 +30,17 @@
 
 ### Helpers begin
 check_deps() {
+    local missing
     for d in "${deps[@]}"; do
-        [[ -n $(command -v "$d") ]] || errx 128 "$d is not installed"
+        if [[ -z $(command -v "$d") ]]; then
+            # Force absolute path
+            if [[ ! -f "/$d" ]]; then
+                err "$d was not found"
+                missing="true"
+            fi
+        fi
     done; unset d
+    [[ -z $missing ]] || exit 128
 }
 err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
 errx() { err "${*:2}"; unlock; exit "$1"; }
@@ -60,10 +68,7 @@ perform_snap() {
     local previous="${2:-null}"
     local new="$3"
 
-    local h
-    local w
-    local x
-    local y
+    local h w x y
 
     # Remove any maximized attributes
     wmctrl -b remove,maximized_vert,maximized_horz -ir "$id"
@@ -276,7 +281,7 @@ while [[ $# -gt 0 ]]; do
         "-l"|"--left") snap_option="left" ;;
         "-m"|"--max") snap_option="max" ;;
         "-n"|"--min") snap_option="min" ;;
-        "--nocolor") unset color ;;
+        "--no-color") unset color ;;
         "-o"|"--offset"*) offset="$(long_opt "$@")" || shift ;;
         "-p"|"--padding"*) padding="$(long_opt "$@")" || shift ;;
         "--replay") snap_option="replay" ;;

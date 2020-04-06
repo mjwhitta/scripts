@@ -32,9 +32,17 @@
 set -o noglob
 trap "clean 128" SIGINT # Ensure cleanup on ^C
 check_deps() {
+    local missing
     for d in "${deps[@]}"; do
-        [[ -n $(command -v "$d") ]] || errx 127 "$d is not installed"
+        if [[ -z $(command -v "$d") ]]; then
+            # Force absolute path
+            if [[ ! -f "/$d" ]]; then
+                err "$d was not found"
+                missing="true"
+            fi
+        fi
     done; unset d
+    [[ -z $missing ]] || exit 127
 }
 check_lock() {
     [[ -n $cache ]] || errx 126 "Cache is not defined"
@@ -70,7 +78,7 @@ check_resume_file() {
     fi
 }
 clean() {
-    if [[ ${1:-0} -eq 0 ]]; then
+    if [[ ${1:-0} -eq 0 ]] || [[ ${1:-0} -eq 122 ]]; then
         [[ -z $cache ]] || [[ ! -d "$cache" ]] || rm -rf "$cache"
     fi
     [[ -z $script ]] || [[ ! -f "$script" ]] || rm -f "$script"
@@ -223,7 +231,7 @@ if [[ ! -f "$dataset" ]]; then
     done; unset data
 fi
 total="$(wc -l "$dataset" | awk '{print $1}')"
-[[ $total -gt 0 ]] || errx 2 "No dataset provided"
+[[ $total -gt 0 ]] || errx 122 "No dataset provided"
 
 subinfo "$total jobs to run"
 
@@ -235,7 +243,7 @@ cat >"$script" <<EOF
 ### Helpers begin
 set -o noglob
 err() { echo -e "\r${color:+\e[31m}[!] \$*\e[0m\e[K"; }
-errx() { err "\${*:2}"; exit \$1; }
+errx() { err "\${*:2}"; exit "\$1"; }
 good() { echo -e "\r${color:+\e[32m}[+] \$*\e[0m\e[K"; }
 info() { echo -e "\r${color:+\e[37m}[*] \$*\e[0m\e[K"; }
 subinfo() { echo -e "\r${color:+\e[36m}[=] \$*\e[0m\e[K"; }

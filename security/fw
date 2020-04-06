@@ -30,12 +30,20 @@
 
 ### Helpers begin
 check_deps() {
+    local missing
     for d in "${deps[@]}"; do
-        [[ -n $(command -v "$d") ]] || errx 128 "$d is not installed"
+        if [[ -z $(command -v "$d") ]]; then
+            # Force absolute path
+            if [[ ! -f "/$d" ]]; then
+                err "$d was not found"
+                missing="true"
+            fi
+        fi
     done; unset d
+    [[ -z $missing ]] || exit 128
 }
 err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
-errx() { echo -e "${color:+\e[31m}[!] ${*:2}\e[0m"; exit "$1"; }
+errx() { err "${*:2}"; exit "$1"; }
 good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
 info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
@@ -118,7 +126,7 @@ Options:
     -c, --close=PORT    Close a previously opened port
     --clear             Clear $iptables rules
     -l, --list          List $iptables rules (default behavior)
-    --nocolor           Disable colorized output
+    --no-color          Disable colorized output
     -o, --open=PORT     Open a port
     -r, --reset         Restore default $iptables rules
 
@@ -155,7 +163,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         "-h"|"--help") help="true" ;;
         "-l"|"--list") action="list" ;;
-        "--nocolor") unset color ;;
+        "--no-color") unset color ;;
         "-o"|"--open"*)
             action="open"
             port="$(long_opt "$@")" || shift

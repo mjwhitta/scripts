@@ -30,9 +30,17 @@
 
 ### Helpers begin
 check_deps() {
+    local missing
     for d in "${deps[@]}"; do
-        [[ -n $(command -v "$d") ]] || errx 128 "$d is not installed"
+        if [[ -z $(command -v "$d") ]]; then
+            # Force absolute path
+            if [[ ! -f "/$d" ]]; then
+                err "$d was not found"
+                missing="true"
+            fi
+        fi
     done; unset d
+    [[ -z $missing ]] || exit 128
 }
 err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
 errx() { err "${*:2}"; exit "$1"; }
@@ -59,7 +67,7 @@ Uses vim-plug to install/update vim plugins.
 
 Options:
     -h, --help    Display this help message
-    --nocolor     Disable colorized output
+    --no-color    Disable colorized output
 
 EOF
     exit "$1"
@@ -78,7 +86,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
         "-h"|"--help") help="true" ;;
-        "--nocolor") unset color ;;
+        "--no-color") unset color ;;
         *) args+=("$1") ;;
     esac
     shift

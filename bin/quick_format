@@ -72,7 +72,7 @@ Options:
     -h, --help           Display this help message
     -l, --label=LABEL    Set the ext4 partition label
     --legacy             Don't use UEFI
-    --nocolor            Disable colorized output
+    --no-color           Disable colorized output
     --ntfs               Format as NTFS
 
 EOF
@@ -102,7 +102,7 @@ while [[ $# -gt 0 ]]; do
         "-h"|"--help") help="true" ;;
         "-l"|"--label"*) lbl="$(long_opt "$@")" || shift ;;
         "--legacy") legacy="true" ;;
-        "--nocolor") unset color ;;
+        "--no-color") unset color ;;
         "--ntfs") format="ntfs" ;;
         *) args+=("$1") ;;
     esac

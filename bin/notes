@@ -30,9 +30,17 @@
 
 ### Helpers begin
 check_deps() {
+    local missing
     for d in "${deps[@]}"; do
-        [[ -n $(command -v "$d") ]] || errx 128 "$d is not installed"
+        if [[ -z $(command -v "$d") ]]; then
+            # Force absolute path
+            if [[ ! -f "/$d" ]]; then
+                err "$d was not found"
+                missing="true"
+            fi
+        fi
     done; unset d
+    [[ -z $missing ]] || exit 128
 }
 err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
 errx() { err "${*:2}"; exit "$1"; }
@@ -62,7 +70,7 @@ Options:
     -f, --find    Find notes matching pattern (default)
     -h, --help    Display this help message
     -n, --new     New notes using pattern as filename
-    --nocolor     Disable colorized output
+    --no-color    Disable colorized output
     -o, --open    Open notes matching pattern
 
 EOF
@@ -87,7 +95,7 @@ while [[ $# -gt 0 ]]; do
         "-f"|"--find") action="find" ;;
         "-h"|"--help") help="true" ;;
         "-n"|"--new") action="new" ;;
-        "--nocolor") unset color ;;
+        "--no-color") unset color ;;
         "-o"|"--open") action="open" ;;
         *) args+=("$1") ;;
     esac

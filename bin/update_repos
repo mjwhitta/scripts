@@ -32,9 +32,17 @@
 set -o noglob
 trap "clean 128" SIGINT # Ensure cleanup on ^C
 check_deps() {
+    local missing
     for d in "${deps[@]}"; do
-        [[ -n $(command -v "$d") ]] || errx 127 "$d is not installed"
+        if [[ -z $(command -v "$d") ]]; then
+            # Force absolute path
+            if [[ ! -f "/$d" ]]; then
+                err "$d was not found"
+                missing="true"
+            fi
+        fi
     done; unset d
+    [[ -z $missing ]] || exit 127
 }
 check_lock() {
     [[ -n $cache ]] || errx 126 "Cache is not defined"

@@ -3,15 +3,23 @@
 # My own version of checksec.sh
 
 ### Helpers begin
-checkdeps() {
+check_deps() {
+    local missing
     for d in "${deps[@]}"; do
-        [[ -n $(command -v $d) ]] || errx 128 "$d is not installed"
+        if [[ -z $(command -v "$d") ]]; then
+            # Force absolute path
+            if [[ ! -f "/$d" ]]; then
+                err "$d was not found"
+                missing="true"
+            fi
+        fi
     done; unset d
+    [[ -z $missing ]] || exit 128
 }
-err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
-errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
-good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
-info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+errx() { err "${*:2}"; exit "$1"; }
+good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
+info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
@@ -21,8 +29,8 @@ long_opt() {
     echo "$arg"
     return $shift
 }
-subinfo() { echo -e "${color:+\e[36m}[=] $@\e[0m"; }
-warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
+subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 ### Helpers end
 
 check_bin() {
@@ -243,19 +251,20 @@ print_output() {
 }
 
 usage() {
-    echo "Usage: ${0##*/} [OPTIONS] <elfbin/dir>...[elfbin/dir]"
-    echo
-    echo "Evaluate the security posture of the system"
-    echo
-    echo "Options:"
-    echo "    -h, --help      Display this help message"
-    echo "    -k, --kernel    Check the kernel config"
-    echo "    --nocolor       Don't use color when displaying output"
-    echo "    -p, --procs     Using running processes as input"
-    echo "    -w, --wide      Use wide output to reduce number of"
-    echo "                    output lines"
-    echo
-    exit $1
+    cat <<EOF
+Usage: ${0##*/} [OPTIONS] <elfbin/dir>... [elfbin/dir]
+
+Evaluate the security posture of the system.
+
+Options:
+    -h, --help      Display this help message
+    -k, --kernel    Check the kernel config
+    --no-color      Disable colorized output
+    -p, --procs     Using running processes as input
+    -w, --wide      Use wide output to reduce number of output lines
+
+EOF
+    exit "$1"
 }
 
 declare -a args deps
@@ -271,7 +280,7 @@ shieldrand="$(cat /proc/sys/kernel/exec-shield-randomize 2>/dev/null)"
 [[ -z $shieldrand ]] || ((shieldrand += 3))
 
 # Check for missing dependencies
-checkdeps
+check_deps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
@@ -279,14 +288,14 @@ while [[ $# -gt 0 ]]; do
         "--") shift && args+=("$@") && break ;;
         "-h"|"--help") help="true" ;;
         "-k"|"--kernel") kernel="true" ;;
-        "--nocolor") unset color ;;
+        "--no-color") unset color ;;
         "-p"|"--procs") procs="true" ;;
         "-w"|"--wide") wide="true" ;;
         *) args+=("$1") ;;
     esac
     shift
 done
-[[ -z ${args[@]} ]] || set -- "${args[@]}"
+[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
 # Check for valid params
 [[ -z $help ]] || usage 0
