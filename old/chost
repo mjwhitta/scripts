@@ -156,12 +156,12 @@ export PERL_LOCAL_LIB_ROOT="$HOME/.cpan/perl5"
 # Find dirs that should be in PATH
 unset PTH
 for dir in \
-    $HOME/bin \
-    $GEM_HOME/bin \
-    $HOME/.local/bin \
-    $GOPATH \
-    $GOPATH/bin \
-    $PERL_LOCAL_LIB_ROOT/bin \
+    "$HOME/bin" \
+    "$HOME/.local/bin" \
+    "$GOPATH" \
+    "$GOPATH/bin" \
+    "$GEM_HOME/bin" \
+    "$PERL_LOCAL_LIB_ROOT/bin" \
     /usr/local/bin \
     /usr/local/sbin \
     /usr/bin \
@@ -170,11 +170,9 @@ for dir in \
     /sbin \
     /usr/bin/core_perl \
     /usr/bin/vendor_perl \
-    $HOME/Android/Sdk/platform-tools \
-    $HOME/Android/Sdk/tools \
-    $HOME/Android/Sdk/tools/bin \
-    $HOME/Android/Ndk \
-    $HOME/.rvm/bin
+    "$HOME/Android/Sdk/emulator" \
+    "$HOME/Android/Sdk/platform-tools" \
+    "$HOME/.rvm/bin"
 do
     [[ ! -d $dir ]] || PTH="${PTH:+$PTH:}$dir"
 done; unset dir
@@ -185,8 +183,8 @@ while read -r dir; do
 done < <(echo "${PATH//:/\n}" | grep -Psv "${PTH//:/|}"); unset dir
 
 # Set PATH
-[[ -z $PTH ]] || export PATH="${PTH/:/}"
-unset dir PTH
+[[ -z $PTH ]] || export PATH="$PTH"
+unset PTH
 
 # SSH agent
 if [[ -n $(command -v ssh-agent) ]] && [[ -f "$HOME/.ssh/agent/env" ]]
