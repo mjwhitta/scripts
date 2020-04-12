@@ -61,6 +61,10 @@ warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 
 get_previous() { grep -oPs "^$1\s+\K.+" "$snap_hist"; }
 
+json_get() {
+    jq -cr ".$*" "$config" | sed -r "s/^null$//g"
+}
+
 lock() { touch "$snap_hist.lock"; locked="true"; }
 
 perform_snap() {
@@ -218,21 +222,22 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS] [width] [height]
 
-Simple window management tool.
+Simple window management tool. A minimal config can be found at:
+$HOME/.config/snap/rc
 
 Options:
     -b, --bottom          Snap active window to bottom
     --bottom-left         Snap active window to bottom-left
     --bottom-right        Snap active window to bottom-right
     -c, --center          Snap active window to center
-    -f, --frame=FRAME     Specify frame size (default: $frame)
+    -f, --frame=FRAME     Specify frame size (default: 20)
     -h, --help            Display this help message
     -l, --left            Snap active window to left
     -m, --max             Maximize window
     -n, --min             Minimize widow
     --no-color            Disable colorized output
-    -o, --offset=SIZE     Specify offset from top (default: $offset)
-    -p, --padding=SIZE    Specify padding (default: $padding)
+    -o, --offset=SIZE     Specify offset from top (default: 0)
+    -p, --padding=SIZE    Specify padding (default: 0)
     --replay              Replay all snaps with current geometry
                           (default)
     -r, --right           Snap active window to right
@@ -255,12 +260,11 @@ wait_for_lock() {
 declare -a args deps
 unset help locked
 color="true"
+config="$HOME/.config/snap/rc"
+deps+=("jq")
 deps+=("wmctrl")
 deps+=("xdotool")
 deps+=("xrandr")
-frame="20"
-offset="0"
-padding="0"
 snap_hist="/tmp/snap.hist"
 snap_option="replay"
 snap_replay="/tmp/snap.replay"
@@ -299,7 +303,25 @@ done
 [[ -z $help ]] || usage 0
 [[ $# -eq 0 ]] || [[ $# -eq 2 ]] || usage 1
 
+# Ensure history file exists
 touch "$snap_hist"
+
+# Ensure config exists
+if [[ ! -f $config ]]; then
+    mkdir -p "$(dirname "$config")"
+    cat >"$config" <<EOF
+{
+  "frame": 20,
+  "offset": 0,
+  "padding": 0
+}
+EOF
+fi
+
+# Read from config if not passed on cli
+[[ -n $frame ]] || frame="$(json_get "frame")"
+[[ -n $offset ]] || offset="$(json_get "offset")"
+[[ -n $padding ]] || padding="$(json_get "padding")"
 
 if [[ $# -eq 2 ]]; then
     height="$2"
