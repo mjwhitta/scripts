@@ -74,9 +74,6 @@ perform_snap() {
 
     local h w x y
 
-    # Remove any maximized attributes
-    wmctrl -b remove,maximized_vert,maximized_horz -ir "$id"
-
     case "$previous" in
         "$new" )
             # Calculate snap values
@@ -86,7 +83,8 @@ perform_snap() {
             h="$((hh - (3 * padding / 2) - frame))"
 
             # Snap
-            wmctrl -e "0,$x,$y,$w,$h" -ir "$id"
+            xdotool windowmove "$wid" "$x" "$y" \
+                windowsize "$wid" "$w" "$h"
 
             # Remove history file if empty
             find "$snap_hist" -empty -delete
@@ -163,21 +161,12 @@ perform_snap() {
             esac
 
             # Snap
-            wmctrl -e "0,$x,$y,$w,$h" -ir "$id"
+            xdotool windowmove "$wid" "$x" "$y" \
+                windowsize "$wid" "$w" "$h"
 
             # Set any needed maximized attributes
-            # if [[ $padding -eq 0 ]]; then <-- handled by case below
-            case "$padding$new" in
-                "0bottom") wmctrl -b add,maximized_horz -ir "$id" ;;
-                "0center") wmctrl -b add,maximized_vert -ir "$id" ;;
-                "0left") wmctrl -b add,maximized_vert -ir "$id" ;;
-                "0max")
-                        wmctrl -b add,maximized_vert,maximized_horz \
-                            -ir "$id"
-                    ;;
-                *"min") wmctrl -b add,hidden -ir "$id" ;;
-                "0right") wmctrl -b add,maximized_vert -ir "$id" ;;
-                "0top") wmctrl -b add,maximized_horz -ir "$id" ;;
+            case "$new" in
+               "min") xdotool windowminimize "$wid"
             esac
 
             # Create new entry
@@ -206,6 +195,11 @@ snap_current_window() {
     local pid="$(xdotool getwindowpid "$wid")"
     local id="$wid${pid:+-$pid}"
     [[ -n $id ]] || errx 4 "Could not determine window identifiers"
+
+    # Ignore wallpaper programs
+    case "$(xdotool getwindowname "$wid")" in
+        "pcmanfm"*) return ;;
+    esac
 
     # Check history file for entry and see if matches current location
     local previous="$(get_previous "$id")"
@@ -262,7 +256,6 @@ unset help locked
 color="true"
 config="$HOME/.config/snap/rc"
 deps+=("jq")
-deps+=("wmctrl")
 deps+=("xdotool")
 deps+=("xrandr")
 snap_hist="/tmp/snap.hist"
