@@ -217,7 +217,7 @@ usage() {
 Usage: ${0##*/} [OPTIONS] [width] [height]
 
 Simple window management tool. A minimal config can be found at:
-$HOME/.config/snapwin/rc
+$HOME/.config/${0##*/}/rc
 
 Options:
     -b, --bottom          Snap active window to bottom
@@ -254,13 +254,13 @@ wait_for_lock() {
 declare -a args deps
 unset help locked
 color="true"
-config="$HOME/.config/snap/rc"
+config="$HOME/.config/${0##*/}/rc"
 deps+=("jq")
 deps+=("xdotool")
 deps+=("xrandr")
-snap_hist="/tmp/snapwin.hist"
+snap_hist="/tmp/${0##*/}.hist"
 snap_option="replay"
-snap_replay="/tmp/snapwin.replay"
+snap_replay="/tmp/${0##*/}.replay"
 
 # Check for missing dependencies
 check_deps
