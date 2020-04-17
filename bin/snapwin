@@ -83,8 +83,7 @@ perform_snap() {
             h="$((hh - (3 * padding / 2) - frame))"
 
             # Snap
-            xdotool windowmove "$wid" "$x" "$y" \
-                windowsize "$wid" "$w" "$h"
+            xdosnap "$wid" "$x" "$y" "$w" "$h"
 
             # Remove history file if empty
             find "$snap_hist" -empty -delete
@@ -161,8 +160,7 @@ perform_snap() {
             esac
 
             # Snap
-            xdotool windowmove "$wid" "$x" "$y" \
-                windowsize "$wid" "$w" "$h"
+            xdosnap "$wid" "$x" "$y" "$w" "$h"
 
             # Set any needed maximized attributes
             case "$new" in
@@ -249,6 +247,29 @@ wait_for_lock() {
         sleep 0.1
     done
     [[ ! -f "$snap_hist.lock" ]] || errx 3 "Lock file exists"
+}
+
+xdosnap() {
+    local h="$5"
+    local w="$4"
+    local wid="$1"
+    local x="$2"
+    local y="$3"
+
+    local newy pos ydiff
+
+    # Initial move
+    xdotool windowmove "$wid" "$x" "$y" windowsize "$wid" "$w" "$h"
+
+    # Get new values
+    pos="$(xdotool getwindowgeometry "$wid" | grep -ioPs "\d+,\d+")"
+    newy="${pos##*,}"
+    ydiff="$((newy - y - frame))"
+
+    # Ensure location is accurate
+    if [[ $((ydiff - frame)) -lt 0 ]]; then
+        xdotool windowmove "$wid" "$x" "$((y + frame))"
+    fi
 }
 
 declare -a args deps
