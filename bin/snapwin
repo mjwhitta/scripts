@@ -83,7 +83,7 @@ perform_snap() {
             h="$((hh - (3 * padding / 2) - frame))"
 
             # Snap
-            xdosnap "$wid" "$x" "$y" "$w" "$h"
+            xdosnap "$id" "$x" "$y" "$w" "$h"
 
             # Remove history file if empty
             find "$snap_hist" -empty -delete
@@ -160,11 +160,11 @@ perform_snap() {
             esac
 
             # Snap
-            xdosnap "$wid" "$x" "$y" "$w" "$h"
+            xdosnap "$id" "$x" "$y" "$w" "$h"
 
             # Set any needed maximized attributes
             case "$new" in
-               "min") xdotool windowminimize "$wid"
+               "min") xdotool windowminimize "$id"
             esac
 
             # Create new entry
@@ -190,8 +190,8 @@ replay_snaps() {
 snap_current_window() {
     # Get unique ID
     local wid="$(xdotool getactivewindow)"
-    local pid="$(xdotool getwindowpid "$wid")"
-    local id="$wid${pid:+-$pid}"
+    # local pid="$(xdotool getwindowpid "$wid")"
+    local id="$wid" #${pid:+-$pid}"
     [[ -n $id ]] || errx 4 "Could not determine window identifiers"
 
     # Ignore wallpaper programs
