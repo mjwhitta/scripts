@@ -84,9 +84,6 @@ perform_snap() {
 
             # Snap
             xdosnap "$id" "$x" "$y" "$w" "$h"
-
-            # Remove history file if empty
-            find "$snap_hist" -empty -delete
             ;;
         *)
             # Calculate snap values
@@ -190,8 +187,9 @@ replay_snaps() {
 snap_current_window() {
     # Get unique ID
     local wid="$(xdotool getactivewindow)"
-    # local pid="$(xdotool getwindowpid "$wid")"
-    local id="$wid" #${pid:+-$pid}"
+    local pid="$(xdotool getwindowpid "$wid")"
+    [[ -n $pid ]] || pid="$RANDOM"
+    local id="$wid-$pid"
     [[ -n $id ]] || errx 4 "Could not determine window identifiers"
 
     # Ignore wallpaper programs
@@ -202,8 +200,13 @@ snap_current_window() {
     # Check history file for entry and see if matches current location
     local previous="$(get_previous "$id")"
 
-    # Remove old entry and any blank lines
-    sed -i -r "/^$id\s|^\s*$/d" "$snap_hist"
+    # Remove old entries and any blank lines
+    sed -r "/^$id\s|^\s*$/d" "$snap_hist" >"$snap_hist.tmp"
+    while read -r line; do
+        xdotool getwindowgeometry "${line%% *}" &>/dev/null
+        [[ $? -ne 0 ]] || echo "$line"
+    done <"$snap_hist.tmp" >"$snap_hist"; unset line
+    rm -f "$snap_hist.tmp"
 
     perform_snap "$id" "$previous" "$snap_option"
 }
