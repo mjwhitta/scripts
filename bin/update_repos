@@ -196,6 +196,11 @@ json="$cache/${0##*/}.json"
 # Lock to prevent parallel issues
 check_lock
 
+# Warn about ssh-agent and add common repos to known_hosts
+warn "Ensure your ssh-key is added to the ssh-agent"
+ssh -l git github.com
+ssh -l git gitlab.com
+
 # Check for resume file
 [[ -z $parallel ]] || check_resume_file
 hide_cursor
