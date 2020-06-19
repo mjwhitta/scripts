@@ -78,6 +78,7 @@ unset help
 color="true"
 deps+=("find")
 deps+=("grep")
+deps+=("sed")
 deps+=("sort")
 hosts="."
 
@@ -116,7 +117,7 @@ while read -r line; do
     oldhost="$newhost"
 done < <(
     LC_ALL=C find $hosts -type f -name "*.nmap" -exec \
-    grep -HIiPs "\d+/.*open" {} + | sed "s/.nmap//g" | \
+    grep -HIiPs "\d+/.*open" {} + | sed -r "s/\.nmap$//g" | \
     sort -k 1,1 -k 2,2n -t ":"
 )
 
@@ -138,7 +139,7 @@ while read -r line; do
     oldhost="$newhost"
 done < <(
     LC_ALL=C find $hosts -type f -name "*.nmap" -exec \
-    grep -HIiLPs "\d+/.*open" {} + | sed "s/.nmap//g" | \
+    grep -HIiLPs "\d+/.*open" {} + | sed -r "s/\.nmap$//g" | \
     sort -k 1,1 -k 2,2n -t ":"
 )
 
