@@ -151,10 +151,9 @@ done
 
 # Check for valid params
 [[ -z $help ]] || usage 0
-[[ $# -eq 0 ]] || usage 1
-[[ -n $hosts ]] || usage 2
-[[ -f $hosts ]] || usage 3
-[[ -n $ports ]] || usage 4
+[[ -n $hosts ]] || [[ $# -gt 0 ]] || usage 1
+[[ -z $hosts ]] || [[ -f $hosts ]] || usage 2
+[[ -n $ports ]] || usage 3
 
 # Determine parallel situation
 if [[ -n $parallel ]] && [[ -z $(command -v parallel) ]]; then
@@ -171,6 +170,9 @@ if [[ -n $parallel ]] && [[ ! -f "$HOME/.parallel/will-cite" ]]; then
     fi
     unset pvers
 fi
+
+# Save command line args
+[[ -n $hosts ]] || hosts="$@"
 
 # Cache variables
 hash="$(echo -n "$hosts" | sha256sum | awk '{print $1}')"
@@ -190,7 +192,17 @@ hide_cursor
 info "Processing dataset for jobs"
 
 dataset="$cache/${0##*/}.dataset"
-[[ -f "$dataset" ]] || cp -f "$hosts" "$dataset"
+if [[ ! -f "$dataset" ]]; then
+    if [[ $# -gt 0 ]]; then
+        touch "$dataset"
+
+        for data in "$@"; do
+            echo "$data" >>"$dataset"
+        done; unset data
+    else
+        cp -f "$hosts" "$dataset"
+    fi
+fi
 total="$(wc -l "$dataset" | awk '{print $1}')"
 [[ $total -gt 0 ]] || errx 122 "No dataset provided"
 
@@ -212,8 +224,8 @@ warn() { echo -e "\r${color:+\e[33m}[-] \$*\e[0m\e[K"; }
 ### Helpers end
 
 success="\$(
-    nping -c 1 -p $ports -q --tcp-connect "\$1" 2>/dev/null | \
-    grep -ioPs "successful\sconnections:\s+\K\d+"
+    nping -c 1 --delay 500ms -p $ports -q --tcp-connect "\$1" \\
+    2>/dev/null | grep -ioPs "successful\sconnections:\s+\K\d+"
 )"
 
 [[ \$success -eq 0 ]] || good "\$1"
