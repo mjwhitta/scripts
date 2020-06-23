@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # A script for adding aero style window snapping to Linux.
-# by Miles Whittaker <mjwhitta@gmail.com>
+# by Miles Whittaker <mj@whitta.dev>
 #
 # --------------------------------------------------------------------
 # The MIT License (MIT)
 #
-# Copyright (c) 2018 Miles Whittaker
+# Copyright (c) 2020 Miles Whittaker
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files

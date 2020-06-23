@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# A clusterssh like script for tmux.
+# A script to minimize duplicate files.
 # by Miles Whittaker <mj@whitta.dev>
 #
 # --------------------------------------------------------------------
@@ -34,7 +34,7 @@ check_deps() {
     for d in "${deps[@]}"; do
         if [[ -z $(command -v "$d") ]]; then
             # Force absolute path
-            if [[ ! -f "/$d" ]]; then
+            if [[ ! -e "/$d" ]]; then
                 err "$d was not found"
                 missing="true"
             fi
@@ -59,31 +59,96 @@ subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
 warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 ### Helpers end
 
+minimize() {
+    local ext f h line prev
+
+    echo "{"
+
+    while read -r line; do
+        h="${line%% *}"
+        f="${line##* }"
+
+        ext="${f##*.}"
+        ext="${ext:+.$ext}"
+
+        case "$prev" in
+            "")
+                echo "  \"${hashcmd%%sum}_$h\": ["
+                echo -n "    \"$f\""
+                mv "$f" "$h$ext"
+                ;;
+            "$h")
+                echo ","
+                echo -n "    \"$f\""
+                rm -f "$f"
+                ;;
+            *)
+                echo
+                echo "  ],"
+                echo "  \"${hashcmd%%sum}_$h\": ["
+                echo -n "    \"$f\""
+                mv "$f" "$h$ext"
+                ;;
+        esac
+
+        prev="$h"
+    done < <("$hashcmd" "$@" | sort); unset line
+
+    echo
+    echo "  ]"
+    echo "}"
+}
+
+undo() {
+    local -a del
+    local ext f h line
+
+    while read -r line; do
+        h="${line##*_}"
+
+        while read -r f; do
+            ext="${f##*.}"
+            ext="${ext:+.$ext}"
+
+            cp -f "$h$ext" "$f" &
+        done < <(jq -cMrS ".$line[]" "$output"); unset f
+
+        del+=("$h$ext")
+    done < <(jq -cMrS ".|keys[]" "$output"); unset line
+
+    wait -f
+
+    rm -f "${del[@]}"
+}
+
 usage() {
     cat <<EOF
-Usage: ${0##*/} [OPTIONS] <host1>... [hostN]
+Usage: ${0##*/} [OPTIONS]
 
-Open connections to multiple hosts using tmux and ssh. If a command is
-specified, it will run that command on each host.
+Minimize duplicate files by creating a mapping of hash to filename.
 
 Options:
-    -c, --cmd=CMD        Command to run on each host
-    -d, --delay=SECS     Wait for specified time after connecting
-                         (default: $delay)
-    -h, --help           Display this help message
-    -i, --interactive    Do not close connection (default: true if no
-                         cmd)
-    --no-color           Disable colorized output
+    -h, --help        Display this help message
+    -m, --md5         Use md5
+    --no-color        Disable colorized output
+    -o, --out=FILE    Output to specified file (default: hashmap.json)
+    -s, --sha         Use sha256 (default)
+    -u, --undo=FILE   Read hashmap and undo hashson minimization
 
 EOF
     exit "$1"
 }
 
 declare -a args deps
-unset cmd help interactive keep_localhost
+unset help
+action="minimize"
 color="true"
-delay="1"
-deps+=("tmux")
+deps+=("jq")
+deps+=("md5sum")
+deps+=("sha256sum")
+deps+=("sort")
+hashcmd="sha256sum"
+output="hashmap.json"
 
 # Check for missing dependencies
 check_deps
@@ -92,11 +157,15 @@ check_deps
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "-c"|"--cmd"*) cmd="$(long_opt "$@")" || shift ;;
-        "-d"|"--delay"*) delay="$(long_opt "$@")" || shift ;;
         "-h"|"--help") help="true" ;;
-        "-i"|"--interactive") interactive="true" ;;
+        "-m"|"--md5") hashcmd="md5sum" ;;
         "--no-color") unset color ;;
+        "-o"|"--out"*) output="$(long_opt "$@")" || shift ;;
+        "-s"|"--sha") hashcmd="sha256sum" ;;
+        "-u"|"--undo"*)
+            action="undo"
+            output="$(long_opt "$@")" || shift
+            ;;
         *) args+=("$1") ;;
     esac
     shift
@@ -105,31 +174,14 @@ done
 
 # Check for valid params
 [[ -z $help ]] || usage 0
-[[ $# -gt 0 ]] || usage 1
-[[ -n $TMUX ]] || errx 2 "You are not in a tmux session"
 
-wname="tmussh_$(head -c 4 /dev/urandom | xxd -p)"
-tmux new-window -n "$wname"
-
-agent="$HOME/.ssh/agent"
-agent_cmd="[[ ! -f \"$agent\" ]] || . \"$agent\" >/dev/null"
-current_pane="$(tmux display -p "#{pane_id}")"
-for host in "$@"; do
-    case "$host" in
-        "localhost") tmux split-window -h ;;
-        *) tmux split-window -h "$agent_cmd; ssh $host" ;;
-    esac
-    tmux select-layout tiled
-done
-
-tmux kill-pane -t "$current_pane"
-tmux select-layout tiled
-
-tmux select-pane -t 0
-tmux set-option -w synchronize-panes on
-
-if [[ -n $cmd ]]; then
-    sleep "$delay"
-    tmux send-keys "$cmd"
-    [[ -n $interactive ]] || tmux send-keys "exit"
-fi
+case "$action" in
+    "minimize")
+        [[ $# -gt 0 ]] || usage 1
+        minimize "$@" | tee "$output"
+        ;;
+    "undo")
+        [[ $# -eq 0 ]] || usage 1
+        undo
+        ;;
+esac
