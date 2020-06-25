@@ -64,19 +64,13 @@ scan_host() {
 
     info "Scanning $host"
 
-    # Probably should use grep or something here
-    case "$host" in
-        *[^0-9.]*) dir="${host/.*/}" ;;
-        *) dir="$host" ;;
-    esac
-
     local -a cmd=(
         "nmap"
         "$ipv6"
         "$os"
         "$iface"
         "$timeout"
-        "-oA $output/$dir/$prot"
+        "-oA $output/$host/$prot"
         "$ports"
         "$force"
         "$technique"
@@ -85,13 +79,15 @@ scan_host() {
         "$host"
     )
 
-    mkdir -p $output/$dir
-    if [[ -f $output/$dir/$prot.nmap ]] && [[ -z $force ]]; then
+    mkdir -p $output/$host
+
+    if [[ -f $output/$host/$prot.nmap ]] && [[ -z $force ]]; then
         warn "Already done, skipping"
     else
         good "${cmd[@]}" | sed -r "s/ +/ /g"
         ${cmd[@]}
     fi
+
     echo
 }
 
