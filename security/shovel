@@ -116,7 +116,6 @@ read_resume_file() {
     mask="$(json_get "mask")"
     ping="$(json_get "ping")"
     ports="$(json_get "ports")"
-    snet="$(json_get "snet")"
 }
 
 usage() {
@@ -153,8 +152,7 @@ write_resume_file() {
   "dns": "$dns",
   "mask": "$mask",
   "ping": "$ping",
-  "ports": "$ports",
-  "snet": "$snet"
+  "ports": "$ports"
 }
 EOF
 }
@@ -162,10 +160,12 @@ EOF
 declare -a args deps hosts
 unset file help ping ports resume verbose
 color="true"
+deps+=("awk")
 deps+=("dig")
 deps+=("jq")
 deps+=("nping")
 deps+=("ping")
+deps+=("sha256sum")
 deps+=("sipcalc")
 deps+=("sort")
 dns="8.8.8.8"
@@ -232,7 +232,10 @@ fi
 [[ ${#hosts[@]} -gt 0 ]] || errx 1 "No hosts provided"
 
 # Cache variables
-hash="$(echo -n "${hosts[@]}$mask" | sha256sum | awk '{print $1}')"
+hash="$(
+    echo -n "$dns${hosts[@]}$mask$ping$ports" | sha256sum | \
+    awk '{print $1}'
+)"
 cache="$HOME/.cache/${0##*/}/$hash"
 joblog="$cache/joblog.txt"
 json="$cache/${0##*/}.json"
@@ -301,7 +304,7 @@ if [[ -n \$ports ]]; then
     )"
     [[ \$success -eq 0 ]] || revlkup "\$1"
 elif [[ -n \$ping ]]; then
-    ping -c 1 -W 1 "\$1" >/dev/null
+    ping -c 1 -W 1 "\$1" >/dev/null 2>&1
     [[ \$? -ne 0 ]] || revlkup "\$1"
 else
     revlkup "\$1"

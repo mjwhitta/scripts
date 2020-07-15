@@ -1,4 +1,32 @@
 #!/usr/bin/env bash
+# A script for identifying listening hosts.
+# by Miles Whittaker <mj@whitta.dev>
+#
+# --------------------------------------------------------------------
+# The MIT License (MIT)
+#
+# Copyright (c) 2020 Miles Whittaker
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+# --------------------------------------------------------------------
 
 ### Helpers begin
 set -o noglob
@@ -84,6 +112,7 @@ warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 ### Helpers end
 
 read_resume_file() {
+    ping="$(json_get "ping")"
     ports="$(json_get "ports")"
 }
 
@@ -91,11 +120,12 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS] [host1]... [hostN]
 
-Use nping from nmap to determine if hosts are up.
+Sweep a list of hosts and determine if any are up.
 
 Options:
     -h, --help           Display this help message
     --hosts=FILE         Read hosts from file (one per line)
+    -i, --icmp           Use ping instead of nping
     --no-color           Disable colorized output
     -p, --ports=PORTS    Comma-separated list of ports to check
                          (default: 22,80,443)
@@ -115,16 +145,19 @@ write_resume_file() {
 
     cat >"$json" <<EOF
 {
+  "ping": "$ping",
   "ports": "$ports"
 }
 EOF
 }
 
 declare -a args deps
-unset help hosts resume verbose
+unset help hosts ping resume verbose
 color="true"
+deps+=("awk")
 deps+=("jq")
 deps+=("nping")
+deps+=("sha256sum")
 parallel="true"
 ports="22,80,443"
 threads="32"
@@ -137,8 +170,12 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
         "-h"|"--help") help="true" ;;
+        "-i"|"--icmp") ping="true" ;;
         "--no-color") unset color ;;
-        "-p"|"--ports"*) ports="$(long_opt "$@")" || shift ;;
+        "-p"|"--ports"*)
+            unset ping
+            ports="$(long_opt "$@")" || shift
+            ;;
         "-r"|"--resume") resume="--resume" ;;
         "-t"|"--threads"*) threads="$(long_opt "$@")" || shift ;;
         "--hosts"*) hosts="$(long_opt "$@")" || shift ;;
@@ -153,7 +190,7 @@ done
 [[ -z $help ]] || usage 0
 [[ -n $hosts ]] || [[ $# -gt 0 ]] || usage 1
 [[ -z $hosts ]] || [[ -f $hosts ]] || usage 2
-[[ -n $ports ]] || usage 3
+[[ -n $ports ]] || [[ -n $ping ]] || usage 3
 
 # Determine parallel situation
 if [[ -n $parallel ]] && [[ -z $(command -v parallel) ]]; then
@@ -175,7 +212,7 @@ fi
 [[ -n $hosts ]] || hosts="$@"
 
 # Cache variables
-hash="$(echo -n "$hosts" | sha256sum | awk '{print $1}')"
+hash="$(echo -n "$hosts$ping$ports" | sha256sum | awk '{print $1}')"
 cache="$HOME/.cache/${0##*/}/$hash"
 joblog="$cache/joblog.txt"
 json="$cache/${0##*/}.json"
@@ -223,12 +260,19 @@ subinfo() { echo -e "\r${color:+\e[36m}[=] \$*\e[0m\e[K"; }
 warn() { echo -e "\r${color:+\e[33m}[-] \$*\e[0m\e[K"; }
 ### Helpers end
 
-success="\$(
-    nping -c 1 --delay 500ms -p $ports -q --tcp-connect "\$1" \\
-    2>/dev/null | grep -ioPs "successful\sconnections:\s+\K\d+"
-)"
+ping="$ping"
 
-[[ \$success -eq 0 ]] || good "\$1"
+if [[ -n \$ping ]]; then
+    ping -c 1 -W 1 "\$1" >/dev/null 2>&1
+    [[ \$? -ne 0 ]] || good "\$1"
+else
+    success="\$(
+        nping -c 1 --delay 500ms -p $ports -q --tcp-connect "\$1" \\
+        2>/dev/null | grep -ioPs "successful\sconnections:\s+\K\d+"
+    )"
+
+    [[ \$success -eq 0 ]] || good "\$1"
+fi
 EOF
 chmod 700 "$script"
 
