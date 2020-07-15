@@ -89,7 +89,7 @@ read_resume_file() {
 
 usage() {
     cat <<EOF
-Usage: ${0##*/} [OPTIONS]
+Usage: ${0##*/} [OPTIONS] [host1]... [hostN]
 
 Use nping from nmap to determine if hosts are up.
 
