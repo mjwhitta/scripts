@@ -36,7 +36,7 @@ check_deps() {
     for d in "${deps[@]}"; do
         if [[ -z $(command -v "$d") ]]; then
             # Force absolute path
-            if [[ ! -f "/$d" ]]; then
+            if [[ ! -e "/$d" ]]; then
                 err "$d was not found"
                 missing="true"
             fi
@@ -620,14 +620,18 @@ logo() {
 }
 
 read_resume_file() {
+    local ignore wordlist
+
     host="$(json_get "host")"
-    local ignore
+
     while read -r ignore; do
         ignores+=("$ignore")
     done < <(json_get "ignores[]"); unset ignore
+
     simulate="$(json_get "simulate")"
+
     tls="$(json_get "tls")"
-    local wordlist
+
     while read -r wordlist; do
         wordlists+=("$wordlist")
     done < <(json_get "wordlists[]"); unset wordlist
@@ -655,6 +659,7 @@ common.txt lists from dirb.
 Options:
     -a, --apend          Append user specified lists to the default
     -c, --cache          Cache locations of defaults lists
+    -f, --force          Assume host is reachable
     -h, --help           Display this help message
     -i, --ignore=CODE    Ignore specified return codes (can be used
                          more than once)
@@ -703,7 +708,8 @@ EOF
 }
 
 declare -a args deps ignores wordlists
-unset append docache help proxy resume simulate timeout tls verbose
+unset append docache force help proxy resume simulate timeout tls
+unset verbose
 color="true"
 curl="curl -IkLs"
 deps+=("curl")
@@ -720,8 +726,9 @@ while [[ $# -gt 0 ]]; do
         "--") shift && args+=("$@") && break ;;
         "-a"|"--append") append="true" ;;
         "-c"|"--cache") docache="true" ;;
+        "-f"|"--force") force="true" ;;
         "-h"|"--help") help="true" ;;
-        "-i"|"--ignore"*) ignores+=("$(long_opt "$@")") || shift ;;
+        "-i"|"--ignore"*) ignores+=("$(long_opt "$@")*") || shift ;;
         "-l"|"--list"*) wordlists+=("$(long_opt "$@")") || shift ;;
         "--no-color") unset color ;;
         "-p"|"--proxy"*) proxy="--proxy $(long_opt "$@")" || shift ;;
@@ -772,7 +779,7 @@ dlist="$HOME/.cache/${0##*/}/default_list"
 [[ -n $host ]] || exit 0
 
 # Ensure host is reachable
-if [[ -z $simulate ]]; then
+if [[ -z $force ]] && [[ -z $simulate ]]; then
     h="${host%%[:/?]*}"
     if [[ -n $proxy ]]; then
         h="$(
@@ -844,7 +851,7 @@ check() {
     esac
     while read -r line; do
       case "\$line" in
-        404) continue ;;
+        404*) continue ;;
         ${ignores:+$(join_with "|" "${ignores[@]}")) continue ;;}
         5*) err "\$type /\$1 (\$line)" ;;
         4*) warn "\$type /\$1 (\$line)" ;;
@@ -877,7 +884,7 @@ simulate() {
   case "\$((RANDOM % 64))" in
     8)
       case "\$ret" in
-        404) return ;;
+        404*) return ;;
         ${ignores:+$(join_with "|" "${ignores[@]}")) return ;;}
         5*) err "\$type /\$1 (\$ret)" ;;
         4*) warn "\$type /\$1 (\$ret)" ;;
