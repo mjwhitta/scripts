@@ -773,7 +773,7 @@ dlist="$HOME/.cache/${0##*/}/default_list"
 
 # Ensure host is reachable
 if [[ -z $simulate ]]; then
-    h="${host%%[:/]*}"
+    h="${host%%[:/?]*}"
     if [[ -n $proxy ]]; then
         h="$(
             echo "$proxy" | grep -ioPs "proxy .+://(.*@)?\K.+(?=:\d+)"
