@@ -745,7 +745,7 @@ done
 # Cite if needed
 if [[ ! -f "$HOME/.parallel/will-cite" ]]; then
     pvers="$(parallel --version | grep -ioPs "parallel \K\d+")"
-    if [[ $pvers -lt 20181122 ]]; then
+    if [[ $pvers -gt 20161222 ]] && [[ $pvers -lt 20181122 ]]; then
         mkdir -p "$HOME/.parallel"
         parallel --citation
     fi
