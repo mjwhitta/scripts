@@ -34,6 +34,7 @@ require "io/console"
 require "io/wait"
 require "optparse"
 require "pathname"
+require "stringio"
 
 class Action
     DECRYPT = 0
