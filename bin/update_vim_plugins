@@ -97,6 +97,8 @@ done
 [[ -z $help ]] || usage 0
 [[ $# -eq 0 ]] || usage 1
 
+unset DISPLAY
+
 if [[ -f "$HOME/.vim/autoload/plug.vim" ]]; then
     mkdir -p "$HOME/.vim/plugs"
     vim -c :PlugUpgrade -c :q
