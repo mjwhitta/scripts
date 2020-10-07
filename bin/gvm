@@ -1,0 +1,192 @@
+#!/usr/bin/env bash
+# A script that is similar to rvm but for Go.
+# by Miles Whittaker <mj@whitta.dev>
+#
+# --------------------------------------------------------------------
+# The MIT License (MIT)
+#
+# Copyright (c) 2020 Miles Whittaker
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+# --------------------------------------------------------------------
+
+### Helpers begin
+check_deps() {
+    local missing
+    for d in "${deps[@]}"; do
+        if [[ -z $(command -v "$d") ]]; then
+            # Force absolute path
+            if [[ ! -e "/$d" ]]; then
+                err "$d was not found"
+                missing="true"
+            fi
+        fi
+    done; unset d
+    [[ -z $missing ]] || exit 128
+}
+err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+errx() { err "${*:2}"; exit "$1"; }
+good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
+info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+    esac
+    echo "$arg"
+    return $shift
+}
+subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
+### Helpers end
+
+goget() {
+    local tgz="$(
+        curl -Ls "$gourl" | \
+        grep -ioPs "dl/\Kgo$1\.$os-$arch\.tar\.gz" | sort -u
+    )"
+
+    [[ -n $tgz ]] || errx 3 "Version $1 not found"
+
+    curl -kLo "$cache/$tgz" -s "$gourl/$tgz"
+    [[ $? -eq 0 ]] || errx 4 "Failed to download tarball"
+
+    if [[ ! -d $cache/v$1 ]]; then
+        tar -C "$cache" -f "$cache/$tgz" -xz
+        [[ $? -eq 0 ]] || errx 5 "Failed to extract tarball"
+
+        mv "$cache/go" "$cache/v$1"
+    fi
+
+    rm -rf "$cache/$tgz"
+}
+
+gosearch() {
+    local version
+
+    while read -r version; do
+        good "v$version"
+    done < <(
+        curl -Ls "$gourl" | \
+        grep -ioPs "dl/go\K($1.*?)(?=\.$os-$arch\.tar\.gz)" | sort -u
+    ); unset version
+}
+
+usage() {
+    cat <<EOF
+Usage: ${0##*/} [OPTIONS]
+
+This script is similar to rvm, but for Go. You will need to add the
+following 2 lines to your ~/.bashrc and then source it:
+
+    export GOROOT="$cache/use"
+    export PATH="\$GOROOT/bin\${PATH:+:\$PATH}"
+
+Options:
+    -c, --clean            Clear the cached versions of Go
+    -h, --help             Display this help message
+    --no-color             Disable colorized output
+    -s, --search=STRING    Search for versions starting with STRING
+    -u, --use=STRING       Use specified version
+
+EOF
+    exit "$1"
+}
+
+declare -a args deps
+unset clean help vers
+action="list"
+cache="$HOME/.cache/gvm"
+color="true"
+deps+=("curl")
+deps+=("grep")
+deps+=("ln")
+deps+=("sort")
+deps+=("tar")
+deps+=("tr")
+deps+=("uname")
+gourl="https://golang.org/dl"
+
+# Check for missing dependencies
+check_deps
+
+# Parse command line options
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        "--") shift && args+=("$@") && break ;;
+        "-c"|"--clean") action="clean" ;;
+        "-h"|"--help") help="true" ;;
+        "--no-color") unset color ;;
+        "-s"|"--search")
+            action="search"
+            vers="$(long_opt "$@")" || shift
+            ;;
+        "-u"|"--use")
+            action="use"
+            vers="$(long_opt "$@")" || shift
+            ;;
+        *) args+=("$1") ;;
+    esac
+    shift
+done
+[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
+
+# Check for valid params
+[[ -z $help ]] || usage 0
+
+# Setup cache
+mkdir -p "$cache"
+
+# Get system metadata
+case "$(uname -m)" in
+    "x86_64") arch="amd64" ;;
+    *) errx 1 "Unsupported architecture $(uname -m)" ;;
+esac
+case "$(uname -s | tr "[:upper:]" "[:lower:]")" in
+    "darwin") os="darwin" ;;
+    "freebsd") os="freebsd" ;;
+    "linux") os="linux" ;;
+    *) errx 2 "Unsupported OS $(uname -s)" ;;
+esac
+
+case "$action" in
+    "clean") rm -rf "$cache"; mkdir -p "$cache" ;;
+    "list")
+        while read -r version; do
+            echo "$(basename "$version")"
+        done < <(ls -d "$cache"/v* 2>/dev/null); unset version
+        ;;
+    "search") gosearch "${vers#v}" ;;
+    "use")
+        # Download version if needed
+        if [[ -z $(ls $cache | grep -iPs "v${vers#v}$") ]]; then
+            goget "${vers#v}"
+        fi
+
+        if [[ -d $cache/v${vers#v} ]]; then
+            rm -f "$cache/use"
+            ln -s "$cache/v${vers#v}/" "$cache/use"
+        fi
+
+        good "$(go version)"
+        ;;
+esac
