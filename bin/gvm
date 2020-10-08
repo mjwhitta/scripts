@@ -59,6 +59,27 @@ subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
 warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 ### Helpers end
 
+godel() {
+    local use="$(
+        ls -dl "$cache/use" 2>/dev/null | grep -ioPs "v[0-9.]+$"
+    )"
+
+    rm -rf "$cache/v$1"
+
+    if [[ v$1 == $use ]]; then
+        rm -f "$cache/use"
+    fi
+}
+
+gofallback() {
+    mkdir -p $cache
+
+    # Fallback to system version
+    if [[ ! -e $cache/use ]] && [[ -d /usr/lib/go ]] ; then
+        ln -s /usr/lib/go "$cache/use"
+    fi
+}
+
 goget() {
     local tgz="$(
         curl -Ls "$gourl" | \
@@ -193,11 +214,10 @@ while [[ $# -gt 0 ]]; do
 done
 [[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
+gofallback
+
 # Check for valid params
 [[ -z $help ]] || usage 0
-
-# Setup cache
-mkdir -p "$cache"
 
 # Get system metadata
 case "$(uname -m)" in
@@ -215,9 +235,11 @@ esac
 [[ -z $vers ]] || vers="${vers#v}"
 
 case "$action" in
-    "clear") rm -rf "$cache"; mkdir -p "$cache" ;;
-    "delete") rm -rf "$cache/v$vers" ;;
+    "clear") rm -rf "$cache" ;;
+    "delete") godel "$vers" ;;
     "list") gols ;;
     "search") gosearch "$vers" ;;
     "use") gouse "$vers" ;;
 esac
+
+gofallback
