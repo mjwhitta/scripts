@@ -152,10 +152,11 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS]
 
-This script is similar to rvm, but for Go. You will need to add the
-following 2 lines to your ~/.bashrc and then source it:
+This script is similar to rvm, but for Go. You will need to add
+something like the following 2 lines to your ~/.bashrc and then source
+it:
 
-    export GOROOT="$cache/use"
+    export GOROOT="\$HOME/.cache/gvm/use"
     export PATH="\$GOROOT/bin\${PATH:+:\$PATH}"
 
 Options:
