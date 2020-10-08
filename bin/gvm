@@ -62,7 +62,7 @@ warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 goget() {
     local tgz="$(
         curl -Ls "$gourl" | \
-        grep -ioPs "dl/\Kgo${1#v}\.$os-$arch\.tar\.gz" | sort -u
+        grep -ioPs "dl/\Kgo$1\.$os-$arch\.tar\.gz" | sort -u
     )"
 
     [[ -n $tgz ]] || errx 3 "Version $1 not found"
@@ -95,7 +95,10 @@ gols() {
         else
             good "$vers"
         fi
-    done < <(ls -d "$cache"/v* 2>/dev/null); unset vers version
+    done < <(
+        ls -d "$cache"/v* 2>/dev/null | \
+        sort -k 1,1nr -k 2,2nr -k 3,3nr -t "." -u
+    ); unset vers version
 }
 
 gosearch() {
@@ -111,15 +114,13 @@ gosearch() {
 }
 
 gouse() {
-    local vers="v$1"
-
     # Download version if needed
-    [[ -n $(ls $cache | grep -iPs "$vers$") ]] || goget "$vers"
+    [[ -n $(ls $cache | grep -iPs "v$1$") ]] || goget "$1"
 
     # Symlink new version
-    if [[ -d $cache/$vers ]]; then
+    if [[ -d $cache/v$1 ]]; then
         rm -f "$cache/use"
-        ln -s "$vers" "$cache/use"
+        ln -s "v$1" "$cache/use"
     fi
 
     # Test symlinked version
