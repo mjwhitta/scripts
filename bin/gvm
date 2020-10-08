@@ -62,7 +62,7 @@ warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 goget() {
     local tgz="$(
         curl -Ls "$gourl" | \
-        grep -ioPs "dl/\Kgo$1\.$os-$arch\.tar\.gz" | sort -u
+        grep -ioPs "dl/\Kgo${1#v}\.$os-$arch\.tar\.gz" | sort -u
     )"
 
     [[ -n $tgz ]] || errx 3 "Version $1 not found"
