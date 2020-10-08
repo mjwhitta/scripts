@@ -80,6 +80,24 @@ goget() {
     rm -rf "$cache/$tgz"
 }
 
+gols() {
+    local use="$(
+        ls -dl "$cache/use" 2>/dev/null | grep -ioPs "v[0-9.]+$"
+    )"
+    local vers
+    local version
+
+    while read -r version; do
+        vers="$(basename "$version")"
+
+        if [[ $vers == $use ]]; then
+            info "$vers"
+        else
+            good "$vers"
+        fi
+    done < <(ls -d "$cache"/v* 2>/dev/null); unset vers version
+}
+
 gosearch() {
     local version
 
@@ -87,8 +105,25 @@ gosearch() {
         good "v$version"
     done < <(
         curl -Ls "$gourl" | \
-        grep -ioPs "dl/go\K($1.*?)(?=\.$os-$arch\.tar\.gz)" | sort -u
+        grep -ioPs "dl/go\K($1.*?)(?=\.$os-$arch\.tar\.gz)" | \
+        sort -k 1,1nr -k 2,2nr -k 3,3nr -t "." -u
     ); unset version
+}
+
+gouse() {
+    local vers="v$1"
+
+    # Download version if needed
+    [[ -n $(ls $cache | grep -iPs "$vers$") ]] || goget "$vers"
+
+    # Symlink new version
+    if [[ -d $cache/$vers ]]; then
+        rm -f "$cache/use"
+        ln -s "$vers" "$cache/use"
+    fi
+
+    # Test symlinked version
+    good "$(go version)"
 }
 
 usage() {
@@ -102,8 +137,10 @@ following 2 lines to your ~/.bashrc and then source it:
     export PATH="\$GOROOT/bin\${PATH:+:\$PATH}"
 
 Options:
-    -c, --clean            Clear the cached versions of Go
+    -c, --clear            Clear the cached versions of Go
+    -d, --delete=STRING    Delete the specified version
     -h, --help             Display this help message
+    -l, --list             Show cached versions (default)
     --no-color             Disable colorized output
     -s, --search=STRING    Search for versions starting with STRING
     -u, --use=STRING       Use specified version
@@ -113,7 +150,7 @@ EOF
 }
 
 declare -a args deps
-unset clean help vers
+unset help vers
 action="list"
 cache="$HOME/.cache/gvm"
 color="true"
@@ -133,8 +170,13 @@ check_deps
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "-c"|"--clean") action="clean" ;;
+        "-c"|"--clear") action="clear" ;;
+        "-d"|"--delete")
+            action="delete"
+            vers="$(long_opt "$@")" || shift
+            ;;
         "-h"|"--help") help="true" ;;
+        "-l"|"--list") action="list" ;;
         "--no-color") unset color ;;
         "-s"|"--search")
             action="search"
@@ -168,25 +210,13 @@ case "$(uname -s | tr "[:upper:]" "[:lower:]")" in
     *) errx 2 "Unsupported OS $(uname -s)" ;;
 esac
 
+# Normalize version
+[[ -z $vers ]] || vers="${vers#v}"
+
 case "$action" in
-    "clean") rm -rf "$cache"; mkdir -p "$cache" ;;
-    "list")
-        while read -r version; do
-            echo "$(basename "$version")"
-        done < <(ls -d "$cache"/v* 2>/dev/null); unset version
-        ;;
-    "search") gosearch "${vers#v}" ;;
-    "use")
-        # Download version if needed
-        if [[ -z $(ls $cache | grep -iPs "v${vers#v}$") ]]; then
-            goget "${vers#v}"
-        fi
-
-        if [[ -d $cache/v${vers#v} ]]; then
-            rm -f "$cache/use"
-            ln -s "$cache/v${vers#v}/" "$cache/use"
-        fi
-
-        good "$(go version)"
-        ;;
+    "clear") rm -rf "$cache"; mkdir -p "$cache" ;;
+    "delete") rm -rf "$cache/v$vers" ;;
+    "list") gols ;;
+    "search") gosearch "$vers" ;;
+    "use") gouse "$vers" ;;
 esac
