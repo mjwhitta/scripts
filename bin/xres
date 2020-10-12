@@ -80,6 +80,7 @@ fi
 
 # Set specified resolution
 xrandr --output "$display" --mode "$name"
+[[ $? -eq 0 ]] || errx 3 "Failed to set resolution"
 
 # Fix some other things
 if [[ -n $(command -v nitrogen) ]] && [[ -n $(pgrep nitrogen) ]]; then
