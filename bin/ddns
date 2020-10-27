@@ -34,7 +34,7 @@ check_deps() {
     for d in "${deps[@]}"; do
         if [[ -z $(command -v "$d") ]]; then
             # Force absolute path
-            if [[ ! -f "/$d" ]]; then
+            if [[ ! -e "/$d" ]]; then
                 err "$d was not found"
                 missing="true"
             fi
@@ -49,8 +49,8 @@ info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || return 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
     esac
     echo "$arg"
     return $shift
@@ -109,18 +109,67 @@ iface="$(ip -o a | grep -m 1 -oPs "\d:\s+\K[^l][^o]\S*")"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift && args+=("$@") && break ;;
-        "-d"|"--domain"*) domain="$(long_opt "$@")" || shift ;;
+        "-d"|"--domain"*)
+            domain="$(long_opt "$@")"
+            case "$?" in
+                0) ;;
+                1) shift ;;
+                *) usage $? ;;
+            esac
+            ;;
         "-e"|"--external") external="true" ;;
-        "-f"|"--file"*) file="$(long_opt "$@")" || shift ;;
+        "-f"|"--file"*)
+            file="$(long_opt "$@")"
+            case "$?" in
+                0) ;;
+                1) shift ;;
+                *) usage $? ;;
+            esac
+            ;;
         "--force") force="true" ;;
         "-h"|"--help") help="true" ;;
         "-i"|"--internal") unset external ;;
-        "--iface"*) iface="$(long_opt "$@")" || shift ;;
-        "--ip"*) old_ip="$(long_opt "$@")" || shift ;;
+        "--iface"*)
+            iface="$(long_opt "$@")"
+            case "$?" in
+                0) ;;
+                1) shift ;;
+                *) usage $? ;;
+            esac
+            ;;
+        "--ip"*)
+            old_ip="$(long_opt "$@")"
+            case "$?" in
+                0) ;;
+                1) shift ;;
+                *) usage $? ;;
+            esac
+            ;;
         "--no-color") unset color ;;
-        "-p"|"--pass"*) password="$(long_opt "$@")" || shift ;;
-        "--url"*) url="$(long_opt "$@")" || shift ;;
-        "-u"|"--user"*) username="$(long_opt "$@")" || shift ;;
+        "-p"|"--pass"*)
+            password="$(long_opt "$@")"
+            case "$?" in
+                0) ;;
+                1) shift ;;
+                *) usage $? ;;
+            esac
+            ;;
+        "--url"*)
+            url="$(long_opt "$@")"
+            case "$?" in
+                0) ;;
+                1) shift ;;
+                *) usage $? ;;
+            esac
+            ;;
+        "-u"|"--user"*)
+            username="$(long_opt "$@")"
+            case "$?" in
+                0) ;;
+                1) shift ;;
+                *) usage $? ;;
+            esac
+            ;;
         *) args+=("$1") ;;
     esac
     shift
