@@ -49,8 +49,8 @@ info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || return 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
     esac
     echo "$arg"
     return $shift
@@ -61,22 +61,37 @@ warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 
 godel() {
     local use="$(
-        ls -dl "$cache/use" 2>/dev/null | grep -ioPs "v[0-9.]+$"
+        stat "$cache/use" 2>/dev/null | \
+        grep -ioPs "\-\>\s+\Kv[0-9.]+$"
     )"
 
     rm -rf "$cache/v$1"
 
-    if [[ v$1 == $use ]]; then
+    if [[ "v$1" == "$use" ]]; then
         rm -f "$cache/use"
+        gofallback
     fi
+
+    # Test new symlinked version
+    [[ -z $(command -v go) ]] || good "$(go version)"
+    [[ -n $(command -v go) ]] || err "go: command not found"
 }
 
 gofallback() {
-    mkdir -p $cache
+    mkdir -p "$cache"
 
     # Fallback to system version
-    if [[ ! -e $cache/use ]] && [[ -d /usr/lib/go ]] ; then
-        ln -s /usr/lib/go "$cache/use"
+    if [[ ! -e "$cache/use" ]]; then
+        while read -r version; do
+            ln -s "$version" "$cache/use"
+            break
+        done < <(
+            find "$cache" -maxdepth 1 -mindepth 1 -type d -name "v*" \
+            -exec basename {} \; | \
+            sort -k 1,1nr -k 2,2nr -k 3,3nr -t "." -u
+        ); unset vers version
+
+        [[ ! -d /usr/lib/go ]] || ln -s /usr/lib/go "$cache/use"
     fi
 }
 
@@ -91,33 +106,33 @@ goget() {
     curl -kLo "$cache/$tgz" -s "$gourl/$tgz"
     [[ $? -eq 0 ]] || errx 4 "Failed to download tarball"
 
-    if [[ ! -d $cache/v$1 ]]; then
+    if [[ ! -d "$cache/v$1" ]]; then
         tar -C "$cache" -f "$cache/$tgz" -xz
         [[ $? -eq 0 ]] || errx 5 "Failed to extract tarball"
 
         mv "$cache/go" "$cache/v$1"
     fi
 
-    rm -rf "$cache/$tgz"
+    # Define fallback values so "rm -rf /" doesn't happen
+    rm -rf "${cache:-/tmp}/${tgz:-asdf}"
 }
 
 gols() {
     local use="$(
-        ls -dl "$cache/use" 2>/dev/null | grep -ioPs "v[0-9.]+$"
+        stat "$cache/use" 2>/dev/null | \
+        grep -ioPs "\-\>\s+\Kv[0-9.]+$"
     )"
-    local vers
     local version
 
     while read -r version; do
-        vers="$(basename "$version")"
-
-        if [[ $vers == $use ]]; then
-            info "$vers"
+        if [[ "$version" == "$use" ]]; then
+            info "$version"
         else
-            good "$vers"
+            good "$version"
         fi
     done < <(
-        ls -d "$cache"/v* 2>/dev/null | \
+        find "$cache" -maxdepth 1 -mindepth 1 -type d -name "v*" \
+        -exec basename {} \; | \
         sort -k 1,1nr -k 2,2nr -k 3,3nr -t "." -u
     ); unset vers version
 }
@@ -135,17 +150,22 @@ gosearch() {
 }
 
 gouse() {
+    local use="$(
+        find "$cache" -maxdepth 1 -mindepth 1 -type d -name "v$1"
+    )"
+
     # Download version if needed
-    [[ -n $(ls $cache | grep -iPs "v$1$") ]] || goget "$1"
+    [[ -n $use ]] || goget "$1"
 
     # Symlink new version
-    if [[ -d $cache/v$1 ]]; then
+    if [[ -d "$cache/v$1" ]]; then
         rm -f "$cache/use"
         ln -s "v$1" "$cache/use"
     fi
 
     # Test symlinked version
-    good "$(go version)"
+    [[ -z $(command -v go) ]] || good "$(go version)"
+    [[ -n $(command -v go) ]] || err "go: command not found"
 }
 
 usage() {
@@ -178,9 +198,11 @@ action="list"
 cache="$HOME/.cache/gvm"
 color="true"
 deps+=("curl")
+deps+=("find")
 deps+=("grep")
 deps+=("ln")
 deps+=("sort")
+deps+=("stat")
 deps+=("tar")
 deps+=("tr")
 deps+=("uname")
@@ -192,24 +214,29 @@ check_deps
 # Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        "--") shift && args+=("$@") && break ;;
+        "--") shift; args+=("$@"); break ;;
         "-c"|"--clear") action="clear" ;;
-        "-d"|"--delete")
+        "-d"|"--delete"*)
             action="delete"
-            vers="$(long_opt "$@")" || shift
+            vers="$(long_opt "$@")"
             ;;
         "-h"|"--help") help="true" ;;
         "-l"|"--list") action="list" ;;
         "--no-color") unset color ;;
-        "-s"|"--search")
+        "-s"|"--search"*)
             action="search"
-            vers="$(long_opt "$@")" || shift
+            vers="$(long_opt "$@")"
             ;;
-        "-u"|"--use")
+        "-u"|"--use"*)
             action="use"
-            vers="$(long_opt "$@")" || shift
+            vers="$(long_opt "$@")"
             ;;
         *) args+=("$1") ;;
+    esac
+    case "$?" in
+        0) ;;
+        1) shift ;;
+        *) usage $? ;;
     esac
     shift
 done
