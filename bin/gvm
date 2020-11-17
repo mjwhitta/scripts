@@ -78,6 +78,8 @@ godel() {
 }
 
 gofallback() {
+    local version
+
     mkdir -p "$cache"
 
     # Fallback to system version
@@ -89,7 +91,7 @@ gofallback() {
             find "$cache" -maxdepth 1 -mindepth 1 -type d -name "v*" \
             -exec basename {} \; | \
             sort -k 1,1nr -k 2,2nr -k 3,3nr -t "." -u
-        ); unset vers version
+        ); unset version
 
         [[ ! -d /usr/lib/go ]] || ln -s /usr/lib/go "$cache/use"
     fi
@@ -134,7 +136,7 @@ gols() {
         find "$cache" -maxdepth 1 -mindepth 1 -type d -name "v*" \
         -exec basename {} \; | \
         sort -k 1,1nr -k 2,2nr -k 3,3nr -t "." -u
-    ); unset vers version
+    ); unset version
 }
 
 gosearch() {
