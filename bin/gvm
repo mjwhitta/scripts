@@ -86,14 +86,27 @@ gofallback() {
     if [[ ! -e "$cache/use" ]]; then
         while read -r version; do
             ln -s "$version" "$cache/use"
-            break
+            return
         done < <(
             find "$cache" -maxdepth 1 -mindepth 1 -type d -name "v*" \
             -exec basename {} \; | \
-            sort -k 1,1nr -k 2,2nr -k 3,3nr -t "." -u
+            sort -k 1,1nr -k 2,2nr -k 3,3nr -t "."
         ); unset version
 
-        [[ ! -d /usr/lib/go ]] || ln -s /usr/lib/go "$cache/use"
+        if [[ -d /usr/lib/go ]]; then
+            ln -s /usr/lib/go "$cache/use"
+            return
+        elif [[ -d /usr/local/Cellar/go ]]; then
+            while read -r version; do
+                ln -s "/usr/local/Cellar/go/$version/libexec" \
+                    "$cache/use"
+                return
+            done < <(
+                find /usr/local/Cellar/go -maxdepth 1 -mindepth 1 \
+                    -type d -exec basename {} \; | \
+                sort -k 1,1nr -k 2,2nr -k 3,3nr -t "."
+            ); unset version
+        fi
     fi
 }
 
