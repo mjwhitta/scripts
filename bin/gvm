@@ -62,7 +62,7 @@ warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 godel() {
     local use="$(
         stat "$cache/use" 2>/dev/null | \
-        grep -ioPs "\-\>\s+\Kv[0-9.]+$"
+        grep -ioPs "\-\>\s+.*\Kv[0-9.]+"
     )"
 
     rm -rf "$cache/v$1"
@@ -135,7 +135,7 @@ goget() {
 gols() {
     local use="$(
         stat "$cache/use" 2>/dev/null | \
-        grep -ioPs "\-\>\s+\Kv[0-9.]+$"
+        grep -ioPs "\-\>\s+.*\Kv[0-9.]+"
     )"
     local version
 
