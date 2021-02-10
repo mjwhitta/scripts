@@ -105,18 +105,23 @@ done
 [[ -z $help ]] || usage 0
 [[ $# -eq 0 ]] || usage 1
 
+declare -a pids
+
 while read -r line; do
     case "$line" in
         *"Local Address:Port"*)
             echo -n "$line" | \
                 sed -r -e "s/ Address:Port/Address/g" \
-                -e "s/ +\$//g" -e "s# +##g"
+                -e "s/Process//g" -e "s/ +\$//g" -e "s# +##g"
             echo "PIDUserCommandLine"
             continue
             ;;
     esac
 
-    pids=($(echo "$line" | grep -ioPs ",pid\=\K\d+"))
+    unset pids
+    while read -r pid; do
+        pids+=("$pid")
+    done < <(echo "$line" | grep -ioPs ",pid\=\K\d+"); unset pid
 
     if [[ ${#pids[@]} -eq 0 ]]; then
         echo -n "$line" | sed -r -e "s/users:.*//g" \
@@ -128,8 +133,8 @@ while read -r line; do
                 -e "s/ +\$//g" -e "s/ +//g"
             [[ -n $sudo ]] || echo -n "-"
             echo -n "$pid"
-            username="$(ps -o user= --pid $pid)"
-            cmd="$(ps -o cmd= --pid $pid)"
+            username="$(ps -o user= --pid "$pid")"
+            cmd="$(ps -o cmd= --pid "$pid")"
             echo "$username$cmd"
         done
     fi

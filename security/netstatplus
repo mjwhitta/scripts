@@ -112,7 +112,8 @@ while read -r line; do
         *"Active Multipath Internet connections"*) break ;;
         *"Local Address"*)
             echo -n "$line" | sed -r -e "s/ Address/Address/g" \
-                -e "s#/Program name.*##g" -e "s/ +//g"
+                -e "s#/Program name.*##g" -e "s/ +\$//g" \
+                -e "s/ +//g"
             case "$(uname -s)" in
                 "Darwin") echo ;;
                 *) echo "UserCommandLine" ;;
@@ -139,7 +140,7 @@ while read -r line; do
 
     [[ -z $pid ]] && echo && continue
 
-    username="$(ps -o user= --pid $pid)"
-    cmd="$(ps -o cmd= --pid $pid)"
+    username="$(ps -o user= --pid "$pid")"
+    cmd="$(ps -o cmd= --pid "$pid")"
     echo "$username$cmd"
 done < <($sudo $netstat 2>/dev/null) | column -s "" -t
