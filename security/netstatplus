@@ -81,10 +81,6 @@ deps+=("column")
 deps+=("grep")
 deps+=("netstat")
 
-case "$(uname -s)" in
-    "Darwin") errx 2 "Unsupported OS!" ;;
-esac
-
 # Check for missing dependencies
 check_deps
 
@@ -105,13 +101,22 @@ done
 [[ -z $help ]] || usage 0
 [[ $# -eq 0 ]] || usage 1
 
+netstat="netstat -anptu"
+case "$(uname -s)" in
+    "Darwin") netstat="netstat -an" ;;
+esac
+
 while read -r line; do
     case "$line" in
         *"Active Internet connections"*) continue ;;
-        *"PID/Program name"*)
+        *"Active Multipath Internet connections"*) break ;;
+        *"Local Address"*)
             echo -n "$line" | sed -r -e "s/ Address/Address/g" \
                 -e "s#/Program name.*##g" -e "s/ +//g"
-            echo "UserCommandLine"
+            case "$(uname -s)" in
+                "Darwin") echo ;;
+                *) echo "UserCommandLine" ;;
+            esac
             continue
             ;;
     esac
@@ -121,6 +126,10 @@ while read -r line; do
     case "$line" in
         "udp"*"ESTABLISHED"*) ;;
         "udp"*) echo -n "UNCONN" ;;
+    esac
+
+    case "$(uname -s)" in
+        "Darwin") echo; continue ;;
     esac
 
     pid="$(
@@ -133,4 +142,4 @@ while read -r line; do
     username="$(ps -o user= --pid $pid)"
     cmd="$(ps -o cmd= --pid $pid)"
     echo "$username$cmd"
-done < <($sudo netstat -anptu 2>/dev/null) | column -s "" -t
+done < <($sudo $netstat 2>/dev/null) | column -s "" -t
