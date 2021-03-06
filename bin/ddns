@@ -70,10 +70,11 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS]
 
-Detect when IP changes and update dynamic DNS entry using Google
-Domains API.
+DESCRIPTION
+    Detect when IP changes and update dynamic DNS entry using Google
+    Domains API.
 
-Options:
+OPTIONS
     -d, --domain=DOMAIN    Domain entry to update
     -e, --external         Use external IP (default)
     -f, --file=FILE        Compare to IP in specified file
@@ -91,93 +92,51 @@ EOF
     exit "$1"
 }
 
-declare -a args deps
+declare -a args
 unset domain file force help old_ip password username
 color="true"
-curl_cmd="curl --connect-timeout 8 -kLm 8 -s"
-deps+=("curl")
-deps+=("ip")
+curl="curl --connect-timeout 8 -kLm 8 -s"
 external="true"
-url="https://icanhazip.com"
-
-# Check for missing dependencies
-check_deps
-
 iface="$(ip -o a | grep -m 1 -oPs "\d:\s+\K[^l][^o]\S*")"
+url="https://icanhazip.com"
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        "--") shift && args+=("$@") && break ;;
-        "-d"|"--domain"*)
-            domain="$(long_opt "$@")"
-            case "$?" in
-                0) ;;
-                1) shift ;;
-                *) usage $? ;;
-            esac
-            ;;
+        "--") shift; args+=("$@"); break ;;
+        "-d"|"--domain"*) domain="$(long_opt "$@")" ;;
         "-e"|"--external") external="true" ;;
-        "-f"|"--file"*)
-            file="$(long_opt "$@")"
-            case "$?" in
-                0) ;;
-                1) shift ;;
-                *) usage $? ;;
-            esac
-            ;;
+        "-f"|"--file"*) file="$(long_opt "$@")" ;;
         "--force") force="true" ;;
         "-h"|"--help") help="true" ;;
         "-i"|"--internal") unset external ;;
-        "--iface"*)
-            iface="$(long_opt "$@")"
-            case "$?" in
-                0) ;;
-                1) shift ;;
-                *) usage $? ;;
-            esac
-            ;;
-        "--ip"*)
-            old_ip="$(long_opt "$@")"
-            case "$?" in
-                0) ;;
-                1) shift ;;
-                *) usage $? ;;
-            esac
-            ;;
+        "--iface"*) iface="$(long_opt "$@")" ;;
+        "--ip"*) old_ip="$(long_opt "$@")" ;;
         "--no-color") unset color ;;
-        "-p"|"--pass"*)
-            password="$(long_opt "$@")"
-            case "$?" in
-                0) ;;
-                1) shift ;;
-                *) usage $? ;;
-            esac
-            ;;
-        "--url"*)
-            url="$(long_opt "$@")"
-            case "$?" in
-                0) ;;
-                1) shift ;;
-                *) usage $? ;;
-            esac
-            ;;
-        "-u"|"--user"*)
-            username="$(long_opt "$@")"
-            case "$?" in
-                0) ;;
-                1) shift ;;
-                *) usage $? ;;
-            esac
-            ;;
+        "-p"|"--pass"*) password="$(long_opt "$@")" ;;
+        "--url"*) url="$(long_opt "$@")" ;;
+        "-u"|"--user"*) username="$(long_opt "$@")" ;;
         *) args+=("$1") ;;
+    esac
+    case "$?" in
+        0) ;;
+        1) shift ;;
+        *) usage $? ;;
     esac
     shift
 done
 [[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
-# Check for valid params
+# Help info
 [[ -z $help ]] || usage 0
+
+# Check for missing dependencies
+declare -a deps
+deps+=("curl")
+deps+=("ip")
+check_deps
+
+# Check for valid params
 [[ $# -eq 0 ]] || usage 1
 [[ -n $domain ]] || usage 2
 [[ -n $iface ]] || usage 3
@@ -187,7 +146,7 @@ done
 # Get data
 [[ -z $file ]] || [[ ! -f "$file" ]] || old_ip="$(head -n 1 "$file")"
 if [[ -n $external ]]; then
-    new_ip="$($curl_cmd --interface "$iface" "$url")"
+    new_ip="$($curl --interface "$iface" "$url")"
 else
     new_ip="$(ip -o a | awk "/$iface\s+inet\s/ {print \$4}")"
     new_ip="${new_ip%/*}"

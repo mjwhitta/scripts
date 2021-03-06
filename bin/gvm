@@ -61,11 +61,11 @@ warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 
 godel() {
     local use="$(
-        stat "$cache/use" 2>/dev/null | \
+        ls -l "$cache/use" 2>/dev/null | \
         grep -ioPs "\-\>\s+.*\Kv[0-9.]+"
     )"
 
-    rm -rf "$cache/v$1"
+    rm -fr "$cache/v$1"
 
     if [[ "v$1" == "$use" ]]; then
         rm -f "$cache/use"
@@ -73,8 +73,11 @@ godel() {
     fi
 
     # Test new symlinked version
-    [[ -z $(command -v go) ]] || good "$(go version)"
-    [[ -n $(command -v go) ]] || err "go: command not found"
+    if [[ -n $(command -v go) ]]; then
+        good "$(go version)"
+    else
+        err "go: command not found"
+    fi
 }
 
 gofallback() {
@@ -84,14 +87,16 @@ gofallback() {
 
     # Fallback to system version
     if [[ ! -e "$cache/use" ]]; then
-        while read -r version; do
-            ln -s "$version" "$cache/use"
-            return
-        done < <(
-            find "$cache" -maxdepth 1 -mindepth 1 -type d -name "v*" \
-            -exec basename {} \; | \
-            sort -k 1,1nr -k 2,2nr -k 3,3nr -t "."
-        ); unset version
+        if [[ $# -eq 0 ]]; then
+            while read -r version; do
+                ln -s "$version" "$cache/use"
+                return
+            done < <(
+                find "$cache" -maxdepth 1 -mindepth 1 -type d \
+                -name "v*" -exec basename {} \; | \
+                sort -k 1,1nr -k 2,2nr -k 3,3nr -t "."
+            ); unset version
+        fi
 
         if [[ -d /usr/lib/go ]]; then
             ln -s /usr/lib/go "$cache/use"
@@ -107,6 +112,8 @@ gofallback() {
                 sort -k 1,1nr -k 2,2nr -k 3,3nr -t "."
             ); unset version
         fi
+
+        err "No go installation found"
     fi
 }
 
@@ -128,16 +135,44 @@ goget() {
         mv "$cache/go" "$cache/v$1"
     fi
 
-    # Define fallback values so "rm -rf /" doesn't happen
-    rm -rf "${cache:-/tmp}/${tgz:-asdf}"
+    # Define fallback values so "rm -fr /" doesn't happen
+    rm -fr "${cache:-/tmp}/${tgz:-asdf}"
 }
 
 gols() {
     local use="$(
-        stat "$cache/use" 2>/dev/null | \
+        ls -l "$cache/use" 2>/dev/null | \
         grep -ioPs "\-\>\s+.*\Kv[0-9.]+"
     )"
     local version
+
+    if [[ -d /usr/lib/go ]]; then
+        version="$(/usr/lib/go/bin/go version | awk '{print $3}')"
+
+        if [[ -z $use ]]; then
+            info "v${version##go} (system)"
+        else
+            good "v${version##go} (system)"
+        fi
+    elif [[ -d /usr/local/Cellar/go ]]; then
+        while read -r version; do
+            version="$(
+                "/usr/local/Cellar/go/$version/libexec/bin/go" | \
+                awk '{print $3}'
+            )"
+
+            if [[ -z $use ]]; then
+                info "v${version##go} (system)"
+                use="FIRST TIME ONLY"
+            else
+                good "v${version##go} (system)"
+            fi
+        done < <(
+            find /usr/local/Cellar/go -maxdepth 1 -mindepth 1 \
+                -type d -exec basename {} \; | \
+            sort -k 1,1nr -k 2,2nr -k 3,3nr -t "."
+        ); unset version
+    fi
 
     while read -r version; do
         if [[ "$version" == "$use" ]]; then
@@ -165,18 +200,26 @@ gosearch() {
 }
 
 gouse() {
-    local use="$(
-        find "$cache" -maxdepth 1 -mindepth 1 -type d -name "v$1"
-    )"
+    local use
 
-    # Download version if needed
-    [[ -n $use ]] || goget "$1"
+    case "$1" in
+        "system") rm -f "$cache/use"; gofallback system ;;
+        *)
+            use="$(
+                find "$cache" -maxdepth 1 -mindepth 1 -type d \
+                -name "v$1"
+            )"
 
-    # Symlink new version
-    if [[ -d "$cache/v$1" ]]; then
-        rm -f "$cache/use"
-        ln -s "v$1" "$cache/use"
-    fi
+            # Download version if needed
+            [[ -n $use ]] || goget "$1"
+
+            # Symlink new version
+            if [[ -d "$cache/v$1" ]]; then
+                rm -f "$cache/use"
+                ln -s "v$1" "$cache/use"
+            fi
+            ;;
+    esac
 
     # Test symlinked version
     [[ -z $(command -v go) ]] || good "$(go version)"
@@ -187,14 +230,15 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS]
 
-This script is similar to rvm, but for Go. You will need to add
-something like the following 2 lines to your ~/.bashrc and then source
-it:
+DESCRIPTION
+    This script is similar to rvm, but for Go. You will need to add
+    something like the following 2 lines to your ~/.bashrc and then
+    source it:
 
-    export GOROOT="\$HOME/.cache/gvm/use"
-    export PATH="\$GOROOT/bin\${PATH:+:\$PATH}"
+        export GOROOT="\$HOME/.cache/gvm/use"
+        export PATH="\$GOROOT/bin\${PATH:+:\$PATH}"
 
-Options:
+OPTIONS
     -c, --clear            Clear the cached versions of Go
     -d, --delete=STRING    Delete the specified version
     -h, --help             Display this help message
@@ -207,24 +251,12 @@ EOF
     exit "$1"
 }
 
-declare -a args deps
+declare -a args
 unset help vers
 action="list"
 cache="$HOME/.cache/gvm"
 color="true"
-deps+=("curl")
-deps+=("find")
-deps+=("grep")
-deps+=("ln")
-deps+=("sort")
-deps+=("stat")
-deps+=("tar")
-deps+=("tr")
-deps+=("uname")
 gourl="https://golang.org/dl"
-
-# Check for missing dependencies
-check_deps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
@@ -257,20 +289,35 @@ while [[ $# -gt 0 ]]; do
 done
 [[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
-gofallback
-
-# Check for valid params
+# Help info
 [[ -z $help ]] || usage 0
+
+# Check for missing dependencies
+declare -a deps
+deps+=("curl")
+deps+=("find")
+deps+=("grep")
+deps+=("ln")
+deps+=("sort")
+deps+=("tar")
+deps+=("uname")
+check_deps
+
+# TODO Check for valid params
+
+# Fallback to system Go, if needed and installed
+gofallback
 
 # Get system metadata
 case "$(uname -m)" in
+    "i386") arch="386" ;;
     "x86_64") arch="amd64" ;;
     *) errx 1 "Unsupported architecture $(uname -m)" ;;
 esac
-case "$(uname -s | tr "[:upper:]" "[:lower:]")" in
-    "darwin") os="darwin" ;;
-    "freebsd") os="freebsd" ;;
-    "linux") os="linux" ;;
+case "$(uname -s)" in
+    "Darwin") os="darwin" ;;
+    "FreeBSD") os="freebsd" ;;
+    "Linux") os="linux" ;;
     *) errx 2 "Unsupported OS $(uname -s)" ;;
 esac
 
@@ -278,11 +325,9 @@ esac
 [[ -z $vers ]] || vers="${vers#v}"
 
 case "$action" in
-    "clear") rm -rf "$cache" ;;
+    "clear") rm -fr "$cache"; gofallback ;;
     "delete") godel "$vers" ;;
     "list") gols ;;
     "search") gosearch "$vers" ;;
     "use") gouse "$vers" ;;
 esac
-
-gofallback
