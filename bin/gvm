@@ -157,8 +157,8 @@ gols() {
     elif [[ -d /usr/local/Cellar/go ]]; then
         while read -r version; do
             version="$(
-                "/usr/local/Cellar/go/$version/libexec/bin/go" | \
-                awk '{print $3}'
+                "/usr/local/Cellar/go/$version/libexec/bin/go" \
+                version | awk '{print $3}'
             )"
 
             if [[ -z $use ]]; then
@@ -263,21 +263,12 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift; args+=("$@"); break ;;
         "-c"|"--clear") action="clear" ;;
-        "-d"|"--delete"*)
-            action="delete"
-            vers="$(long_opt "$@")"
-            ;;
+        "-d"|"--delete"*) action="delete"; vers="$(long_opt "$@")" ;;
         "-h"|"--help") help="true" ;;
         "-l"|"--list") action="list" ;;
         "--no-color") unset color ;;
-        "-s"|"--search"*)
-            action="search"
-            vers="$(long_opt "$@")"
-            ;;
-        "-u"|"--use"*)
-            action="use"
-            vers="$(long_opt "$@")"
-            ;;
+        "-s"|"--search"*) action="search"; vers="$(long_opt "$@")" ;;
+        "-u"|"--use"*) action="use"; vers="$(long_opt "$@")" ;;
         *) args+=("$1") ;;
     esac
     case "$?" in
@@ -294,6 +285,7 @@ done
 
 # Check for missing dependencies
 declare -a deps
+deps+=("basename")
 deps+=("curl")
 deps+=("find")
 deps+=("grep")
