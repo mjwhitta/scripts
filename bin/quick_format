@@ -34,7 +34,7 @@ check_deps() {
     for d in "${deps[@]}"; do
         if [[ -z $(command -v "$d") ]]; then
             # Force absolute path
-            if [[ ! -f "/$d" ]]; then
+            if [[ ! -e "/$d" ]]; then
                 err "$d was not found"
                 missing="true"
             fi
@@ -49,8 +49,8 @@ info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || return 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
     esac
     echo "$arg"
     return $shift
@@ -63,10 +63,11 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS] <dev>
 
-This script creates a new partition table with a single, bootable
-partition.
+DESCRIPTION
+    This script creates a new partition table with a single, bootable
+    partition.
 
-Options:
+OPTIONS
     --ext4               Format as ext4 (default)
     --fat32              Format as FAT32
     -h, --help           Display this help message
@@ -79,39 +80,47 @@ EOF
     exit "$1"
 }
 
-declare -a args deps
+declare -a args
 unset help lbl legacy
 color="true"
+format="ext4"
+
+# Parse command line options
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        "--") shift; args+=("$@"); break ;;
+        "--ext4") format="ext4" ;;
+        "--fat32") format="fat32" ;;
+        "-h"|"--help") help="true" ;;
+        "-l"|"--label"*) lbl="$(long_opt "$@")" ;;
+        "--legacy") legacy="true" ;;
+        "--no-color") unset color ;;
+        "--ntfs") format="ntfs" ;;
+        *) args+=("$1") ;;
+    esac
+    case "$?" in
+        0) ;;
+        1) shift ;;
+        *) usage $? ;;
+    esac
+    shift
+done
+[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
+
+# Help info
+[[ -z $help ]] || usage 0
+
+# Check for missing dependencies
+declare -a deps
 deps+=("fdisk")
 deps+=("lsblk")
 deps+=("mkfs.ext4")
 deps+=("mkfs.fat")
 deps+=("mkfs.ntfs")
 deps+=("wipefs")
-format="ext4"
-
-# Check for missing dependencies
 check_deps
 
-# Parse command line options
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        "--") shift && args+=("$@") && break ;;
-        "--ext4") format="ext4" ;;
-        "--fat32") format="fat32" ;;
-        "-h"|"--help") help="true" ;;
-        "-l"|"--label"*) lbl="$(long_opt "$@")" || shift ;;
-        "--legacy") legacy="true" ;;
-        "--no-color") unset color ;;
-        "--ntfs") format="ntfs" ;;
-        *) args+=("$1") ;;
-    esac
-    shift
-done
-[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
-
 # Check for valid params
-[[ -z $help ]] || usage 0
 [[ $# -eq 1 ]] || usage 1
 
 while read -r dev; do

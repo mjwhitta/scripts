@@ -120,9 +120,10 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS] <dir1>... [dirN]
 
-Update git repos under specified directory.
+DESCRIPTION
+    Update git repos under specified directory.
 
-Options:
+OPTIONS
     -h, --help           Display this help message
     --no-color           Disable colorized output
     -r, --resume         Resume from a previous run
@@ -144,22 +145,16 @@ write_resume_file() {
 EOF
 }
 
-declare -a args deps
-unset help
+declare -a args
+unset help resume verbose
 color="true"
-deps+=("git")
-deps+=("jq")
-deps+=("sha256sum")
 parallel="true"
 threads="32"
-
-# Check for missing dependencies
-check_deps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        "--") shift && args+=("$@") && break ;;
+        "--") shift; args+=("$@"); break ;;
         "-h"|"--help") help="true" ;;
         "--no-color") unset color ;;
         "-r"|"--resume") resume="--resume" ;;
@@ -176,8 +171,17 @@ while [[ $# -gt 0 ]]; do
 done
 [[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
-# Check for valid params
+# Help info
 [[ -z $help ]] || usage 0
+
+# Check for missing dependencies
+declare -a deps
+deps+=("git")
+deps+=("jq")
+deps+=("sha256sum")
+check_deps
+
+# Check for valid params
 [[ $# -gt 0 ]] || [[ -n $resume ]] || usage 1
 
 # Determine parallel situation
@@ -195,6 +199,8 @@ if [[ -n $parallel ]] && [[ ! -f "$HOME/.parallel/will-cite" ]]; then
     fi
     unset pvers
 fi
+
+# TODO Save command line args
 
 # Cache variables
 hash="$(pwd | sha256sum | awk '{print $1}')"

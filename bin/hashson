@@ -49,8 +49,8 @@ info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || return 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
     esac
     echo "$arg"
     return $shift
@@ -125,9 +125,11 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS]
 
-Minimize duplicate files by creating a mapping of hash to filename.
+DESCRIPTION
+    Minimize duplicate files by creating a mapping of hash to
+    filename.
 
-Options:
+OPTIONS
     -h, --help        Display this help message
     -m, --md5         Use md5
     --no-color        Disable colorized output
@@ -139,49 +141,52 @@ EOF
     exit "$1"
 }
 
-declare -a args deps
+declare -a args
 unset help
 action="minimize"
 color="true"
-deps+=("jq")
-deps+=("md5sum")
-deps+=("sha256sum")
-deps+=("sort")
 hashcmd="sha256sum"
 output="hashmap.json"
-
-# Check for missing dependencies
-check_deps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        "--") shift && args+=("$@") && break ;;
+        "--") shift; args+=("$@"); break ;;
         "-h"|"--help") help="true" ;;
         "-m"|"--md5") hashcmd="md5sum" ;;
         "--no-color") unset color ;;
-        "-o"|"--out"*) output="$(long_opt "$@")" || shift ;;
+        "-o"|"--out"*) output="$(long_opt "$@")" ;;
         "-s"|"--sha") hashcmd="sha256sum" ;;
-        "-u"|"--undo"*)
-            action="undo"
-            output="$(long_opt "$@")" || shift
-            ;;
+        "-u"|"--undo"*) action="undo"; output="$(long_opt "$@")" ;;
         *) args+=("$1") ;;
+    esac
+    case "$?" in
+        0) ;;
+        1) shift ;;
+        *) usage $? ;;
     esac
     shift
 done
 [[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
-# Check for valid params
+# Help info
 [[ -z $help ]] || usage 0
 
+# Check for missing dependencies
+declare -a deps
+deps+=("jq")
+deps+=("md5sum")
+deps+=("sha256sum")
+deps+=("sort")
+check_deps
+
+# Check for valid params
 case "$action" in
-    "minimize")
-        [[ $# -gt 0 ]] || usage 1
-        minimize "$@" | tee "$output"
-        ;;
-    "undo")
-        [[ $# -eq 0 ]] || usage 1
-        undo
-        ;;
+    "minimize") [[ $# -gt 0 ]] || usage 1 ;;
+    "undo") [[ $# -eq 0 ]] || usage 1 ;;
+esac
+
+case "$action" in
+    "minimize") minimize "$@" | tee "$output" ;;
+    "undo") undo ;;
 esac

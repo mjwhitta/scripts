@@ -34,7 +34,7 @@ check_deps() {
     for d in "${deps[@]}"; do
         if [[ -z $(command -v "$d") ]]; then
             # Force absolute path
-            if [[ ! -f "/$d" ]]; then
+            if [[ ! -e "/$d" ]]; then
                 err "$d was not found"
                 missing="true"
             fi
@@ -49,8 +49,8 @@ info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || return 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
     esac
     echo "$arg"
     return $shift
@@ -61,18 +61,20 @@ warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 
 next_wallpaper() {
     local ppid="$(pgrep -fo "^\S*sh\s+$0")"
-    pkill -oP "$ppid" sleep
+
+    [[ -z $ppid ]] || pkill -oP "$ppid" sleep
 }
 
 usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS] [directory]
 
-Rotate wallpaper using images from specified directory or config file.
-Currently it uses nitrogen but it could be extended to use other
-background setters.
+DESCRIPTION
+    Rotate wallpaper using images from specified directory or config
+    file. Currently it uses nitrogen but it could be extended to use
+    other background setters.
 
-Options:
+OPTIONS
     -d, --delay=NUM    Rotate image every NUM secs (default: 120)
     -h, --help         Display this help message
     -n, --next         Cycle to the next wallpaper
@@ -81,34 +83,43 @@ EOF
     exit "$1"
 }
 
-declare -a args deps
+declare -a args
 unset help
 action="slideshow"
 color="true"
 delay="120"
-deps+=("pgrep")
-deps+=("pkill")
-deps+=("nitrogen")
-
-# Check for missing dependencies
-check_deps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        "--") shift && args+=("$@") && break ;;
-        "-d"|"--delay"*) delay="$(long_opt "$@")" || shift ;;
+        "--") shift; args+=("$@"); break ;;
+        "-d"|"--delay"*) delay="$(long_opt "$@")" ;;
         "-h"|"--help") help="true" ;;
         "-n"|"--next") action="next" ;;
         "--no-color") unset color ;;
         *) args+=("$1") ;;
     esac
+    case "$?" in
+        0) ;;
+        1) shift ;;
+        *) usage $? ;;
+    esac
     shift
 done
 [[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
-# Check for valid params
+# Help info
 [[ -z $help ]] || usage 0
+
+# Check for missing dependencies
+declare -a deps
+deps+=("find")
+deps+=("pgrep")
+deps+=("pkill")
+deps+=("nitrogen")
+check_deps
+
+# Check for valid params
 [[ $# -le 1 ]] || usage 1
 
 # If --next or instance already running

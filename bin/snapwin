@@ -34,7 +34,7 @@ check_deps() {
     for d in "${deps[@]}"; do
         if [[ -z $(command -v "$d") ]]; then
             # Force absolute path
-            if [[ ! -f "/$d" ]]; then
+            if [[ ! -e "/$d" ]]; then
                 err "$d was not found"
                 missing="true"
             fi
@@ -43,14 +43,14 @@ check_deps() {
     [[ -z $missing ]] || exit 128
 }
 err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
-errx() { err "${*:2}"; unlock; exit "$1"; }
+errx() { err "${*:2}"; exit "$1"; }
 good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
 info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || return 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
     esac
     echo "$arg"
     return $shift
@@ -61,9 +61,7 @@ warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 
 get_previous() { grep -oPs "^$1\s+\K.+" "$snap_hist"; }
 
-json_get() {
-    jq -cr ".$*" "$config" | sed -r "s/^null$//g"
-}
+json_get() { jq -cr ".$*" "$config" | sed -r "s/^null$//g"; }
 
 lock() { touch "$snap_hist.lock"; locked="true"; }
 
@@ -190,7 +188,10 @@ snap_current_window() {
     local pid="$(xdotool getwindowpid "$wid")"
     [[ -n $pid ]] || pid="$RANDOM"
     local id="$wid-$pid"
-    [[ -n $id ]] || errx 4 "Could not determine window identifiers"
+    if [[ -z $id ]]; then
+        unlock
+        errx 4 "Could not determine window identifiers"
+    fi
 
     # Ignore wallpaper programs
     case "$(xdotool getwindowname "$wid")" in
@@ -217,10 +218,11 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS] [width] [height]
 
-Simple window management tool. A minimal config can be found at:
-$HOME/.config/${0##*/}/rc
+DESCRIPTION
+    Simple window management tool. A minimal config can be found at:
+    $HOME/.config/${0##*/}/rc
 
-Options:
+OPTIONS
     -b, --bottom          Snap active window to bottom
     --bottom-left         Snap active window to bottom-left
     --bottom-right        Snap active window to bottom-right
@@ -249,7 +251,11 @@ wait_for_lock() {
         [[ -f "$snap_hist.lock" ]] || break
         sleep 0.1
     done
-    [[ ! -f "$snap_hist.lock" ]] || errx 3 "Lock file exists"
+
+    if [[ -f "$snap_hist.lock" ]]; then
+        unlock
+        errx 3 "Lock file exists"
+    fi
 }
 
 xdosnap() {
@@ -275,36 +281,30 @@ xdosnap() {
     fi
 }
 
-declare -a args deps
+declare -a args
 unset help locked
 color="true"
 config="$HOME/.config/${0##*/}/rc"
-deps+=("jq")
-deps+=("xdotool")
-deps+=("xrandr")
 snap_hist="/tmp/${0##*/}.hist"
 snap_option="replay"
 snap_replay="/tmp/${0##*/}.replay"
 
-# Check for missing dependencies
-check_deps
-
 # Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        "--") shift && args+=("$@") && break ;;
+        "--") shift; args+=("$@"); break ;;
         "-b"|"--bottom") snap_option="bottom" ;;
         "--bottom-left") snap_option="bottom-left" ;;
         "--bottom-right") snap_option="bottom-right" ;;
         "-c"|"--center") snap_option="center" ;;
-        "-f"|"--frame"*) frame="$(long_opt "$@")" || shift ;;
+        "-f"|"--frame"*) frame="$(long_opt "$@")" ;;
         "-h"|"--help") help="true" ;;
         "-l"|"--left") snap_option="left" ;;
         "-m"|"--max") snap_option="max" ;;
         "-n"|"--min") snap_option="min" ;;
         "--no-color") unset color ;;
-        "-o"|"--offset"*) offset="$(long_opt "$@")" || shift ;;
-        "-p"|"--padding"*) padding="$(long_opt "$@")" || shift ;;
+        "-o"|"--offset"*) offset="$(long_opt "$@")" ;;
+        "-p"|"--padding"*) padding="$(long_opt "$@")" ;;
         "--replay") snap_option="replay" ;;
         "-r"|"--right") snap_option="right" ;;
         "-t"|"--top") snap_option="top" ;;
@@ -312,12 +312,26 @@ while [[ $# -gt 0 ]]; do
         "--top-right") snap_option="top-right" ;;
         *) args+=("$1") ;;
     esac
+    case "$?" in
+        0) ;;
+        1) shift ;;
+        *) usage $? ;;
+    esac
     shift
 done
 [[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
-# Check for valid params
+# Help info
 [[ -z $help ]] || usage 0
+
+# Check for missing dependencies
+declare -a deps
+deps+=("jq")
+deps+=("xdotool")
+deps+=("xrandr")
+check_deps
+
+# Check for valid params
 [[ $# -eq 0 ]] || [[ $# -eq 2 ]] || usage 1
 
 # Ensure history file exists
@@ -345,7 +359,10 @@ if [[ $# -eq 2 ]]; then
     width="$1"
 else
     geometry="$(xrandr | grep -oPs "current \K[^,]+")"
-    [[ -n $geometry ]] || errx 2 "Could not determine geometry"
+    if [[ -z $geometry ]]; then
+        unlock
+        errx 2 "Could not determine geometry"
+    fi
     height="${geometry/*x /}"
     width="${geometry/ x*/}"
 fi

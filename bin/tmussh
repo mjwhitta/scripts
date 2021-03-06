@@ -34,7 +34,7 @@ check_deps() {
     for d in "${deps[@]}"; do
         if [[ -z $(command -v "$d") ]]; then
             # Force absolute path
-            if [[ ! -f "/$d" ]]; then
+            if [[ ! -e "/$d" ]]; then
                 err "$d was not found"
                 missing="true"
             fi
@@ -49,8 +49,8 @@ info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || return 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
     esac
     echo "$arg"
     return $shift
@@ -63,10 +63,11 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS] <host1>... [hostN]
 
-Open connections to multiple hosts using tmux and ssh. If a command is
-specified, it will run that command on each host.
+DESCRIPTION
+    Open connections to multiple hosts using tmux and ssh. If a
+    command is specified, it will run that command on each host.
 
-Options:
+OPTIONS
     -c, --cmd=CMD        Command to run on each host
     -d, --delay=SECS     Wait for specified time after connecting
                          (default: $delay)
@@ -79,32 +80,40 @@ EOF
     exit "$1"
 }
 
-declare -a args deps
+declare -a args
 unset cmd help interactive keep_localhost
 color="true"
 delay="1"
-deps+=("tmux")
-
-# Check for missing dependencies
-check_deps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        "--") shift && args+=("$@") && break ;;
-        "-c"|"--cmd"*) cmd="$(long_opt "$@")" || shift ;;
-        "-d"|"--delay"*) delay="$(long_opt "$@")" || shift ;;
+        "--") shift; args+=("$@"); break ;;
+        "-c"|"--cmd"*) cmd="$(long_opt "$@")" ;;
+        "-d"|"--delay"*) delay="$(long_opt "$@")" ;;
         "-h"|"--help") help="true" ;;
         "-i"|"--interactive") interactive="true" ;;
         "--no-color") unset color ;;
         *) args+=("$1") ;;
     esac
+    case "$?" in
+        0) ;;
+        1) shift ;;
+        *) usage $? ;;
+    esac
     shift
 done
 [[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
-# Check for valid params
+# Help info
 [[ -z $help ]] || usage 0
+
+# Check for missing dependencies
+declare -a deps
+deps+=("tmux")
+check_deps
+
+# Check for valid params
 [[ $# -gt 0 ]] || usage 1
 [[ -n $TMUX ]] || errx 2 "You are not in a tmux session"
 
