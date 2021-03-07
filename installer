@@ -32,54 +32,62 @@ warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 ### Helpers end
 
 link() {
+    local from
+    local lnk
+    local to
+
     info "Linking directories and files..."
     for entry in "${files[@]}"; do
         from="$here/${entry/:*/}"
         to="$(eval echo "${entry/*:/}")"
 
-        if [[ ! -e $from ]]; then
+        if [[ ! -e "$from" ]]; then
             warn "$from does not exist"
             continue
         fi
 
-        if [[ -L $to ]]; then
-            already_from="$(ls -hl $to | awk '{print $NF}')"
-            [[ $already_from != $from ]] || continue
+        if [[ -L "$to" ]]; then
+            lnk="$(find "$to" -type l -printf "%l" 2>/dev/null)"
+            [[ $lnk != $from ]] || continue
             warn "Removing symlink $to"
-            rm $to
-        elif [[ -e $to ]] && [[ -z $force ]]; then
+            rm "$to"
+        elif [[ -e "$to" ]] && [[ -z $force ]]; then
             warn "Moving $to to $to.$backup"
-            mv $to $to.$backup
-        elif [[ -d $to ]]; then
+            mv "$to" "$to.$backup"
+        elif [[ -d "$to" ]]; then
             warn "Removing directory $to"
-            rm -rf $to
-        elif [[ -f $to ]]; then
+            rm -rf "$to"
+        elif [[ -f "$to" ]]; then
             warn "Removing file $to"
-            rm -f $to
+            rm -f "$to"
         else
             # info "Ensuring $(dirname $to) exists"
-            mkdir -p $(dirname $to)
+            mkdir -p "$(dirname "$to")"
         fi
 
         good "Symlinking $from to $to"
-        ln -s $from $to
+        ln -s "$from" "$to"
     done; unset entry
     info "Successfully linked scripts"
 }
 
 link_status() {
+    local from
+    local lnk
+    local to
+
     for entry in "${files[@]}"; do
         from="$here/${entry/:*/}"
         to="$(eval echo "${entry/*:/}")"
 
-        if [[ ! -e $from ]]; then
+        if [[ ! -e "$from" ]]; then
             warn "$from does not exist"
             continue
         fi
 
-        if [[ -L $to ]]; then
-            already_from="$(ls -hl $to | awk '{print $NF}')"
-            if [[ $already_from == $from ]]; then
+        if [[ -L "$to" ]]; then
+            lnk="$(find "$to" -type l -printf "%l" 2>/dev/null)"
+            if [[ $lnk == $from ]]; then
                 good "$to is linked"
             else
                 warn "$to is not linked"
@@ -91,29 +99,33 @@ link_status() {
 }
 
 unlink() {
+    local from
+    local lnk
+    local to
+
     info "Unlinking directories and files..."
     for entry in "${files[@]}"; do
         from="$here/${entry/:*/}"
         to="$(eval echo "${entry/*:/}")"
 
-        if [[ -L $to ]]; then
-            already_from="$(ls -hl $to | awk '{print $NF}')"
-            if [[ $already_from == $from ]]; then
+        if [[ -L "$to" ]]; then
+            lnk="$(find "$to" -type l -printf "%l" 2>/dev/null)"
+            if [[ $lnk == $from ]]; then
                 good "Removing symlink for $to"
-                rm $to
+                rm "$to"
             else
                 err "Did not unlink $to as it was not linked"
             fi
         fi
 
-        if [[ ! -e $to ]] && [[ -e $to.$backup ]]; then
+        if [[ ! -e "$to" ]] && [[ -e "$to.$backup" ]]; then
             warn "Restoring $to.$backup to $to"
-            mv $to.$backup $to
-        elif [[ -e $to ]] && [[ ! -L $to ]]; then
+            mv "$to.$backup" "$to"
+        elif [[ -e "$to" ]] && [[ ! -L "$to" ]]; then
             err "Could not unlink $to as it was not a symlink"
         fi
 
-        if [[ -e $to.$backup ]]; then
+        if [[ -e "$to.$backup" ]]; then
             err "Did not restore backup of $to"
         fi
     done; unset entry
@@ -178,8 +190,11 @@ check_deps
 [[ $# -eq 1 ]] || usage 1
 
 declare -a files
-files=($(grep -Ev "^(\s*#|$)" files.default))
-[[ ! -f files ]] || files=($(grep -Ev "^(\s*#|$)" files))
+cfg="files"
+[[ -f files ]] || cfg="files.default"
+while read -r file; do
+    files+=("$file")
+done < <(grep -Ev "^(\s*#|$)" "$cfg"); unset file
 
 case "$1" in
     "link") link ;;
