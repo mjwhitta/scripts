@@ -138,7 +138,7 @@ ACTIONS
     unlink    Remove symlinks and restore old scripts
 
 EOF
-    exit $1
+    exit "$1"
 }
 
 declare -a args
