@@ -125,7 +125,7 @@ usage() {
 Usage: ${0##*/} [OPTIONS] <action>
 
 DESCRIPTION
-     Install scripts from this repo.
+    Install scripts from this repo.
 
 OPTIONS
     -f, --force    Do not make backups
