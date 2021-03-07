@@ -8,7 +8,7 @@ check_deps() {
     for d in "${deps[@]}"; do
         if [[ -z $(command -v "$d") ]]; then
             # Force absolute path
-            if [[ ! -f "/$d" ]]; then
+            if [[ ! -e "/$d" ]]; then
                 err "$d was not found"
                 missing="true"
             fi
@@ -23,8 +23,8 @@ info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || return 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
     esac
     echo "$arg"
     return $shift
@@ -34,7 +34,14 @@ warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 ### Helpers end
 
 check_bin() {
+    local canary="0" # gcc -fstack-protector
     local file="$1"
+    local fortify="0" # gcc -D_FORTIFY_SOURCE=2 also BOSC
+    local nx="1" # also XSpace
+    local pie="0"
+    local relro="0"
+    local rpath="5"
+    local runpath="5"
 
     if [[ ! -f $file ]]; then
         err "File $1 does not exist"
@@ -57,14 +64,6 @@ check_bin() {
         warn "File $1 is not an ELF file"
         return
     fi
-
-    local canary="0" # gcc -fstack-protector
-    local fortify="0" # gcc -D_FORTIFY_SOURCE=2 also BOSC
-    local nx="1" # also XSpace
-    local pie="0"
-    local relro="0"
-    local rpath="5"
-    local runpath="5"
 
     while read line; do
         [[ $line =~ "GNU_RELRO" ]] && ((relro |= 2))
@@ -254,9 +253,10 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS] <elfbin/dir>... [elfbin/dir]
 
-Evaluate the security posture of the system.
+DESCRIPTION
+    Evaluate the security posture of the system.
 
-Options:
+OPTIONS
     -h, --help      Display this help message
     -k, --kernel    Check the kernel config
     --no-color      Disable colorized output
@@ -267,25 +267,20 @@ EOF
     exit "$1"
 }
 
-declare -a args deps
+declare -a args
 unset directory help kernel procs wide
 aslr="$(
     cat /proc/sys/kernel/randomize_va_space 2>/dev/null || echo "0"
 )"
 color="true"
-dep+=("file")
-dep+=("readelf")
 shield="$(cat /proc/sys/kernel/exec-shield 2>/dev/null)"
 shieldrand="$(cat /proc/sys/kernel/exec-shield-randomize 2>/dev/null)"
 [[ -z $shieldrand ]] || ((shieldrand += 3))
 
-# Check for missing dependencies
-check_deps
-
 # Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        "--") shift && args+=("$@") && break ;;
+        "--") shift; args+=("$@"); break ;;
         "-h"|"--help") help="true" ;;
         "-k"|"--kernel") kernel="true" ;;
         "--no-color") unset color ;;
@@ -293,12 +288,25 @@ while [[ $# -gt 0 ]]; do
         "-w"|"--wide") wide="true" ;;
         *) args+=("$1") ;;
     esac
+    case "$?" in
+        0) ;;
+        1) shift ;;
+        *) usage $? ;;
+    esac
     shift
 done
 [[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
-# Check for valid params
+# Help info
 [[ -z $help ]] || usage 0
+
+# Check for missing dependencies
+declare -a deps
+dep+=("file")
+dep+=("readelf")
+check_deps
+
+# Check for valid params
 [[ $# -ge 1 ]] || [[ -n $directory$kernel$procs ]] || usage 1
 
 declare -A aslr_clr clr grkern shld

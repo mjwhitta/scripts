@@ -6,7 +6,7 @@ check_deps() {
     for d in "${deps[@]}"; do
         if [[ -z $(command -v "$d") ]]; then
             # Force absolute path
-            if [[ ! -f "/$d" ]]; then
+            if [[ ! -e "/$d" ]]; then
                 err "$d was not found"
                 missing="true"
             fi
@@ -21,8 +21,8 @@ info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || return 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
     esac
     echo "$arg"
     return $shift
@@ -35,9 +35,10 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS]
 
-Launch the community edition of BurpSuite.
+DESCRIPTION
+    Launch the community edition of BurpSuite.
 
-Options:
+OPTIONS
     -c, --clear    Clear cache and download the newest BurpSuite
     -h             Display this help message
     --help         Pass-thru to the BurpSuite jar
@@ -47,30 +48,38 @@ EOF
     exit "$1"
 }
 
-declare -a args deps
+declare -a args
 unset clear help
 color="true"
-deps+=("curl")
-deps+=("java")
-
-# Check for missing dependencies
-check_deps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        "--") shift && args+=("$@") && break ;;
+        "--") shift; args+=("$@"); break ;;
         "-c"|"--clear-cache") clear="true" ;;
         "-h") help="true" ;;
         "--no-color") unset color ;;
         *) args+=("$1") ;;
     esac
+    case "$?" in
+        0) ;;
+        1) shift ;;
+        *) usage $? ;;
+    esac
     shift
 done
 [[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
-# Check for valid params
+# Help info
 [[ -z $help ]] || usage 0
+
+# Check for missing dependencies
+declare -a deps
+deps+=("curl")
+deps+=("java")
+check_deps
+
+# TOOD Check for valid params
 
 cache="$HOME/.cache/burp"
 mkdir -p "$cache"

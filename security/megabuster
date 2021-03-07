@@ -29,8 +29,6 @@
 # --------------------------------------------------------------------
 
 ### Helpers begin
-set -o noglob
-trap "clean 128" SIGINT # Ensure cleanup on ^C
 check_deps() {
     local missing
     for d in "${deps[@]}"; do
@@ -42,10 +40,30 @@ check_deps() {
             fi
         fi
     done; unset d
-    [[ -z $missing ]] || exit 127
+    [[ -z $missing ]] || exit 128
 }
+err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+errx() { err "${*:2}"; clean "$1"; }
+good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
+info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || return 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
+    esac
+    echo "$arg"
+    return $shift
+}
+subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
+### Helpers end
+
+### Parallel helpers begin
+set -o noglob
+trap "clean 126" SIGINT # Ensure cleanup on ^C
 check_lock() {
-    [[ -n $cache ]] || errx 126 "Cache is not defined"
+    [[ -n $cache ]] || errx 125 "Cache is not defined"
     mkdir -p "$cache"
     if [[ -f "$cache.lock" ]]; then
         errx 125 "$cache.lock already exists"
@@ -86,30 +104,15 @@ clean() {
     show_cursor
     exit "${1:-0}"
 }
-err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
-errx() { err "${*:2}"; clean "$1"; }
-good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
 hide_cursor() { echo -en "\e[?25l"; }
-info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 json_get() {
     if [[ -z $json ]] || [[ ! -f "$json" ]]; then
         return
     fi
     jq -cr ".$*" "$json" | sed -r "s/^null$//g"
 }
-long_opt() {
-    local arg shift="0"
-    case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 123 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 123; arg="$1" ;;
-    esac
-    echo "$arg"
-    return $shift
-}
 show_cursor() { echo -en "\e[?25h"; }
-subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
-warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
-### Helpers end
+### Parallel helpers end
 
 cache_default_lists() {
     # Create dcache directory
@@ -637,26 +640,17 @@ read_resume_file() {
     done < <(json_get "wordlists[]"); unset wordlist
 }
 
-# summarize_results() {
-#     [[ -n $summarize ]] || return
-#     [[ -f "$results" ]] || return
-#
-#     info "Summarizing results"
-#     while read -r result; do
-#         good "${result:4}"
-#     done < <(grep -oPs "\[\+\].+" $results | sort -u); unset result
-# }
-
 usage() {
     [[ $1 -ne 0 ]] || logo >&2
     cat <<EOF
 Usage: ${0##*/} [OPTIONS] <host/ip>[:port][/path][?query]
 
-Fuzz paths on a webserver. By default, MegaBuster will try to use the
-directory-list-2.3-medium.txt list from DirBuster and the big.txt and
-common.txt lists from dirb.
+DESCRIPTION
+    Fuzz paths on a webserver. By default, MegaBuster will try to use
+    the directory-list-2.3-medium.txt list from DirBuster and the
+    big.txt and common.txt lists from dirb.
 
-Options:
+OPTIONS
     -a, --apend          Append user specified lists to the default
     -c, --cache          Cache locations of defaults lists
     -f, --force          Assume host is reachable
@@ -707,47 +701,57 @@ $(
 EOF
 }
 
-declare -a args deps ignores wordlists
+declare -a args ignores wordlists
 unset append docache force help proxy resume simulate timeout tls
 unset verbose
 color="true"
 curl="curl -IkLs"
-deps+=("curl")
-deps+=("jq")
-deps+=("parallel")
 threads="32"
-
-# Check for missing dependencies
-check_deps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        "--") shift && args+=("$@") && break ;;
+        "--") shift; args+=("$@"); break ;;
         "-a"|"--append") append="true" ;;
         "-c"|"--cache") docache="true" ;;
         "-f"|"--force") force="true" ;;
         "-h"|"--help") help="true" ;;
-        "-i"|"--ignore"*) ignores+=("$(long_opt "$@")*") || shift ;;
-        "-l"|"--list"*) wordlists+=("$(long_opt "$@")") || shift ;;
+        "-i"|"--ignore"*) ignores+=("$(long_opt "$@")*") ;;
+        "-l"|"--list"*) wordlists+=("$(long_opt "$@")") ;;
         "--no-color") unset color ;;
-        "-p"|"--proxy"*) proxy="--proxy $(long_opt "$@")" || shift ;;
+        "-p"|"--proxy"*) proxy="--proxy $(long_opt "$@")" ;;
         "-r"|"--resume") resume="--resume" ;;
         "--simulate") simulate="true" ;;
-        "-t"|"--threads"*) threads="$(long_opt "$@")" || shift ;;
-        "--timeout"*) timeout="-m $(long_opt "$@")" || shift ;;
+        "-t"|"--threads"*) threads="$(long_opt "$@")" ;;
+        "--timeout"*) timeout="-m $(long_opt "$@")" ;;
         "--tls") tls="true" ;;
         "-v"|"--verbose") verbose="true" ;;
         *) args+=("$1") ;;
+    esac
+    case "$?" in
+        0) ;;
+        1) shift ;;
+        *) usage $? ;;
     esac
     shift
 done
 [[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
-# Check for valid params
+# Help info
 [[ -z $help ]] || usage 0
+
+# Check for missing dependencies
+declare -a deps
+deps+=("awk")
+deps+=("curl")
+deps+=("jq")
+deps+=("parallel")
+deps+=("sha256sum")
+check_deps
+
+# Check for valid params
 [[ $# -le 1 ]] || usage 1
-[[ $# -eq 1 ]] || [[ -n $docache$simulate ]] || usage 1
+[[ $# -eq 1 ]] || [[ -n $docache$resume$simulate ]] || usage 1
 
 # Cite if needed
 if [[ ! -f "$HOME/.parallel/will-cite" ]]; then
@@ -759,11 +763,9 @@ if [[ ! -f "$HOME/.parallel/will-cite" ]]; then
     unset pvers
 fi
 
-# Save host
+# Save command line args
 host="${1:-${simulate:+simulation}}"
-
-# Strip protocol
-host="${host#*://}"
+host="${host#*://}" # Strip protocol
 
 # Cache variables
 hash="$(echo -n "$host" | sha256sum | awk '{print $1}')"

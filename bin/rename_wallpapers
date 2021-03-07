@@ -148,10 +148,10 @@ done
 
 # Check for missing dependencies
 declare -a deps
-deps+=("jq")
 deps+=("arTTY")
 deps+=("awk")
 deps+=("grep")
+deps+=("jq")
 deps+=("md5sum")
 deps+=("sha256sum")
 check_deps

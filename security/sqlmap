@@ -6,7 +6,7 @@ check_deps() {
     for d in "${deps[@]}"; do
         if [[ -z $(command -v "$d") ]]; then
             # Force absolute path
-            if [[ ! -f "/$d" ]]; then
+            if [[ ! -e "/$d" ]]; then
                 err "$d was not found"
                 missing="true"
             fi
@@ -21,8 +21,8 @@ info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || return 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
     esac
     echo "$arg"
     return $shift
@@ -35,9 +35,10 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS]
 
-Launch sqlmap.
+DESCRIPTION
+    Launch sqlmap.
 
-Options:
+OPTIONS
     -c, --clear    Clear cache and download the newest sqlmap
     -h             Display this help message
     --help         Pass-thru to sqlmap
@@ -47,30 +48,38 @@ EOF
     exit "$1"
 }
 
-declare -a args deps
+declare -a args
 unset clear help
 color="true"
-deps+=("git")
-deps+=("python3")
-
-# Check for missing dependencies
-check_deps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        "--") shift && args+=("$@") && break ;;
-        "-c"|"--clear-cache") clear="true" ;;
+        "--") shift; args+=("$@"); break ;;
+        "-c"|"--clear") clear="true" ;;
         "-h") help="true" ;;
         "--no-color") unset color ;;
         *) args+=("$1") ;;
+    esac
+    case "$?" in
+        0) ;;
+        1) shift ;;
+        *) usage $? ;;
     esac
     shift
 done
 [[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
-# Check for valid params
+# Help info
 [[ -z $help ]] || usage 0
+
+# Check for missing dependencies
+declare -a deps
+deps+=("git")
+deps+=("python3")
+check_deps
+
+# TODO Check for valid params
 
 cache="$HOME/.cache/sqlmap"
 mkdir -p "$(dirname "$cache")"

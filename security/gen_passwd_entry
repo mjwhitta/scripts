@@ -34,7 +34,7 @@ check_deps() {
     for d in "${deps[@]}"; do
         if [[ -z $(command -v "$d") ]]; then
             # Force absolute path
-            if [[ ! -f "/$d" ]]; then
+            if [[ ! -e "/$d" ]]; then
                 err "$d was not found"
                 missing="true"
             fi
@@ -49,8 +49,8 @@ info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || return 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
     esac
     echo "$arg"
     return $shift
@@ -63,9 +63,10 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS] <username>
 
-Generate /etc/passwd entries.
+DESCRIPTION
+    Generate /etc/passwd entries.
 
-Options:
+OPTIONS
     -h, --help             Display this help message
     -n, --no-block         Use non-blocking source of random
     --no-color             Disable colorized output
@@ -75,31 +76,39 @@ EOF
     exit "$1"
 }
 
-declare -a args deps
+declare -a args
 unset help noblock passwd
 color="true"
-deps+=("awk")
-deps+=("makepasswd")
-
-# Check for missing dependencies
-check_deps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        "--") shift && args+=("$@") && break ;;
+        "--") shift; args+=("$@"); break ;;
         "-h"|"--help") help="true" ;;
         "-n"|"--no-block") noblock="true" ;;
         "--no-color") unset color ;;
-        "-p"|"--passwd"*) passwd="$(long_opt "$@")" || shift ;;
+        "-p"|"--passwd"*) passwd="$(long_opt "$@")" ;;
         *) args+=("$1") ;;
+    esac
+    case "$?" in
+        0) ;;
+        1) shift ;;
+        *) usage $? ;;
     esac
     shift
 done
 [[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
-# Check for valid params
+# Help info
 [[ -z $help ]] || usage 0
+
+# Check for missing dependencies
+declare -a deps
+deps+=("awk")
+deps+=("makepasswd")
+check_deps
+
+# Check for valid params
 [[ $# -eq 1 ]] || usage 1
 
 [[ -n $passwd ]] || passwd="$1"
@@ -110,5 +119,5 @@ if [[ -z $noblock ]];  then
         awk '{print ":"$2":0:0:::"}'
 else
     makepasswd --clearfrom=<(echo "$passwd") --crypt-md5 \
-        --randomseed 1 | awk '{print ":"$2":0:0:::"}'
+        --randomseed $RANDOM | awk '{print ":"$2":0:0:::"}'
 fi

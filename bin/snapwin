@@ -220,7 +220,7 @@ Usage: ${0##*/} [OPTIONS] [width] [height]
 
 DESCRIPTION
     Simple window management tool. A minimal config can be found at:
-    $HOME/.config/${0##*/}/rc
+    $HOME/.config/${0##*/}/rc.
 
 OPTIONS
     -b, --bottom          Snap active window to bottom

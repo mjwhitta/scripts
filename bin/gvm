@@ -283,23 +283,6 @@ done
 # Help info
 [[ -z $help ]] || usage 0
 
-# Check for missing dependencies
-declare -a deps
-deps+=("basename")
-deps+=("curl")
-deps+=("find")
-deps+=("grep")
-deps+=("ln")
-deps+=("sort")
-deps+=("tar")
-deps+=("uname")
-check_deps
-
-# TODO Check for valid params
-
-# Fallback to system Go, if needed and installed
-gofallback
-
 # Get system metadata
 case "$(uname -m)" in
     "i386") arch="386" ;;
@@ -312,6 +295,22 @@ case "$(uname -s)" in
     "Linux") os="linux" ;;
     *) errx 2 "Unsupported OS $(uname -s)" ;;
 esac
+
+# Check for missing dependencies
+declare -a deps
+deps+=("basename")
+deps+=("curl")
+deps+=("find")
+deps+=("grep")
+deps+=("ln")
+deps+=("sort")
+deps+=("tar")
+check_deps
+
+# TODO Check for valid params
+
+# Fallback to system Go, if needed and installed
+gofallback
 
 # Normalize version
 [[ -z $vers ]] || vers="${vers#v}"

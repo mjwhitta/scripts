@@ -1,12 +1,35 @@
 #!/usr/bin/env bash
 
-err() { echo -e "${color:+\e[31m}[!] $@\e[0m"; }
-
-errx() { echo -e "${color:+\e[31m}[!] ${@:2}\e[0m"; exit $1; }
-
-good() { echo -e "${color:+\e[32m}[+] $@\e[0m"; }
-
-info() { echo -e "${color:+\e[37m}[*] $@\e[0m"; }
+### Helpers begin
+check_deps() {
+    local missing
+    for d in "${deps[@]}"; do
+        if [[ -z $(command -v "$d") ]]; then
+            # Force absolute path
+            if [[ ! -e "/$d" ]]; then
+                err "$d was not found"
+                missing="true"
+            fi
+        fi
+    done; unset d
+    [[ -z $missing ]] || exit 128
+}
+err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+errx() { err "${*:2}"; exit "$1"; }
+good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
+info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || return 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
+    esac
+    echo "$arg"
+    return $shift
+}
+subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
+warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
+### Helpers end
 
 link() {
     info "Linking directories and files..."
@@ -67,16 +90,6 @@ link_status() {
     done; unset entry
 }
 
-long_opt() {
-    local arg shift="0"
-    case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 1 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 1; arg="$1" ;;
-    esac
-    echo "$arg"
-    return $shift
-}
-
 unlink() {
     info "Unlinking directories and files..."
     for entry in "${files[@]}"; do
@@ -108,24 +121,25 @@ unlink() {
 }
 
 usage() {
-    echo "Usage: ${0/*\//} [OPTIONS] <action>"
-    echo "Options:"
-    echo "    -f, --force    Do not make backups"
-    echo "    -h, --help     Display this help message"
-    echo "    --nocolor      Disable colorized output"
-    echo
-    echo "Actions:"
-    echo "    link"
-    echo "        Back up existing scripts and symlink new scripts"
-    echo "    status"
-    echo "        Show what's linked and what isn't"
-    echo "    unlink"
-    echo "        Remove symlinks and restore old scripts"
-    echo
+    cat <<EOF
+Usage: ${0##*/} [OPTIONS] <action>
+
+DESCRIPTION
+     Install scripts from this repo.
+
+OPTIONS
+    -f, --force    Do not make backups
+    -h, --help     Display this help message
+    --no-color     Disable colorized output
+
+ACTIONS
+    link      Back up existing scripts and symlink new scripts
+    status    Show what's linked and what isn't
+    unlink    Remove symlinks and restore old scripts
+
+EOF
     exit $1
 }
-
-warn() { echo -e "${color:+\e[33m}[-] $@\e[0m"; }
 
 declare -a args
 unset force help
@@ -136,18 +150,31 @@ here="$(pwd)"
 # Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        "--") shift && args+=("$@") && break ;;
+        "--") shift; args+=("$@"); break ;;
         "-f"|"--force") force="true" ;;
         "-h"|"--help") help="true" ;;
-        "--nocolor") unset color ;;
+        "--no-color") unset color ;;
         *) args+=("$1") ;;
+    esac
+    case "$?" in
+        0) ;;
+        1) shift ;;
+        *) usage $? ;;
     esac
     shift
 done
-[[ -z ${args[@]} ]] || set -- "${args[@]}"
+[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
-# Check for valid params and missing dependencies
+# Help info
 [[ -z $help ]] || usage 0
+
+# Check for missing dependencies
+declare -a deps
+deps+=("grep")
+deps+=("ln")
+check_deps
+
+# Check for valid params
 [[ $# -eq 1 ]] || usage 1
 
 declare -a files

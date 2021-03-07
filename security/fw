@@ -34,7 +34,7 @@ check_deps() {
     for d in "${deps[@]}"; do
         if [[ -z $(command -v "$d") ]]; then
             # Force absolute path
-            if [[ ! -f "/$d" ]]; then
+            if [[ ! -e "/$d" ]]; then
                 err "$d was not found"
                 missing="true"
             fi
@@ -49,8 +49,8 @@ info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || return 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
     esac
     echo "$arg"
     return $shift
@@ -118,9 +118,10 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS]
 
-Makes some $iptables commands easier.
+DESCRIPTION
+    Makes some $iptables commands easier.
 
-Options:
+OPTIONS
     -a, --all           Include Docker rules in output
     -h, --help          Display this help message
     -c, --close=PORT    Close a previously opened port
@@ -134,55 +135,56 @@ EOF
     exit "$1"
 }
 
+declare -a args tbls
+unset all help iptables port
+action="list"
+color="true"
+
 # Enable multi-call functionality
-unset iptables
 case "${0##*/}" in
     *"6") iptables="ip6tables" ;;
     *) iptables="iptables" ;;
 esac
 
-declare -a args deps tbls
-unset all help port
-action="list"
-color="true"
-deps+=("$iptables")
-deps+=("lsmod")
-
-# Check for missing dependencies
-check_deps
-
 # Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        "--") shift && args+=("$@") && break ;;
+        "--") shift; args+=("$@"); break ;;
         "-a"|"--all") all="true" ;;
         "--clear") action="clear" ;;
-        "-c"|"--close"*)
-            action="close"
-            port="$(long_opt "$@")" || shift
-            ;;
+        "-c"|"--close"*) action="close"; port="$(long_opt "$@")" ;;
         "-h"|"--help") help="true" ;;
         "-l"|"--list") action="list" ;;
         "--no-color") unset color ;;
-        "-o"|"--open"*)
-            action="open"
-            port="$(long_opt "$@")" || shift
-            ;;
+        "-o"|"--open"*) action="open"; port="$(long_opt "$@")" ;;
         "-r"|"--reset") action="reset" ;;
         *) args+=("$1") ;;
+    esac
+    case "$?" in
+        0) ;;
+        1) shift ;;
+        *) usage $? ;;
     esac
     shift
 done
 [[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
-# Check for valid params
+# Help info
 [[ -z $help ]] || usage 0
+
+# Check for missing dependencies
+declare -a deps
+deps+=("$iptables")
+deps+=("lsmod")
+check_deps
+
+# Check for valid params
 [[ $# -eq 0 ]] || usage 1
 
 tbls+=("filter")
 while read -r tbl; do
     [[ "$tbl" == "filter" ]] || tbls+=("$tbl")
-done < <(lsmod | grep -ioPs "^${iptables%s}_\K\S+" | sort)
+done < <(lsmod 2>/dev/null | grep -ioPs "^${iptables%s}_\K\S+" | sort)
 
 declare -a dignore
 if [[ -n $(command -v docker) ]]; then

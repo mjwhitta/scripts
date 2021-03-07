@@ -6,7 +6,7 @@ check_deps() {
     for d in "${deps[@]}"; do
         if [[ -z $(command -v "$d") ]]; then
             # Force absolute path
-            if [[ ! -f "/$d" ]]; then
+            if [[ ! -e "/$d" ]]; then
                 err "$d was not found"
                 missing="true"
             fi
@@ -49,9 +49,10 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS]
 
-Create a bind shell
+DESCRIPTION
+    Create a bind shell.
 
-Options:
+OPTIONS
     -c, --connect      Connect to a listening bind_shell instance
     -f, --fifo=FIFO    Use the specified fifo
     -h, --help         Display this help message
@@ -66,49 +67,57 @@ EOF
     exit "$1"
 }
 
-declare -a args deps
+declare -a args
 unset help host
 color="true"
-deps+=("mkfifo")
 fifo="/tmp/f"
-if [[ -n $(command -v nc) ]]; then
-    nc="$(command -v nc)"
-elif [[ -n $(command -v ncat) ]]; then
-    nc="$(command -v ncat)"
-elif [[ -n $(command -v netcat) ]]; then
-    nc="$(command -v netcat)"
-fi
+nc="$(command -v nc)"
+[[ -n $nc ]] || nc="$(command -v ncat)"
+[[ -n $nc ]] || nc="$(command -v netcat)"
 port="4444"
-
-# Check for missing dependencies
-check_deps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        "--") shift && args+=("$@") && break ;;
+        "--") shift; args+=("$@"); break ;;
         "-c"|"--connect") action="connect" ;;
-        "-f"|"--fifo"*) fifo="$(long_opt "$@")" || shift ;;
+        "-f"|"--fifo"*) fifo="$(long_opt "$@")" ;;
         "-h"|"--help") help="true" ;;
-        "--host"*) host="$(long_opt "$@")" || shift ;;
+        "--host"*) host="$(long_opt "$@")" ;;
         "-l"|"--listen") action="listen" ;;
-        "--nc"*) nc="$(long_opt "$@")" || shift ;;
+        "--nc"*) nc="$(long_opt "$@")" ;;
         "--no-color") unset color ;;
-        "-p"|"--port"*) port="$(long_opt "$@")" || shift ;;
+        "-p"|"--port"*) port="$(long_opt "$@")" ;;
         *) args+=("$1") ;;
+    esac
+    case "$?" in
+        0) ;;
+        1) shift ;;
+        *) usage $? ;;
     esac
     shift
 done
 [[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
-# Check for valid params
+# Help info
 [[ -z $help ]] || usage 0
+
+# Check for missing dependencies
+declare -a deps
+deps+=("bash")
+deps+=("mkfifo")
+check_deps
+
+# Check for valid params
 [[ $# -eq 0 ]] || usage 1
-[[ -n $action ]] || usage 2
-[[ -n $nc ]] || usage 3
-[[ -f $nc ]] || usage 4
+[[ -n $action ]] || usage 1
+[[ -n $nc ]] || usage 1
+[[ -f $nc ]] || usage 1
+case "$action" in
+    "connect") [[ -n $host ]] || usage 1 ;;
+esac
 
 case "$action" in
-    "connect") [[ -n $host ]] || errx 5 "No host provided"; connect ;;
+    "connect") connect ;;
     "listen") listen ;;
 esac

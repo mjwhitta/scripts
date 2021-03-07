@@ -4,6 +4,8 @@
 tool="${1:-/usr/bin/nmap}"
 
 if [[ -f $tool ]]; then
-    sudo setcap cap_net_raw,cap_net_admin,cap_net_bind_service+eip \
+    sudo setcap cap_net_admin,cap_net_bind_service,cap_net_raw+eip \
         $tool
+else
+    echo "$tool not found"
 fi

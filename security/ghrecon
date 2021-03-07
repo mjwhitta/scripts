@@ -34,7 +34,7 @@ check_deps() {
     for d in "${deps[@]}"; do
         if [[ -z $(command -v "$d") ]]; then
             # Force absolute path
-            if [[ ! -f "/$d" ]]; then
+            if [[ ! -e "/$d" ]]; then
                 err "$d was not found"
                 missing="true"
             fi
@@ -49,8 +49,8 @@ info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || return 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
     esac
     echo "$arg"
     return $shift
@@ -63,12 +63,13 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS] github_url
 
-This tool will gather a list of repo/gists from GitHub.
+DESCRIPTION
+    This tool will gather a list of gists/repo from GitHub.
 
-To get a TOKEN, go to the settings page of your GitHub account. Click
-Applications and generate a personal access token.
+    To get a TOKEN, go to the settings page of your GitHub account.
+    Click "Applications" and generate a personal access token.
 
-Options:
+OPTIONS
     -a, --access=TOKEN    Use the specified access token
     -h, --help            Display this help message
     --no-color            Disable colorized output
@@ -79,49 +80,86 @@ EOF
     exit "$1"
 }
 
-declare -a args deps
+declare -a args
 unset help output socks token
 color="true"
-deps+=("curl")
-
-# Check for missing dependencies
-check_deps
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        "--") shift && args+=("$@") && break ;;
-        "-a"|"--access"*) arg="$(long_opt "$@")" || shift
-            token="?access_token=$arg"
-            ;;
+        "--") shift; args+=("$@"); break ;;
+        "-a"|"--access"*) token="&access_token=$(long_opt "$@")" ;;
         "-h"|"--help") help="true" ;;
         "--no-color") unset color ;;
-        "-o"|"--output"*) output="$(long_opt "$@")" || shift ;;
-        "-s"|"--socks"*) socks="--socks5 $(long_opt "$@")" || shift ;;
+        "-o"|"--output"*) output="$(long_opt "$@")" ;;
+        "-s"|"--socks"*) socks="--socks5 $(long_opt "$@")" ;;
         *) args+=("$1") ;;
+    esac
+    case "$?" in
+        0) ;;
+        1) shift ;;
+        *) usage $? ;;
     esac
     shift
 done
 [[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
-# Check for valid params
+# Help info
 [[ -z $help ]] || usage 0
+
+# Check for missing dependencies
+declare -a deps
+deps+=("curl")
+deps+=("jq")
+check_deps
+
+# Check for valid params
 [[ $# -le 1 ]] || usage 1
 
-github="https://github.com/api/v3"
-[[ $# -eq 0 ]] || github="$1/api/v3"
+github="https://api.github.com"
+[[ $# -eq 0 ]] || github="$1"
 
-curl="curl -s $socks"
+accept="-H \"Accept: application/vnd.github.v3+json\""
+curl="curl $accept -kLs $socks"
+jq="jq -cMrS"
+more="1"
+since="0"
 
-for username in $(
-    $curl "$github/users$token" | grep "login" | \
-    awk -F "\"" '{print $4}' | sort
-); do
-    # Get all gists
-    $curl "$github/users/$username/gists$token" | grep "git_pull" | \
-        awk -F "\"" '{print $4}'
+while [[ $more -eq 1 ]]; do
+    more="0"
 
-    # Get all repos
-    $curl "$github/users/$username/repos$token" | \
-        grep "clone_url" | awk -F "\"" '{print $4}'
-done | tee $output
+    while read -r username; do
+        [[ -n $username ]] || continue
+
+        more="1"
+        url="$github/users/$username"
+
+        # Get all gists and repos
+        for i in gists repos; do
+            more="2"
+            page="1"
+
+            while [[ $more -eq 2 ]]; do
+                more="1"
+
+                while read -r item; do
+                    [[ -n $item ]] || continue
+
+                    more="2"
+
+                    echo "$item"
+                done < <(
+                    $curl "$url/$i?page=$page&per_page=100$token" | \
+                    $jq ".[].html_url" 2>/dev/null
+                ); unset item
+
+                ((page+=1))
+            done; unset page
+        done; unset i
+    done < <(
+        $curl "$github/users?per_page=100&since=$since$token" | \
+        $jq ".[].login" 2>/dev/null | sort -u
+    ) | tee $output; unset username
+
+    ((since+=100))
+done

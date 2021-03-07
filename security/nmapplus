@@ -34,7 +34,7 @@ check_deps() {
     for d in "${deps[@]}"; do
         if [[ -z $(command -v "$d") ]]; then
             # Force absolute path
-            if [[ ! -f "/$d" ]]; then
+            if [[ ! -e "/$d" ]]; then
                 err "$d was not found"
                 missing="true"
             fi
@@ -49,8 +49,8 @@ info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
-        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || usage 127 ;;
-        *) shift="1"; shift; [[ $# -gt 0 ]] || usage 127; arg="$1" ;;
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || return 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
     esac
     echo "$arg"
     return $shift
@@ -102,9 +102,10 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS] [host1]... [hostN]
 
-Organizes your nmap scans
+DESCRIPTION
+    Organizes your nmap scans.
 
-Options:
+OPTIONS
     -6                      Enable IPv6 scanning
     -f, --force             Force scan
     -h, --help              Display this help message
@@ -129,63 +130,66 @@ EOF
     exit "$1"
 }
 
-declare -a args deps
+declare -a args
 unset force help iface ipv6 os services technique timeout udp
 color="true"
-deps+=("nmap")
 output="nmap_scans"
 prot="tcp"
 ports="-p 1-65535"
 
-# Check for missing dependencies
-check_deps
-
 # Parse command line options
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        "--") shift && args+=("$@") && break ;;
+        "--") shift; args+=("$@"); break ;;
         "-6") ipv6="-6" ;;
         "-f"|"--force") force="-Pn" ;;
         "-h"|"--help") help="true" ;;
-        "--hosts"*) hosts+=("$(long_opt "$@")") || shift ;;
-        "-i"|"--iface"*) iface="-e $(long_opt "$@")" || shift ;;
+        "--hosts"*) hosts+=("$(long_opt "$@")") ;;
+        "-i"|"--iface"*) iface="-e $(long_opt "$@")" ;;
         "--no-color") unset color ;;
         "-o"|"--os") os="-A" ;;
-        "--output"*) output="$(long_opt "$@")" || shift ;;
-        "-p"|"--ports"*) ports="-p $(long_opt "$@")" || shift ;;
+        "--output"*) output="$(long_opt "$@")" ;;
+        "-p"|"--ports"*) ports="-p $(long_opt "$@")" ;;
         "-s"|"--services") services="-sV" ;;
-        "-t"|"--technique"*)
-            arg="$(long_opt "$@")" || shift
-            case "$arg" in
-                "syn") technique="-sS" ;;
-                "connect") technique="-sT" ;;
-                "ack") technique="-sA" ;;
-                "window") technique="-sW" ;;
-                "maimon") technique="-sM" ;;
-                "null") technique="-sN" ;;
-                "fin") technique="-sF" ;;
-                "xmas") technique="-sX" ;;
-                *) usage 127 ;;
-            esac
-            ;;
-        "--timeout"*)
-            timeout="--host-timeout $(long_opt "$@")" || shift
-            ;;
-        "-n"|"--topn"*)
-            ports="--top-ports $(long_opt "$@")" || shift
-            ;;
+        "-t"|"--technique"*) technique="$(long_opt "$@")" ;;
+        "--timeout"*) timeout="--host-timeout $(long_opt "$@")" ;;
+        "-n"|"--topn"*) ports="--top-ports $(long_opt "$@")" ;;
         "-u"|"--udp") udp="-sU"; prot="udp" ;;
         *) args+=("$1") ;;
+    esac
+    case "$?" in
+        0) ;;
+        1) shift ;;
+        *) usage $? ;;
     esac
     shift
 done
 [[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
 
-# Check for valid params
+# Help info
 [[ -z $help ]] || usage 0
+
+# Check for missing dependencies
+declare -a deps
+deps+=("awk")
+deps+=("nmap")
+check_deps
+
+# Check for valid params
 [[ $# -eq 0 ]] || hosts+=($@)
 [[ -z $ipv6 ]] || prot="${prot}6"
 [[ ${#hosts[@]} -ne 0 ]] || usage 1
+case "$technique" in
+    "syn") technique="-sS" ;;
+    "connect") technique="-sT" ;;
+    "ack") technique="-sA" ;;
+    "window") technique="-sW" ;;
+    "maimon") technique="-sM" ;;
+    "null") technique="-sN" ;;
+    "fin") technique="-sF" ;;
+    "xmas") technique="-sX" ;;
+    *) usage 1 ;;
+esac
 
 for arg in "${hosts[@]}"; do
     [[ ! -f $arg ]] || scan_hosts $arg
