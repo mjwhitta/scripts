@@ -77,7 +77,7 @@ Detect when IP changes and notify user.
 Options:
     -e, --email=EMAIL    Notify specified email address
     -f, --file=FILE      Compare to IP in specified file
-    -h, --helpo          Display this help message
+    -h, --help           Display this help message
     -i, --ip=IP          Compare to specified IP
     --nocolor            Disable colorized output
 

@@ -79,7 +79,7 @@ OPTIONS
     -e, --external         Use external IP (default)
     -f, --file=FILE        Compare to IP in specified file
     --force                Update even if IP hasn't changed
-    -h, --helpo            Display this help message
+    -h, --help             Display this help message
     -i, --internal         Use internal IP
     --iface=IFACE          Use specified interface (default: $iface)
     --ip=IP                Compare to specified IP
