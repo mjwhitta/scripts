@@ -42,10 +42,10 @@ check_deps() {
     done; unset d
     [[ -z $missing ]] || exit 128
 }
-err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+err() { echo -e "${color:+\e[31m}[!] $*${color:+\e[0m}" >&2; }
 errx() { err "${*:2}"; exit "$1"; }
-good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
-info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
+good() { echo -e "${color:+\e[32m}[+] $*${color:+\e[0m}"; }
+info() { echo -e "${color:+\e[37m}[*] $*${color:+\e[0m}"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
@@ -55,8 +55,8 @@ long_opt() {
     echo "$arg"
     return $shift
 }
-subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
-warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
+subinfo() { echo -e "${color:+\e[36m}[=] $*${color:+\e[0m}"; }
+warn() { echo -e "${color:+\e[33m}[-] $*${color:+\e[0m}"; }
 ### Helpers end
 
 scan_host() {
@@ -79,7 +79,7 @@ scan_host() {
         "$host"
     )
 
-    mkdir -p $output/$host
+    mkdir -p "$output/$host"
 
     if [[ -f $output/$host/$prot.nmap ]] && [[ -z $force ]]; then
         warn "Already done, skipping"
@@ -92,10 +92,15 @@ scan_host() {
 }
 
 scan_hosts() {
+    local host
+
     info "Reading hosts from $1..."
+
     while read -r host; do
-        scan_host ${host%% *}
-    done < <(awk '!/^ *#/ {print $1}' $1)
+        host="${host%% *}"
+        [[ -n $host ]] || continue
+        scan_host "$host"
+    done < <(grep -Esv "^\s*(#.*)?$)" "$1"); unset host
 }
 
 usage() {
@@ -103,28 +108,27 @@ usage() {
 Usage: ${0##*/} [OPTIONS] [host1]... [hostN]
 
 DESCRIPTION
-    Organizes your nmap scans.
+    Organizes your nmap scans. Hosts on cli can also be files
+    containing one host per line.
 
 OPTIONS
-    -6                      Enable IPv6 scanning
-    -f, --force             Force scan
-    -h, --help              Display this help message
-    --hosts=FILE            Use hosts from file (split on whitespace
-                            and use first token from each line)
-    -i, --iface=IFACE       Use the specified interface for scanning
-    --no-color              Disable colorized output
-    -o, --os                Enable OS detection
-    --output=DIR            Output scans to specified directory
-                            (default: $output)
-    -p, --ports=PORTS       Only scan specified ports (default: all
-                            ports)
-    -s, --services          Identity running services
-    -t, --technique=TECH    Scan technique: syn, connect, ack, window,
-                            maimon, null, fin, xmas
-    --timeout=TIMEOUT       Give up on host after specified time (e.g.
-                            15m)
-    -n, --topn=NUM          Only scan the top N ports
-    -u, --udp               UDP scan
+    -6                       Enable IPv6 scanning
+    -f, --force              Force scan
+    -h, --help               Display this help message
+    -i, --iface=IFACE        Use the specified interface for scanning
+        --no-color           Disable colorized output
+    -o, --os                 Enable OS detection
+        --output=DIR         Output scans to specified directory
+                             (default: $output)
+    -p, --ports=PORTS        Only scan specified ports (default: all
+                             ports)
+    -s, --services           Identity running services
+    -t, --technique=TECH     Scan technique: syn, connect, ack,
+                             window, maimon, null, fin, xmas
+        --timeout=TIMEOUT    Give up on host after specified time
+                             (e.g. 15m)
+    -n, --topn=NUM           Only scan the top N ports
+    -u, --udp                UDP scan
 
 EOF
     exit "$1"
@@ -144,7 +148,6 @@ while [[ $# -gt 0 ]]; do
         "-6") ipv6="-6" ;;
         "-f"|"--force") force="-Pn" ;;
         "-h"|"--help") help="true" ;;
-        "--hosts"*) hosts+=("$(long_opt "$@")") ;;
         "-i"|"--iface"*) iface="-e $(long_opt "$@")" ;;
         "--no-color") unset color ;;
         "-o"|"--os") os="-A" ;;
@@ -171,15 +174,15 @@ done
 
 # Check for missing dependencies
 declare -a deps
-deps+=("awk")
+deps+=("grep")
 deps+=("nmap")
 check_deps
 
 # Check for valid params
-[[ $# -eq 0 ]] || hosts+=($@)
+[[ $# -gt 0 ]] || usage 1
 [[ -z $ipv6 ]] || prot="${prot}6"
-[[ ${#hosts[@]} -ne 0 ]] || usage 1
 case "$technique" in
+    "") ;;
     "syn") technique="-sS" ;;
     "connect") technique="-sT" ;;
     "ack") technique="-sA" ;;
@@ -191,7 +194,7 @@ case "$technique" in
     *) usage 1 ;;
 esac
 
-for arg in "${hosts[@]}"; do
-    [[ ! -f $arg ]] || scan_hosts $arg
-    [[ -f $arg ]] || scan_host $arg
+for host in "$@"; do
+    [[ ! -f "$host" ]] || scan_hosts "$host"
+    [[ -f "$host" ]] || scan_host "$host"
 done
