@@ -44,21 +44,21 @@ usage() {
 Usage: ${0##*/} [OPTIONS]
 
 DESCRIPTION
-    Parse all the themes from https://github.com/Mayccoll/Gogh and
-    extract to separate JSON files.
+    Install all themes from https://github.com/Mayccoll/Gogh.
 
 OPTIONS
     -h, --help          Display this help message
         --no-color      Disable colorized output
-    -o, --output=DIR    Extract to specified directory (default:
+    -o, --output=DIR    Specify install directory (default:
                         ~/.config/tilix/schemes)
+    -r, --rm            Remove Gogh themes
 
 EOF
     exit "$1"
 }
 
 declare -a args
-unset help
+unset help rm
 color="true"
 output="$HOME/.config/tilix/schemes"
 
@@ -69,6 +69,7 @@ while [[ $# -gt 0 ]]; do
         "-h"|"--help") help="true" ;;
         "--no-color") unset color ;;
         "-o"|"--output"*) output="$(long_opt "$@")" ;;
+        "-r"|"--rm") rm="true" ;;
         *) args+=("$1") ;;
     esac
     case "$?" in
@@ -92,15 +93,17 @@ check_deps
 # Check for valid params
 [[ $# -eq 0 ]] || usage 1
 
+mkdir -p "$output"
+
+info "Removing existing Gogh themes"
+rm -f "$output/*.gogh.json"
+
+[[ -z $rm ]] || exit 0
+
 info "Fetching newest Gogh themes"
 curl -kLo /tmp/themes.json \
     "https://raw.githubusercontent.com/Mayccoll/Gogh/master/data/themes.json"
 [[ -f /tmp/themes.json ]] || errx 2 "Failed to download themes"
-
-mkdir -p "$output"
-
-info "Removing old Gogh themes"
-rm -f "$output/*.gogh.json"
 
 info "Extracting themes"
 while read -r theme; do
