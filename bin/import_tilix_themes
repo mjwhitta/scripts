@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+
+### Helpers begin
+check_deps() {
+    local missing
+    for d in "${deps[@]}"; do
+        if [[ -z $(command -v "$d") ]]; then
+            # Force absolute path
+            if [[ ! -e "/$d" ]]; then
+                err "$d was not found"
+                missing="true"
+            fi
+        fi
+    done; unset d
+    [[ -z $missing ]] || exit 128
+}
+err() { echo -e "${color:+\e[31m}[!] $*${color:+\e[0m}" >&2; }
+errx() { err "${*:2}"; exit "$1"; }
+good() { echo -e "${color:+\e[32m}[+] $*${color:+\e[0m}"; }
+info() { echo -e "${color:+\e[37m}[*] $*${color:+\e[0m}"; }
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || return 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
+    esac
+    echo "$arg"
+    return $shift
+}
+subinfo() { echo -e "${color:+\e[36m}[=] $*${color:+\e[0m}"; }
+warn() { echo -e "${color:+\e[33m}[-] $*${color:+\e[0m}"; }
+### Helpers end
+
+jq_get() {
+    if [[ -f $2 ]]; then
+        jq -cr "$1" "$2" | sed -r "s/^null$//g"
+    else
+        jq -cr "$1" <<<"$2" | sed -r "s/^null$//g"
+    fi
+}
+
+usage() {
+    cat <<EOF
+Usage: ${0##*/} [OPTIONS]
+
+DESCRIPTION
+    Parse all the themes from https://github.com/Mayccoll/Gogh and
+    extract to separate JSON files.
+
+OPTIONS
+    -h, --help          Display this help message
+        --no-color      Disable colorized output
+    -o, --output=DIR    Extract to specified directory (default:
+                        ~/.config/tilix/schemes)
+
+EOF
+    exit "$1"
+}
+
+declare -a args
+unset help
+color="true"
+output="$HOME/.config/tilix/schemes"
+
+# Parse command line options
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        "--") shift; args+=("$@"); break ;;
+        "-h"|"--help") help="true" ;;
+        "--no-color") unset color ;;
+        "-o"|"--output"*) output="$(long_opt "$@")" ;;
+        *) args+=("$1") ;;
+    esac
+    case "$?" in
+        0) ;;
+        1) shift ;;
+        *) usage $? ;;
+    esac
+    shift
+done
+[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
+
+# Help info
+[[ -z $help ]] || usage 0
+
+# Check for missing dependencies
+declare -a deps
+deps+=("curl")
+deps+=("jq")
+check_deps
+
+# Check for valid params
+[[ $# -eq 0 ]] || usage 1
+
+info "Fetching newest Gogh themes"
+curl -kLo /tmp/themes.json \
+    "https://raw.githubusercontent.com/Mayccoll/Gogh/master/data/themes.json"
+[[ -f /tmp/themes.json ]] || errx 2 "Failed to download themes"
+
+mkdir -p "$output"
+
+info "Removing old Gogh themes"
+rm -f "$output/*.gogh.json"
+
+info "Extracting themes"
+while read -r theme; do
+    name="$(jq_get ".name" "$theme")"
+
+    good "$name"
+
+    cat >"$output/$name.gogh.json" <<EOF
+{
+  "background-color": "$(jq_get ".background" "$theme")",
+  "comment": "$name imported from https://github.com/Mayccoll/Gogh",
+  "foreground-color": "$(jq_get ".foreground" "$theme")",
+  "name": "$name",
+  "palette": [
+    "$(jq_get ".black" "$theme")",
+    "$(jq_get ".red" "$theme")",
+    "$(jq_get ".green" "$theme")",
+    "$(jq_get ".yellow" "$theme")",
+    "$(jq_get ".blue" "$theme")",
+    "$(jq_get ".purple" "$theme")",
+    "$(jq_get ".cyan" "$theme")",
+    "$(jq_get ".white" "$theme")",
+    "$(jq_get ".brightBlack" "$theme")",
+    "$(jq_get ".brightRed" "$theme")",
+    "$(jq_get ".brightGreen" "$theme")",
+    "$(jq_get ".brightYellow" "$theme")",
+    "$(jq_get ".brightBlue" "$theme")",
+    "$(jq_get ".brightPurple" "$theme")",
+    "$(jq_get ".brightCyan" "$theme")",
+    "$(jq_get ".brightWhite" "$theme")"
+  ],
+  "use-theme-colors": false
+}
+EOF
+done < <(jq_get ".themes[]" "/tmp/themes.json"); unset theme
+
+info "Done"
