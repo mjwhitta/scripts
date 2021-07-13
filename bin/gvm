@@ -42,10 +42,10 @@ check_deps() {
     done; unset d
     [[ -z $missing ]] || exit 128
 }
-err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+err() { echo -e "${color:+\e[31m}[!] $*${color:+\e[0m}" >&2; }
 errx() { err "${*:2}"; exit "$1"; }
-good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
-info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
+good() { echo -e "${color:+\e[32m}[+] $*${color:+\e[0m}"; }
+info() { echo -e "${color:+\e[37m}[*] $*${color:+\e[0m}"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
@@ -55,8 +55,8 @@ long_opt() {
     echo "$arg"
     return $shift
 }
-subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
-warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
+subinfo() { echo -e "${color:+\e[36m}[=] $*${color:+\e[0m}"; }
+warn() { echo -e "${color:+\e[33m}[-] $*${color:+\e[0m}"; }
 ### Helpers end
 
 godel() {
@@ -243,7 +243,7 @@ OPTIONS
     -d, --delete=STRING    Delete the specified version
     -h, --help             Display this help message
     -l, --list             Show cached versions (default)
-    --no-color             Disable colorized output
+        --no-color         Disable colorized output
     -s, --search=STRING    Search for versions starting with STRING
     -u, --use=STRING       Use specified version
 
