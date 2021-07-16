@@ -139,7 +139,7 @@ begin
     re_month = " *(#{months.keys.join("|")})"
     re_year = "[0-9]{4}"
     re_month_year = "#{re_month} #{re_year}"
-    re_day = "[ 0-9][0-9] "
+    re_day = "[ 0-9][0-9]( |$)"
 
     %x(cal -s #{ARGV.join(" ")} --color=never).each_line do |l|
         # Remove newline
