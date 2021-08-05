@@ -342,9 +342,9 @@ if [[ ! -f $config ]]; then
     mkdir -p "$(dirname "$config")"
     cat >"$config" <<EOF
 {
-  "frame": 20,
-  "offset": 0,
-  "padding": 0
+  "frame": 16,
+  "offset": 16,
+  "padding": 8
 }
 EOF
 fi
@@ -363,9 +363,11 @@ else
         unlock
         errx 2 "Could not determine geometry"
     fi
-    height="${geometry/*x /}"
-    width="${geometry/ x*/}"
+    height="${geometry##*x }"
+    width="${geometry%% x*}"
 fi
+
+((height -= 25)) # Why is this needed now?
 
 ((height -= offset))
 hw="$((width / 2))"
