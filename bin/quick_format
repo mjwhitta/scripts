@@ -68,6 +68,7 @@ DESCRIPTION
     partition.
 
 OPTIONS
+    --32                 Only 32bit support (default is 64bit)
     --ext4               Format as ext4 (default)
     --fat32              Format as FAT32
     -h, --help           Display this help message
@@ -82,6 +83,7 @@ EOF
 
 declare -a args
 unset help lbl legacy
+bits="64bit"
 color="true"
 format="ext4"
 
@@ -89,6 +91,7 @@ format="ext4"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift; args+=("$@"); break ;;
+        "--32") unset bits ;;
         "--ext4") format="ext4" ;;
         "--fat32") format="fat32" ;;
         "-h"|"--help") help="true" ;;
@@ -129,7 +132,9 @@ while read -r dev; do
     [[ $err -eq 0 ]] || exit $err
 done < <(
     lsblk --list --paths "$1" | awk '!/NAME/ {print $1}' | sort -r
-)
+); unset dev
+
+sleep 2
 
 dev="$1"
 
@@ -223,8 +228,12 @@ fi
 err="$?"
 [[ $err -eq 0 ]] || exit $err
 
+sleep 2
+
 case "$format" in
-    "ext4") sudo mkfs.ext4 -F -O "^64bit" ${lbl:+-L "$lbl"} "${dev}1"
+    "ext4")
+        sudo mkfs.ext4 -F -O "${bits:-^64bit}" ${lbl:+-L "$lbl"} \
+            "${dev}1"
         ;;
     "fat32") sudo mkfs.fat -F 32 "${dev}1" ;;
     "ntfs") sudo mkfs.ntfs --force --fast ${lbl:+-L "$lbl"} "${dev}1"
