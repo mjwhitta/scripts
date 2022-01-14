@@ -81,6 +81,6 @@ check_deps
 # Check for valid params
 [[ $# -eq 2 ]] || usage 1
 
-echo "# Ranked list of $1 mirrors in $2 generated on $(date)"
-curl -s "$url/?country=$2&protocol=https&use_mirror_status=on" | \
+echo "# Ranked list of $1 mirrors in ${2^^} generated on $(date)"
+curl -s "$url/?country=${2^^}&protocol=https&use_mirror_status=on" | \
     sed -e "s/^#Server/Server/" -e "/^#/d" | rankmirrors -n "$1" -
