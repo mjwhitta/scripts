@@ -112,6 +112,9 @@ gofallback() {
                     -type d -exec basename {} \; | \
                 sort -k 1,1nr -k 2,2nr -k 3,3nr -t "."
             ); unset version
+        elif [[ $# -eq 1 ]]; then
+            # Check for non-system versions as an extra fallback
+            gofallback
         fi
     fi
 }
@@ -289,6 +292,7 @@ done
 
 # Help info
 [[ -z $help ]] || usage 0
+[[ $# -eq 0 ]] || usage 1
 
 # Get system metadata
 case "$(uname -m)" in
