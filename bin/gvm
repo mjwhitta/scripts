@@ -296,6 +296,8 @@ done
 
 # Get system metadata
 case "$(uname -m)" in
+    "arm64") arch="arm64" ;;
+    "armv"*"l") arch="armv6l" ;;
     "i386") arch="386" ;;
     "x86_64") arch="amd64" ;;
     *) errx 1 "Unsupported architecture $(uname -m)" ;;
