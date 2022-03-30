@@ -83,6 +83,7 @@ OPTIONS
     -i, --internal         Use internal IP
     --iface=IFACE          Use specified interface (default: $iface)
     --ip=IP                Compare to specified IP
+    --newip=IP             Use the specifed IP as the new address
     --no-color             Disable colorized output
     -p, --pass=PASSWD      Password for API
     --url=URL              URL that returns just an IP (default: $url)
@@ -112,6 +113,7 @@ while [[ $# -gt 0 ]]; do
         "-i"|"--internal") unset external ;;
         "--iface"*) iface="$(long_opt "$@")" ;;
         "--ip"*) old_ip="$(long_opt "$@")" ;;
+        "--newip"*) new_ip="$(long_opt "$@")" ;;
         "--no-color") unset color ;;
         "-p"|"--pass"*) password="$(long_opt "$@")" ;;
         "--url"*) url="$(long_opt "$@")" ;;
@@ -145,11 +147,13 @@ check_deps
 
 # Get data
 [[ -z $file ]] || [[ ! -f "$file" ]] || old_ip="$(head -n 1 "$file")"
-if [[ -n $external ]]; then
-    new_ip="$($curl --interface "$iface" "$url")"
-else
-    new_ip="$(ip -o a | awk "/$iface\s+inet\s/ {print \$4}")"
-    new_ip="${new_ip%/*}"
+if [[ -z $new_ip ]]; then
+    if [[ -n $external ]]; then
+        new_ip="$($curl --interface "$iface" "$url")"
+    else
+        new_ip="$(ip -o a | awk "/$iface\s+inet\s/ {print \$4}")"
+        new_ip="${new_ip%/*}"
+    fi
 fi
 
 # Compare and update
@@ -157,6 +161,6 @@ if [[ -n $force ]] ||
    [[ -z $old_ip ]] ||
    [[ "$new_ip" != "$old_ip" ]]
 then
-    echo "$new_ip" | tee "$file"
+    [[ -z $file ]] || echo "$new_ip" | tee "$file"
     update_dns "$new_ip"
 fi
