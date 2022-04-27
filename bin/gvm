@@ -242,7 +242,7 @@ Usage: ${0##*/} [OPTIONS]
 
 DESCRIPTION
     This script is similar to rvm, but for Go. You will need to add
-    something like the following 2 lines to your ~/.bashrc and then
+    something like the following lines to your ~/.bashrc and then
     source it:
 
         export GOROOT="\$HOME/.cache/gvm/use"
@@ -256,6 +256,25 @@ OPTIONS
         --no-color         Disable colorized output
     -s, --search=STRING    Search for versions starting with STRING
     -u, --use=STRING       Use specified version
+
+ADVANCED CONFIG
+    If you want a more advanced setup with a different GOPATH for each
+    Go version, add something like the following lines to your
+    ~/.bashrc and then source it:
+
+        if [[ -d "\$HOME/.cache/gvm" ]]; then
+            export GOROOT="\$HOME/.cache/gvm/use"
+            export PATH="\$GOROOT/bin\${PATH:+:\$PATH}"
+        fi
+        if [[ -n \$(command -v go) ]]; then
+            GOPATH="\$(go version)"
+            GOPATH="\${GOPATH##go version go}"
+            export GOPATH="\$HOME/.go/v\${GOPATH%% *}"
+            mkdir -p "\$GOPATH/bin"
+        fi
+
+    If you use this advanced setup, you will need to re-source your
+    ~/.bashrc or open a new shell every time you change Go versions.
 
 EOF
     exit "$1"
