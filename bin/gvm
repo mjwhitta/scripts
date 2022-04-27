@@ -269,8 +269,10 @@ ADVANCED CONFIG
         if [[ -n \$(command -v go) ]]; then
             GOPATH="\$(go version)"
             GOPATH="\${GOPATH##go version go}"
-            export GOPATH="\$HOME/.go/v\${GOPATH%% *}"
-            mkdir -p "\$GOPATH/bin"
+            if [[ -n \$GOPATH ]]; then
+                export GOPATH="\$HOME/.go/v\${GOPATH%% *}"
+                mkdir -p "\$GOPATH/bin"
+            fi
         fi
 
     If you use this advanced setup, you will need to re-source your
