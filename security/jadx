@@ -91,8 +91,8 @@ mkdir -p "$cache"
 [[ -z $clear ]] || rm -fr "$cache"/*
 
 # Get JADX if missing
-jd="$(find "$cache" -name "jadx*.zip" | sort -nr | head -n 1)"
-if [[ -z $jd ]]; then
+jadx="$(find "$cache" -name "jadx*.zip" | sort -nr | head -n 1)"
+if [[ -z $jadx ]]; then
     url="https://github.com"
     path="/skylot/jadx/releases"
 
@@ -106,8 +106,8 @@ if [[ -z $jd ]]; then
     curl -Lo "$cache/$name" "$url$path"
     [[ $? -eq 0 ]] || errx 1 "Failed to download JADX zip"
 
-    jd="$(find "$cache" -name "jadx*.zip" | sort -nr | head -n 1)"
-    unzip -d "$cache" "$jd"
+    jadx="$(find "$cache" -name "jadx*.zip" | sort -nr | head -n 1)"
+    unzip -d "$cache" "$jadx"
 fi
 
 [[ -z $gui ]] || "$cache/bin/jadx-gui" "$@"
