@@ -1,0 +1,296 @@
+#!/usr/bin/env bash
+# A script to make the vault binary interactive.
+# by Miles Whittaker <mj@whitta.dev>
+#
+# --------------------------------------------------------------------
+# The MIT License (MIT)
+#
+# Copyright (c) 2020 Miles Whittaker
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+# --------------------------------------------------------------------
+
+### Helpers begin
+check_deps() {
+    local missing
+    for d in "${deps[@]}"; do
+        if [[ -z $(command -v "$d") ]]; then
+            # Force absolute path
+            if [[ ! -e "/$d" ]]; then
+                err "$d was not found"
+                missing="true"
+            fi
+        fi
+    done; unset d
+    [[ -z $missing ]] || exit 128
+}
+err() { echo -e "${color:+\e[31m}[!] $*${color:+\e[0m}" >&2; }
+errx() { err "${*:2}"; exit "$1"; }
+good() { echo -e "${color:+\e[32m}[+] $*${color:+\e[0m}"; }
+info() { echo -e "${color:+\e[37m}[*] $*${color:+\e[0m}"; }
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || return 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
+    esac
+    echo "$arg"
+    return $shift
+}
+subinfo() { echo -e "${color:+\e[36m}[=] $*${color:+\e[0m}"; }
+warn() { echo -e "${color:+\e[33m}[-] $*${color:+\e[0m}"; }
+### Helpers end
+
+dump() {
+    local -a entries
+    local -a groups
+    local i
+    local line
+
+    while read -r line; do
+        case "$line" in
+            "Keys"|"----") continue ;;
+            *"/") groups+=("${line%/}") ;;
+            *) entries+=("$line") ;;
+        esac
+    done < <(vaultls "$1/"); unset line
+
+    for i in "${entries[@]}"; do
+        vault kv get "$1/$i"
+    done; unset i
+
+    for i in "${groups[@]}"; do
+        dump "$1/$i"
+    done; unset i
+}
+
+vaultls() {
+    vault kv list "$@" | \
+        sed -r -e "s/.\[[0-9]+m//g" -e "s/^\s*|\s*$//g"
+}
+
+usage() {
+    cat <<EOF
+Usage: ${0##*/} [OPTIONS] <addr> [namespace]
+
+DESCRIPTION
+    Interactive vault shell.
+
+OPTIONS
+    -h, --help         Display this help message
+        --no-color     Disable colorized output
+    -p, --pass=STR     Use provided password
+    -t, --token=STR    Login via token
+    -u, --user=STR     Use provided username
+
+EOF
+    exit "$1"
+}
+
+declare -a args
+unset help pass token uname
+color="true"
+helper="/tmp/.vault.exp"
+
+# Parse command line options
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        "--") shift; args+=("$@"); break ;;
+        "-h"|"--help") help="true" ;;
+        "--no-color") unset color ;;
+        "-p"|"--pass"*) pass="$(long_opt "$@")" ;;
+        "-t"|"--token"*) token="$(long_opt "$@")" ;;
+        "-u"|"--user"*) uname="$(long_opt "$@")" ;;
+        *) args+=("$1") ;;
+    esac
+    case "$?" in
+        0) ;;
+        1) shift ;;
+        *) usage $? ;;
+    esac
+    shift
+done
+[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
+
+# Help info
+[[ -z $help ]] || usage 0
+
+# Check for missing dependencies
+declare -a deps
+deps+=("env")
+deps+=("grep")
+deps+=("sed")
+deps+=("vault")
+check_deps
+
+# Check for valid params
+[[ $# -eq 1 ]] || [[ $# -eq 2 ]] || usage 1
+
+# Setup expect helper
+cat >"$helper" <<EOF
+#!/usr/bin/env expect
+
+proc usage {status} {
+    puts "./vault.exp \[OPTIONS\]"
+    puts ""
+    puts "Login to vault"
+    puts ""
+    puts "Options:"
+    puts "    -h, --help         Display this help message"
+    puts "    -p, --pass=STR     Use provided password"
+    puts "    -t, --token=STR    Use provided token"
+    puts "    -u, --user=STR     Use provided user"
+    puts ""
+    exit \$status
+}
+
+# Parse input
+set method "ldap"
+set params ""
+set pass ""
+set token ""
+set uname ""
+
+for {set arg 0} {\$arg < \$argc} {incr arg} {
+    switch [lindex \$argv \$arg] {
+        "--" {
+            incr arg; while {\$arg < \$argc} {
+                set params [concat \$params [lindex \$argv \$arg]]
+                incr arg
+            }
+            break
+        }
+        "-h" -
+        "--help" {usage 0}
+        "-p" -
+        "--pass" {
+            incr arg; if {\$arg == \$argc} {usage 1}
+            set pass [lindex \$argv \$arg]
+        }
+        "-t" -
+        "--token" {
+            incr arg; if {\$arg == \$argc} {usage 1}
+            set method "token"
+            set token [lindex \$argv \$arg]
+        }
+        "-u" -
+        "--user" {
+            incr arg; if {\$arg == \$argc} {usage 1}
+            set uname [lindex \$argv \$arg]
+        }
+        default {
+            set params [concat \$params [lindex \$argv \$arg]]
+        }
+    }
+}
+
+set argc [llength \$params]
+set argv \$params
+
+# Input validation
+if {\$argc != 0} {usage 2}
+
+spawn vault login --method=\$method username=\$uname
+
+expect {
+    "Error" {exit}
+    "Password (will be hidden):" {send "\$pass\r"; exp_continue}
+    "Token (will be hidden):" {send "\$token\r"; exp_continue}
+    "Success!" {interact}
+}
+EOF
+chmod 755 "$helper"
+
+export VAULT_ADDR="$1"
+export VAULT_SKIP_VERIFY="true"
+
+# Login via expect
+unset VAULT_NAMESPACE
+unset VAULT_TOKEN
+while read -r line; do
+    case "$line" in
+        "token "*) export VAULT_TOKEN="${line##* }" ;;
+    esac
+done < <(
+    "$helper" ${pass:+-p "$pass"} ${token:+-t "$token"} \
+    ${uname:+-u "$uname"} | \
+    sed -r -e "s/.\[[0-9]+m//g" -e "s/^\s*|\s*$//g"
+); unset line
+
+# Set namespace after login
+export VAULT_NAMESPACE="${2:-root}"
+
+[[ -n $VAULT_TOKEN ]] || errx 2 "Failed to login"
+
+unset dir
+while :; do
+    read -p "$VAULT_NAMESPACE:$dir/> " -r cmd
+
+    case "$cmd" in
+        "?"|"help")
+            cat <<EOF
+?|help                 Show this message
+cat|get <secret>       Show secret
+cd ..                  Go up a folder
+cd <path>              Move into folder
+chns|cn ..             Go up a namespace
+chns|cn <namespace>    Move into namespace
+dump [path]            Recursively dump secrets
+env                    List vault env vars
+exit|q|quit            Exit
+ls [path]              List folder contents
+lsns                   List namespaces
+EOF
+            ;;
+        "cat"*|"get"*) vault kv get "$dir/${cmd#* }" ;;
+        "cd") unset dir ;;
+        "cd ..") dir="${dir%/*}" ;;
+        "cd"*) dir="$dir/${cmd#* }" ;;
+        "chns"|"cn") export VAULT_NAMESPACE="root"; unset dir ;;
+        "chns .."|"cn ..")
+            case "$VAULT_NAMESPACE" in
+                *"/"*)
+                    export VAULT_NAMESPACE="${VAULT_NAMESPACE%/*}"
+                    ;;
+                *) export VAULT_NAMESPACE="root" ;;
+            esac
+            unset dir
+            ;;
+        "chns"*|"cn"*)
+            export VAULT_NAMESPACE="$VAULT_NAMESPACE/${cmd#* }"
+            export VAULT_NAMESPACE="${VAULT_NAMESPACE#root/}"
+            unset dir
+            ;;
+        "dump") dump "$dir" ;;
+        "dump"*) dump "$dir/${cmd#* }" ;;
+        "env") env | grep -i "vault_" ;;
+        "exit"|"q"|"quit") break ;;
+        "lsns") vault namespace list ;;
+        "ls")
+            [[ -n $dir ]] || vault secrets list
+            [[ -z $dir ]] || vault kv list "$dir/"
+            ;;
+        "ls"*) vault kv list "$dir/${cmd#* }" ;;
+        *) # shellcheck disable=SC2086
+            eval vault $cmd
+            ;;
+    esac
+done; unset dir
