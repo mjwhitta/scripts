@@ -74,10 +74,9 @@ EOF
     exit "$1"
 }
 
-declare -a args
+declare -a args hosts
 unset help
 color="true"
-hosts="."
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
@@ -109,7 +108,15 @@ check_deps
 
 # TODO Check for valid params
 
-[[ $# -eq 0 ]] || hosts="$@"
+# Read hosts from cli
+for i in "$@"; do
+    hosts+=("$i")
+done; unset i
+
+# Default, if not hosts provided
+if [[ ${#hosts[@]} -eq 0 ]]; then
+    hosts+=(".")
+fi
 
 # Hosts with open ports
 unset found oldhost
@@ -118,7 +125,7 @@ while read -r line; do
     newhost="${line%%:*}"
     found="true"
 
-    if [[ $newhost != $oldhost ]]; then
+    if [[ "$newhost" != "$oldhost" ]]; then
         [[ -z $oldhost ]] || echo
         info "${newhost/.\//}"
     fi
@@ -126,10 +133,9 @@ while read -r line; do
 
     oldhost="$newhost"
 done < <(
-    LC_ALL=C find $hosts -type f -name "*.nmap" -exec \
-    grep -HiPs "\d+/.+\sopen" {} + | \
-    sed -r "s/(tcp|udp)\.nmap/\1/g" | \
-    sort -k 1,1 -k 2,2n -t ":"
+    LC_ALL="C" find "${hosts[@]}" -type f -name "*.nmap" -exec \
+    grep -HiPs "\d+/.+\sopen" {} + 2>/dev/null | \
+    sed -r "s/(tcp|udp)\.nmap/\1/g" | sort -k 1,1 -k 2,2n -t ":"
 )
 
 [[ -z $found ]] || echo
@@ -140,7 +146,7 @@ while read -r line; do
     newhost="${line%%:*}"
     found="true"
 
-    if [[ $newhost != $oldhost ]]; then
+    if [[ "$newhost" != "$oldhost" ]]; then
         [[ -z $oldhost ]] || echo
         info "${newhost/.\//}"
         warn "No open ports"
@@ -149,9 +155,9 @@ while read -r line; do
 
     oldhost="$newhost"
 done < <(
-    LC_ALL=C find $hosts -type f -name "*.nmap" -exec \
-    grep -HiLPs "\d+/.+\sopen" {} + | sed -r "s/\.nmap$//g" | \
-    sort -k 1,1 -k 2,2n -t ":"
+    LC_ALL="C" find "${hosts[@]}" -type f -name "*.nmap" -exec \
+    grep -HiLPs "\d+/.+\sopen" {} + 2>/dev/null | \
+    sed -r "s/\.nmap$//g" | sort -k 1,1 -k 2,2n -t ":"
 )
 
 [[ -z $found ]] || echo -en "\e[1A\e[K"
