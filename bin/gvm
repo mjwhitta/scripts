@@ -90,7 +90,7 @@ gofallback() {
     if [[ ! -e "$cache/use" ]]; then
         if [[ $# -eq 0 ]]; then
             while read -r version; do
-                ln -s "$version" "$cache/use"
+                ln -fs "$version" "$cache/use"
                 return
             done < <(
                 find "$cache" -maxdepth 1 -mindepth 1 -type d \
@@ -100,11 +100,11 @@ gofallback() {
         fi
 
         if [[ -d /usr/lib/go ]]; then
-            ln -s /usr/lib/go "$cache/use"
+            ln -fs /usr/lib/go "$cache/use"
             return
         elif [[ -d /usr/local/Cellar/go ]]; then
             while read -r version; do
-                ln -s "/usr/local/Cellar/go/$version/libexec" \
+                ln -fs "/usr/local/Cellar/go/$version/libexec" \
                     "$cache/use"
                 return
             done < <(
@@ -139,6 +139,18 @@ goget() {
 
     # Define fallback values so "rm -fr /" doesn't happen
     rm -fr "${cache:-/tmp}/${tgz:-asdf}"
+}
+
+golatest() {
+    local version
+
+    while read -r version; do
+        gouse "$version"
+    done < <(
+        curl -Ls "$gourl" | \
+        grep -ioPs "dl/go\K.+?(?=\.$os-$arch\.tar\.gz)" | \
+        sort -k 1,1nr -k 2,2nr -k 3,3nr -t "." -u | head -n 1
+    ); unset version
 }
 
 gols() {
@@ -252,6 +264,7 @@ OPTIONS
     -c, --clear            Clear the cached versions of Go
     -d, --delete=STRING    Delete the specified version
     -h, --help             Display this help message
+        --latest           Install latest version
     -l, --list             Show cached versions (default)
         --no-color         Disable colorized output
     -s, --search=STRING    Search for versions starting with STRING
@@ -296,6 +309,7 @@ while [[ $# -gt 0 ]]; do
         "-c"|"--clear") action="clear" ;;
         "-d"|"--delete"*) action="delete"; vers="$(long_opt "$@")" ;;
         "-h"|"--help") help="true" ;;
+        "--latest") action="latest" ;;
         "-l"|"--list") action="list" ;;
         "--no-color") unset color ;;
         "-s"|"--search"*) action="search"; vers="$(long_opt "$@")" ;;
@@ -352,6 +366,7 @@ gofallback
 case "$action" in
     "clear") rm -fr "$cache"; gofallback ;;
     "delete") godel "$vers" ;;
+    "latest") golatest ;;
     "list") gols ;;
     "search") gosearch "$vers" ;;
     "use") gouse "$vers" ;;
