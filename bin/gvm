@@ -248,6 +248,17 @@ gouse() {
     [[ -n $(command -v go) ]] || err "No go installation found"
 }
 
+gvmupdate() {
+    local repo="https://gitlab.com/mjwhitta/scripts"
+    local gvm="/-/raw/master/bin/gvm"
+
+    curl -kLo /tmp/gvm -s "$repo/$gvm"
+    [[ $? -eq 0 ]] || errx 3 "Failed to get new gvm"
+
+    chmod +x "/tmp/gvm"
+    mv -f /tmp/gvm "$0"
+}
+
 usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS]
@@ -268,6 +279,7 @@ OPTIONS
     -l, --list             Show cached versions (default)
         --no-color         Disable colorized output
     -s, --search=STRING    Search for versions starting with STRING
+        --update           Download newest gvm from GitLab
     -u, --use=STRING       Use specified version
 
 ADVANCED CONFIG
@@ -314,6 +326,7 @@ while [[ $# -gt 0 ]]; do
         "--no-color") unset color ;;
         "-s"|"--search"*) action="search"; vers="$(long_opt "$@")" ;;
         "-u"|"--use"*) action="use"; vers="$(long_opt "$@")" ;;
+        "--update"*) action="update" ;;
         *) args+=("$1") ;;
     esac
     case "$?" in
@@ -369,5 +382,6 @@ case "$action" in
     "latest") golatest ;;
     "list") gols ;;
     "search") gosearch "$vers" ;;
+    "update") gvmupdate ;;
     "use") gouse "$vers" ;;
 esac
