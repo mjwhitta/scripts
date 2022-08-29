@@ -300,7 +300,7 @@ unset help vers
 action="list"
 cache="$HOME/.cache/gvm"
 color="true"
-gourl="https://golang.org/dl"
+gourl="https://go.dev/dl"
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
