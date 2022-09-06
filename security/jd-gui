@@ -14,10 +14,10 @@ check_deps() {
     done; unset d
     [[ -z $missing ]] || exit 128
 }
-err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+err() { echo -e "${color:+\e[31m}[!] $*${color:+\e[0m}" >&2; }
 errx() { err "${*:2}"; exit "$1"; }
-good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
-info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
+good() { echo -e "${color:+\e[32m}[+] $*${color:+\e[0m}"; }
+info() { echo -e "${color:+\e[37m}[*] $*${color:+\e[0m}"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
@@ -27,13 +27,13 @@ long_opt() {
     echo "$arg"
     return $shift
 }
-subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
-warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
+subinfo() { echo -e "${color:+\e[36m}[=] $*${color:+\e[0m}"; }
+warn() { echo -e "${color:+\e[33m}[-] $*${color:+\e[0m}"; }
 ### Helpers end
 
 usage() {
     cat <<EOF
-Usage: ${0##*/} [OPTIONS]
+Usage: ${0##*/} [OPTIONS] [args]
 
 DESCRIPTION
     Launch JD-GUI.
@@ -78,7 +78,8 @@ deps+=("curl")
 deps+=("java")
 check_deps
 
-# TODO Check for valid params
+# Check for valid params
+# [[ $# -eq 0 ]] || usage 1
 
 cache="$HOME/.cache/jd-gui"
 mkdir -p "$cache"
@@ -94,7 +95,7 @@ if [[ -z $jd ]]; then
 
     path="$(
         curl -Ls "$url$path" | \
-        grep -ioPs "href\=.\K.+java.+\d\.\d\.\d\.jar" | head -n 1
+        grep -ioPs "href\=.\K.+java.+\d+\.\d+\.\d+\.jar" | head -n 1
     )"
     [[ -n $path ]] || errx 1 "Failed to find jd-gui jar"
 

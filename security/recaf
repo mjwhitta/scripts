@@ -36,11 +36,10 @@ usage() {
 Usage: ${0##*/} [OPTIONS] [args]
 
 DESCRIPTION
-    Launch JADX.
+    Launch Recaf.
 
 OPTIONS
-    -c, --clear    Clear cache and download the newest JADX
-    -g, --gui      Launch the GUI
+    -c, --clear    Clear cache and download the newest Recaf
     -h, --help     Display this help message
     --no-color     Disable colorized output
 
@@ -49,7 +48,7 @@ EOF
 }
 
 declare -a args
-unset clear gui help
+unset clear help
 color="true"
 
 # Parse command line options
@@ -57,7 +56,6 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift; args+=("$@"); break ;;
         "-c"|"--clear") clear="true" ;;
-        "-g"|"--gui") gui="true" ;;
         "-h"|"--help") help="true" ;;
         "--no-color") unset color ;;
         *) args+=("$1") ;;
@@ -78,38 +76,35 @@ done
 declare -a deps
 deps+=("curl")
 deps+=("java")
-deps+=("unzip")
 check_deps
 
 # Check for valid params
 # [[ $# -eq 0 ]] || usage 1
 
-cache="$HOME/.cache/jadx"
+cache="$HOME/.cache/recaf"
 mkdir -p "$cache"
 
-# Clear cached JADX if requested
-# shellcheck disable=SC2115
-[[ -z $clear ]] || rm -fr "$cache"/*
+# Clear cached Recaf if requested
+[[ -z $clear ]] || find "$cache" -name "*.jar" -exec rm -f {} +
 
-# Get JADX if missing
-jadx="$(find "$cache" -name "jadx*.zip" | sort -nr | head -n 1)"
-if [[ -z $jadx ]]; then
+# Get Recaf if missing
+recaf="$(find "$cache" -name "recaf*.jar" | sort -nr | head -n 1)"
+if [[ -z $recaf ]]; then
     url="https://github.com"
-    path="/skylot/jadx/releases"
+    path="/Col-E/Recaf/releases"
 
     path="$(
         curl -Ls "$url$path" | \
-        grep -ioPs "href\=.\K.+jadx.+\d+\.\d+\.\d+\.zip" | head -n 1
+        grep -ioPs "href\=.\K.+recaf.+\d+\.\d+\.\d+.+jar.+\.jar" | \
+        head -n 1
     )"
-    [[ -n $path ]] || errx 1 "Failed to find JADX zip"
+    [[ -n $path ]] || errx 1 "Failed to find recaf jar"
 
     name="$(basename "$path")"
     curl -Lo "$cache/$name" "$url$path"
-    [[ $? -eq 0 ]] || errx 1 "Failed to download JADX zip"
+    [[ $? -eq 0 ]] || errx 1 "Failed to download recaf jar"
 
-    jadx="$(find "$cache" -name "jadx*.zip" | sort -nr | head -n 1)"
-    unzip -d "$cache" "$jadx"
+    recaf="$(find "$cache" -name "recaf*.jar" | sort -nr | head -n 1)"
 fi
 
-[[ -z $gui ]] || "$cache/bin/jadx-gui" "$@"
-[[ -n $gui ]] || "$cache/bin/jadx" "$@"
+java -jar "$recaf" "$@"
