@@ -97,14 +97,19 @@ if [[ -z $jadx ]]; then
     url="https://github.com"
     path="/skylot/jadx/releases"
 
-    path="$(
+    assets="$(
         curl -Ls "$url$path" | \
+        grep -im 1 -oPs "expanded_assets/\K[^\"]+"
+    )"
+
+    zip="$(
+        curl -Ls "$url$path/expanded_assets/$assets" | \
         grep -ioPs "href\=.\K.+jadx.+\d+\.\d+\.\d+\.zip" | head -n 1
     )"
-    [[ -n $path ]] || errx 1 "Failed to find JADX zip"
+    [[ -n $zip ]] || errx 1 "Failed to find JADX zip"
 
-    name="$(basename "$path")"
-    curl -Lo "$cache/$name" "$url$path"
+    name="$(basename "$zip")"
+    curl -Lo "$cache/$name" "$url$zip"
     [[ $? -eq 0 ]] || errx 1 "Failed to download JADX zip"
 
     jadx="$(find "$cache" -name "jadx*.zip" | sort -nr | head -n 1)"

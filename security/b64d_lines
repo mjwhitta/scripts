@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+
+### Helpers begin
+check_deps() {
+    local missing
+    for d in "${deps[@]}"; do
+        if [[ -z $(command -v "$d") ]]; then
+            # Force absolute path
+            if [[ ! -e "/$d" ]]; then
+                err "$d was not found"
+                missing="true"
+            fi
+        fi
+    done; unset d
+    [[ -z $missing ]] || exit 128
+}
+err() { echo -e "${color:+\e[31m}[!] $*${color:+\e[0m}" >&2; }
+errx() { err "${*:2}"; exit "$1"; }
+good() { echo -e "${color:+\e[32m}[+] $*${color:+\e[0m}"; }
+info() { echo -e "${color:+\e[37m}[*] $*${color:+\e[0m}"; }
+long_opt() {
+    local arg shift="0"
+    case "$1" in
+        "--"*"="*) arg="${1#*=}"; [[ -n $arg ]] || return 127 ;;
+        *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
+    esac
+    echo "$arg"
+    return $shift
+}
+subinfo() { echo -e "${color:+\e[36m}[=] $*${color:+\e[0m}"; }
+warn() { echo -e "${color:+\e[33m}[-] $*${color:+\e[0m}"; }
+### Helpers end
+
+b64decode() {
+    local decoded
+    local keep
+
+    case "$1" in
+        "eyJ"*)
+            # This is JSON so just decode and pretty print
+            echo -n "$1" | base64 -d 2>/dev/null | jq -MrS "."
+            ;;
+        "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t"*)
+            # This is a cert so use openssl
+            openssl x509 -in <(echo -n "$1" | base64 -d 2>/dev/null) \
+                -noout -text
+            ;;
+        "LS0tLS1CRUdJTi"*)
+            # Possible private key
+            echo -n "$1" | base64 -d 2>/dev/null
+            ;;
+        "MII"[bHZ]*)
+            # This is a x509 PKIPathv1... not sure how to dump
+            echo -n "$1" | base64 -d 2>/dev/null | strings | \
+                sort -u | grep -iPs "[a-zA-Z]{5,}"
+            ;;
+        "MII"[EFG]*)
+            # This is a cert so use openssl
+            openssl x509 -in <(echo -n "$1" | base64 -d 2>/dev/null) \
+                -noout -text
+            ;;
+        "PFNlY3VyaXR5VG9rZW4+"*)
+            # Legacy base64binary SecurityToken
+            echo -n "$1" | base64 -d 2>/dev/null
+            ;;
+        *)
+            # Decode and pipe to xxd but only show the first 5 lines
+            decoded="$(
+                echo -n "$1" | base64 -d 2>/dev/null | xxd | head -n 5
+            )"
+
+            # Ignore obvious binary
+            keep="$(
+                echo "$decoded" | grep -iPsv "^[0-9a-f]{8}.+\.{3,}"
+            )"
+            if [[ -n $keep ]]; then
+                keep="$(
+                    echo "$decoded" | \
+                    grep -iPs "^[0-9a-f]{8}.+[a-z0-9]{5,}"
+                )"
+            fi
+            [[ -z $keep ]] || echo "$decoded"
+            ;;
+    esac
+}
+
+decode_parts() {
+    local line="$1"
+    local part
+
+    # Split on "."
+    while [[ -n $line ]]; do
+        case "$line" in
+            *"."*) part="${line%%.*}"; line="${line#*.}" ;;
+            *) part="$line"; unset line ;;
+        esac
+
+        b64decode "$part"
+    done; unset line part
+}
+
+usage() {
+    cat <<EOF
+Usage: ${0##*/} [OPTIONS] <file>
+
+DESCRIPTION
+    Base64 decode all lines of a file. Lines will additionally be
+    split on ".". Lines starting with "eyJ" are decoded to JSON with
+    jq. Lines start with "MIIF" are decoded as certificates with
+    openssl. All other lines are decoded and piped to xxd. An attempt
+    is made to ignore binary data. Errors are ignored. Output will be
+    of the form:
+
+    [*] lineno
+    [=] b64
+    ... b64 decoded...
+
+OPTIONS
+    -h, --help        Display this help message
+        --no-color    Disable colorized output
+
+EOF
+    exit "$1"
+}
+
+declare -a args
+unset help
+color="true"
+
+# Parse command line options
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        "--") shift; args+=("$@"); break ;;
+        "-h"|"--help") help="true" ;;
+        "--no-color") unset color ;;
+        *) args+=("$1") ;;
+    esac
+    case "$?" in
+        0) ;;
+        1) shift ;;
+        *) usage "$?" ;;
+    esac
+    shift
+done
+[[ ${#args[@]} -eq 0 ]] || set -- "${args[@]}"
+
+# Help info
+[[ -z $help ]] || usage 0
+
+# Check for missing dependencies
+declare -a deps
+deps+=("base64")
+deps+=("grep")
+deps+=("head")
+deps+=("jq")
+deps+=("openssl")
+deps+=("sort")
+deps+=("strings")
+deps+=("xxd")
+check_deps
+
+# Check for valid params
+[[ $# -eq 1 ]] || usage 1
+
+count="0"
+while read -r b64; do
+    # unset b64d
+    unset ignore
+    ((count++))
+
+    b64d="$(decode_parts "$b64")"
+    [[ -n $b64d ]] || ignore="true" # Ignore if all binary
+
+    if [[ -z $ignore ]]; then
+        info "$count"
+        subinfo "$b64"
+        echo "$b64d"
+    fi
+done <"$1"

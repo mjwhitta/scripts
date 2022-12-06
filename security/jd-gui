@@ -93,14 +93,19 @@ if [[ -z $jd ]]; then
     url="https://github.com"
     path="/java-decompiler/jd-gui/releases"
 
-    path="$(
+    assets="$(
         curl -Ls "$url$path" | \
+        grep -im 1 -oPs "expanded_assets/\K[^\"]+"
+    )"
+
+    jar="$(
+        curl -Ls "$url$path/expanded_assets/$assets" | \
         grep -ioPs "href\=.\K.+java.+\d+\.\d+\.\d+\.jar" | head -n 1
     )"
-    [[ -n $path ]] || errx 1 "Failed to find jd-gui jar"
+    [[ -n $jar ]] || errx 1 "Failed to find jd-gui jar"
 
-    name="$(basename "$path")"
-    curl -Lo "$cache/$name" "$url$path"
+    name="$(basename "$jar")"
+    curl -Lo "$cache/$name" "$url$jar"
     [[ $? -eq 0 ]] || errx 1 "Failed to download jd-gui jar"
 
     jd="$(find "$cache" -name "jd-gui*.jar" | sort -nr | head -n 1)"

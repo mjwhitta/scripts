@@ -93,15 +93,20 @@ if [[ -z $recaf ]]; then
     url="https://github.com"
     path="/Col-E/Recaf/releases"
 
-    path="$(
+    assets="$(
         curl -Ls "$url$path" | \
+        grep -im 1 -oPs "expanded_assets/\K[^\"]+"
+    )"
+
+    jar="$(
+        curl -Ls "$url$path/expanded_assets/$assets" | \
         grep -ioPs "href\=.\K.+recaf.+\d+\.\d+\.\d+.+jar.+\.jar" | \
         head -n 1
     )"
-    [[ -n $path ]] || errx 1 "Failed to find recaf jar"
+    [[ -n $jar ]] || errx 1 "Failed to find recaf jar"
 
-    name="$(basename "$path")"
-    curl -Lo "$cache/$name" "$url$path"
+    name="$(basename "$jar")"
+    curl -Lo "$cache/$name" "$url$jar"
     [[ $? -eq 0 ]] || errx 1 "Failed to download recaf jar"
 
     recaf="$(find "$cache" -name "recaf*.jar" | sort -nr | head -n 1)"
