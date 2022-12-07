@@ -51,10 +51,10 @@ b64decode() {
                 2>/dev/null
             ;;
         "iVBORw"*) echo "**THIS IS A PNG**" ;;
-        "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t"*)
+        "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t"*|"MII"[EFG]*)
             # This is a cert so use openssl
-            openssl x509 -in <(echo -n "$1" 2>/dev/null | \
-                base64 -d 2>/dev/null) -noout -text
+            openssl x509 -in <(echo -n "$1" | base64 -d 2>/dev/null) \
+                -noout -text 2>/dev/null
             ;;
         "LS0tLS1CRUdJTi"*)
             # Possible private key
@@ -64,11 +64,6 @@ b64decode() {
             # This is a x509 PKIPathv1... not sure how to dump
             echo -n "$1" | base64 -d 2>/dev/null | strings | \
                 sort -u | grep -iPs "[a-zA-Z]{5,}"
-            ;;
-        "MII"[EFG]*)
-            # This is a cert so use openssl
-            openssl x509 -in <(echo -n "$1" 2>/dev/null | \
-                base64 -d 2>/dev/null) -noout -text
             ;;
         "PFNlY3VyaXR5VG9rZW4+"*)
             # Legacy base64binary SecurityToken
