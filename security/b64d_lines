@@ -45,11 +45,13 @@ b64decode() {
             rm -f "$tmp"
             ;;
         "3780684"*|"JVBERi0"*) echo "**THIS IS A PDF**" ;;
+        "dXN0YXI"*) echo "**THIS IS A TAR**" ;;
         "eyJ"*)
             # This is JSON so just decode and pretty print
             echo -n "$1" | base64 -d 2>/dev/null | jq -MrS "." \
                 2>/dev/null
             ;;
+        "H4s"*) echo "**THIS IS A GZIP**" ;;
         "iVBORw"*) echo "**THIS IS A PNG**" ;;
         "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t"*|"MII"[EFG]*)
             # This is a cert so use openssl
@@ -69,6 +71,10 @@ b64decode() {
             # Legacy base64binary SecurityToken
             echo -n "$1" | base64 -d 2>/dev/null
             ;;
+        "Qk0"*) echo "**THIS IS A BMP**" ;;
+        "Qlo"*) echo "**THIS IS A BZIP**" ;;
+        "U0lNUExF"*) echo "**THIS IS A GIF**" ;;
+        "UEsDBA"*) echo "**THIS IS A ZIP**" ;;
         *)
             # Decode and pipe to xxd but only show the first 5 lines
             decoded="$(
@@ -123,7 +129,11 @@ DESCRIPTION
 
 FILE TYPES DETECTED
 
+    BMP
+    BZIP
     DER
+    GIF
+    GZIP
     JKS
     JPG
     JSON
@@ -132,6 +142,8 @@ FILE TYPES DETECTED
     PKIPathv1
     PNG
     SecurityToken
+    TAR
+    ZIP
 
 OPTIONS
     -h, --help        Display this help message
