@@ -40,12 +40,17 @@ b64decode() {
         "/u3+7QAAAAIAAAA"*)
             # Java keystore
             tmp="/tmp/$(head -c 8 /dev/random | xxd -p).jks"
-            echo -n "$1" | base64 -d 2>/dev/null >"$tmp"
+            echo -n "$1" | base64 -d >"$tmp" 2>/dev/null
             echo | keytool -keystore "$tmp" -list -v 2>/dev/null
             rm -f "$tmp"
             ;;
         "3780684"*|"JVBERi0"*) echo "**THIS IS A PDF**" ;;
-        "dXN0YXI"*) echo "**THIS IS A TAR**" ;;
+        "dXN0YXI"*)
+            tmp="/tmp/$(head -c 8 /dev/random | xxd -p).tar"
+            echo -n "$1" | base64 -d >"$tmp" 2>/dev/null
+            tar -f "$tmp" -t
+            rm -f "$tmp"
+            ;;
         "eyJ"*)
             # This is JSON so just decode and pretty print
             echo -n "$1" | base64 -d 2>/dev/null | jq -MrS "." \
@@ -74,6 +79,12 @@ b64decode() {
         "Qk0"*) echo "**THIS IS A BMP**" ;;
         "Qlo"*) echo "**THIS IS A BZIP**" ;;
         "U0lNUExF"*) echo "**THIS IS A GIF**" ;;
+        "UEsDBBQ"*|"UEsDBAo"*)
+            tmp="/tmp/$(head -c 8 /dev/random | xxd -p).jar"
+            echo -n "$1" | base64 -d >"$tmp" 2>/dev/null
+            jar -f "$tmp" -t
+            rm -f "$tmp"
+            ;;
         "UEsDBA"*) echo "**THIS IS A ZIP**" ;;
         *)
             # Decode and pipe to xxd but only show the first 5 lines
@@ -134,6 +145,7 @@ FILE TYPES DETECTED
     DER
     GIF
     GZIP
+    JAR
     JKS
     JPG
     JSON
@@ -182,11 +194,13 @@ declare -a deps
 deps+=("base64")
 deps+=("grep")
 deps+=("head")
+deps+=("jar")
 deps+=("jq")
 deps+=("keytool")
 deps+=("openssl")
 deps+=("sort")
 deps+=("strings")
+deps+=("tar")
 deps+=("xxd")
 check_deps
 
