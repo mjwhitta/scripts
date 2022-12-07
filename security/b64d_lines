@@ -36,14 +36,25 @@ b64decode() {
     local keep
 
     case "$1" in
+        "/9j/4A"*) echo "**THIS IS A JPG**" ;;
+        "/u3+7QAAAAIAAAA"*)
+            # Java keystore
+            tmp="/tmp/$(head -c 8 /dev/random | xxd -p).jks"
+            echo -n "$1" | base64 -d 2>/dev/null >"$tmp"
+            echo | keytool -keystore "$tmp" -list -v 2>/dev/null
+            rm -f "$tmp"
+            ;;
+        "3780684"*|"JVBERi0"*) echo "**THIS IS A PDF**" ;;
         "eyJ"*)
             # This is JSON so just decode and pretty print
-            echo -n "$1" | base64 -d 2>/dev/null | jq -MrS "."
+            echo -n "$1" | base64 -d 2>/dev/null | jq -MrS "." \
+                2>/dev/null
             ;;
+        "iVBORw"*) echo "**THIS IS A PNG**" ;;
         "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t"*)
             # This is a cert so use openssl
-            openssl x509 -in <(echo -n "$1" | base64 -d 2>/dev/null) \
-                -noout -text
+            openssl x509 -in <(echo -n "$1" 2>/dev/null | \
+                base64 -d 2>/dev/null) -noout -text
             ;;
         "LS0tLS1CRUdJTi"*)
             # Possible private key
@@ -56,8 +67,8 @@ b64decode() {
             ;;
         "MII"[EFG]*)
             # This is a cert so use openssl
-            openssl x509 -in <(echo -n "$1" | base64 -d 2>/dev/null) \
-                -noout -text
+            openssl x509 -in <(echo -n "$1" 2>/dev/null | \
+                base64 -d 2>/dev/null) -noout -text
             ;;
         "PFNlY3VyaXR5VG9rZW4+"*)
             # Legacy base64binary SecurityToken
@@ -104,16 +115,28 @@ usage() {
 Usage: ${0##*/} [OPTIONS] <file>
 
 DESCRIPTION
+
     Base64 decode all lines of a file. Lines will additionally be
-    split on ".". Lines starting with "eyJ" are decoded to JSON with
-    jq. Lines start with "MIIF" are decoded as certificates with
-    openssl. All other lines are decoded and piped to xxd. An attempt
-    is made to ignore binary data. Errors are ignored. Output will be
-    of the form:
+    split on ".". Some file types are detected and handled
+    appropriately. All other lines are decoded and piped to xxd. An
+    attempt is made to ignore binary data. Errors are ignored. Output
+    will be of the form:
 
     [*] lineno
     [=] b64
     ... b64 decoded...
+
+FILE TYPES DETECTED
+
+    DER
+    JKS
+    JPG
+    JSON
+    PDF
+    PEM
+    PKIPathv1
+    PNG
+    SecurityToken
 
 OPTIONS
     -h, --help        Display this help message
@@ -153,6 +176,7 @@ deps+=("base64")
 deps+=("grep")
 deps+=("head")
 deps+=("jq")
+deps+=("keytool")
 deps+=("openssl")
 deps+=("sort")
 deps+=("strings")
