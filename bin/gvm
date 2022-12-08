@@ -158,7 +158,7 @@ gols() {
     # shellcheck disable=SC2010
     local use="$(
         ls -l "$cache/use" 2>/dev/null | \
-        grep -ioPs "\-\>\s+.*\Kv[0-9.]+"
+        grep -ioPs "\-\>\s+.*\Kv[0-9.]+.*"
     )"
     local version
 
