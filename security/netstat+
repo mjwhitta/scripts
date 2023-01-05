@@ -169,7 +169,7 @@ regex+="\s+[0-9]+" # Ignore Recv-Q
 regex+="\s+[0-9]+" # Ignore Send-Q
 regex+="\s+(\S+)" # Local Address
 regex+="\s+(\S+)" # Foreign Address
-regex+="\s+([A-Z_]+[0-9]*)?" # State or (state)
+regex+="\s+([A-Za-z]\S*[0-9]*)?" # State or (state)
 case "$os" in
     "Darwin") regex+="\s+[0-9]+\s+[0-9]+" ;; # Ignore [rs]hiwat
 esac
