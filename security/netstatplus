@@ -42,10 +42,10 @@ check_deps() {
     done; unset d
     [[ -z $missing ]] || exit 128
 }
-err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+err() { echo -e "${color:+\e[31m}[!] $*${color:+\e[0m}" >&2; }
 errx() { err "${*:2}"; exit "$1"; }
-good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
-info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
+good() { echo -e "${color:+\e[32m}[+] $*${color:+\e[0m}"; }
+info() { echo -e "${color:+\e[37m}[*] $*${color:+\e[0m}"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
@@ -53,11 +53,41 @@ long_opt() {
         *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
     esac
     echo "$arg"
-    return $shift
+    return "$shift"
 }
-subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
-warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
+subinfo() { echo -e "${color:+\e[36m}[=] $*${color:+\e[0m}"; }
+warn() { echo -e "${color:+\e[33m}[-] $*${color:+\e[0m}"; }
 ### Helpers end
+
+better_netstat() {
+    local line
+    local pid
+
+    echo "PROTO|STATE|LADDR|RADDR|PID|USER|CMD"
+
+    while read -r line; do
+        unset pid
+
+        case "$line" in
+            "Active Multipath"*) break ;;
+            "Active"*|"Proto"*) continue ;;
+            *"LISTEN"*) ;;
+            *) [[ -z $listen ]] || continue ;;
+        esac
+
+        pid="${line##*|}"
+        if [[ "$pid" != "-" ]]; then
+            pid="$($ps "$pid" | $sed -r "s/\s+/|/")"
+        else
+            pid+="|-"
+        fi
+
+        echo "$line${pid:+|$pid}"
+    done < <(
+        $netstat 2>/dev/null | $sed -r \
+        -e "s/^$regex/\1|\4|\2|\3|\5/g" -e "s/\|\|/|-|/g"
+    ); unset line
+}
 
 usage() {
     cat <<EOF
@@ -67,16 +97,17 @@ DESCRIPTION
     Makes netstat output a little more readable.
 
 OPTIONS
-    -h, --help    Display this help message
-    --no-color    Disable colorized output
-    -s, --sudo    Run as root
+    -h, --help        Display this help message
+    -l, --listen      Only show listening ports
+        --no-color    Disable colorized output
+    -s, --sudo        Run as root
 
 EOF
     exit "$1"
 }
 
 declare -a args
-unset help sudo
+unset help listen sudo
 color="true"
 
 # Parse command line options
@@ -84,14 +115,15 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift; args+=("$@"); break ;;
         "-h"|"--help") help="true" ;;
+        "-l"|"--listen") listen="true" ;;
         "--no-color") unset color ;;
-        "-s"|"--sudo") sudo="sudo" ;;
+        "-s"|"--sudo") sudo="true" ;;
         *) args+=("$1") ;;
     esac
     case "$?" in
         0) ;;
         1) shift ;;
-        *) usage $? ;;
+        *) usage "$?" ;;
     esac
     shift
 done
@@ -103,53 +135,45 @@ done
 # Check for missing dependencies
 declare -a deps
 deps+=("column")
-deps+=("grep")
 deps+=("netstat")
+deps+=("ps")
+case "$(uname -s)" in
+    "Darwin") deps+=("gsed") ;;
+    *) deps+=("sed") ;;
+esac
+deps+=("sudo")
+deps+=("uname")
 check_deps
 
 # Check for valid params
 [[ $# -eq 0 ]] || usage 1
 
-netstat="netstat -anptu"
-case "$(uname -s)" in
-    "Darwin") netstat="netstat -an" ;;
+os="$(uname -s)"
+
+case "$os" in
+    "Darwin")
+        netstat="netstat -anv"
+        ps="ps -o user=,args= -p"
+        sed="gsed"
+        ;;
+    *)
+        netstat="${sudo:+sudo }netstat -anptu"
+        ps="ps -o user=,cmd= -q"
+        sed="sed"
+        ;;
 esac
 
-while read -r line; do
-    case "$line" in
-        *"Active Internet connections"*) continue ;;
-        *"Active Multipath Internet connections"*) break ;;
-        *"Local Address"*)
-            echo -n "$line" | sed -r -e "s/ Address/Address/g" \
-                -e "s#/Program name.*##g" -e "s/ +\$//g" \
-                -e "s/ +//g"
-            case "$(uname -s)" in
-                "Darwin") echo ;;
-                *) echo "UserCommandLine" ;;
-            esac
-            continue
-            ;;
-    esac
+# Build regex
+regex="(\S+)" # Proto
+regex+="\s+[0-9]+" # Ignore Recv-Q
+regex+="\s+[0-9]+" # Ignore Send-Q
+regex+="\s+(\S+)" # Local Address
+regex+="\s+(\S+)" # Foreign Address
+regex+="\s+([A-Z_]+)?" # State or (state)
+case "$os" in
+    "Darwin") regex+="\s+[0-9]+\s+[0-9]+" ;; # Ignore [rs]hiwat
+esac
+regex+="\s+([0-9-]+)" # pid
+regex+=".*" # Ignore the rest
 
-    echo -n "$line" | sed -r -e "s#[0-9]+/.+##g" \
-        -e "s/ +(\-)?//g"
-    case "$line" in
-        "udp"*"ESTABLISHED"*) ;;
-        "udp"*) echo -n "UNCONN" ;;
-    esac
-
-    case "$(uname -s)" in
-        "Darwin") echo; continue ;;
-    esac
-
-    pid="$(
-        echo "$line" | grep -Eos "[0-9]+/.*" | cut -d "/" -f 1
-    )"
-    echo -n "${pid:--}"
-
-    [[ -z $pid ]] && echo && continue
-
-    username="$(ps -o user= --pid "$pid")"
-    cmd="$(ps -o cmd= --pid "$pid")"
-    echo "$username$cmd"
-done < <($sudo $netstat 2>/dev/null) | column -s "" -t
+better_netstat | column -s "|" -t
