@@ -264,8 +264,9 @@ gvmupdate() {
     curl -kLo /tmp/gvm -s "$repo/$gvm"
     [[ $? -eq 0 ]] || errx 3 "Failed to get new gvm"
 
-    chmod +x "/tmp/gvm"
-    mv -f /tmp/gvm "$0"
+    cat /tmp/gvm >"$0"
+    rm -f /tmp/gvm
+    exit 0
 }
 
 usage() {
