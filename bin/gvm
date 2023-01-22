@@ -258,8 +258,8 @@ gouse() {
 }
 
 gvmupdate() {
-    local repo="https://gitlab.com/mjwhitta/scripts"
-    local gvm="/-/raw/master/bin/gvm"
+    local repo="https://raw.githubusercontent.com/mjwhitta/scripts"
+    local gvm="main/bin/gvm"
 
     curl -kLo /tmp/gvm -s "$repo/$gvm"
     [[ $? -eq 0 ]] || errx 3 "Failed to get new gvm"
@@ -289,7 +289,7 @@ OPTIONS
         --no-color         Disable colorized output
         --rc               Accept release candidates
     -s, --search=STRING    Search for versions starting with STRING
-        --update           Download newest gvm from GitLab
+        --update           Download newest gvm from GitHub
     -u, --use=STRING       Use specified version
 
 ADVANCED CONFIG

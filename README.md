@@ -6,7 +6,7 @@ install or uninstall my scripts:
 Put scripts in `$HOME/.scripts`:
 
 ```
-$ git clone git@gitlab.com:mjwhitta/scripts.git $HOME/.scripts
+$ git clone git@github.com:mjwhitta/scripts.git $HOME/.scripts
 $ cd $HOME/.scripts
 ```
 
