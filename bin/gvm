@@ -292,6 +292,7 @@ OPTIONS
     -s, --search=STRING    Search for versions starting with STRING
         --update           Download newest gvm from GitHub
     -u, --use=STRING       Use specified version
+    -V, --version          Show gvm version
 
 ADVANCED CONFIG
     If you want a more advanced setup with a different GOPATH for each
@@ -324,6 +325,7 @@ action="list"
 cache="$HOME/.cache/gvm"
 color="true"
 gourl="https://go.dev/dl"
+version="v1.0.0"
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
@@ -339,6 +341,7 @@ while [[ $# -gt 0 ]]; do
         "--rc") rc="true" ;;
         "-u"|"--use"*) action="use"; vers="$(long_opt "$@")" ;;
         "--update"*) action="update" ;;
+        "-V"|"--version") action="version" ;;
         *) args+=("$1") ;;
     esac
     case "$?" in
@@ -398,4 +401,5 @@ case "$action" in
     "search") gosearch "$vers" ;;
     "update") gvmupdate ;;
     "use") gouse "$vers" ;;
+    "version") echo "gvm $version ($os/$arch)" ;;
 esac
