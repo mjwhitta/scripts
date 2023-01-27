@@ -71,7 +71,8 @@ better_ss() {
 
         case "$line" in
             "Netid"*) continue ;;
-            *"LISTEN"*) ;;
+            "tcp|LISTEN"*) ;;
+            "udp|UNCONN"*) ;;
             *) [[ -z $listen ]] || continue ;;
         esac
 

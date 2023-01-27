@@ -71,7 +71,8 @@ better_netstat() {
         case "$line" in
             "Active Multipath"*) break ;;
             "Active"*|"Proto"*) continue ;;
-            *"LISTEN"*) ;;
+            "tcp|LISTEN"*|"tcp6|LISTEN"*) ;;
+            "udp|-"*|"udp6|-"*) ;;
             *) [[ -z $listen ]] || continue ;;
         esac
 
