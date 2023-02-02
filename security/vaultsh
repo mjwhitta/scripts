@@ -136,6 +136,7 @@ done
 # Check for missing dependencies
 declare -a deps
 deps+=("env")
+deps+=("expect")
 deps+=("grep")
 deps+=("sed")
 deps+=("vault")
