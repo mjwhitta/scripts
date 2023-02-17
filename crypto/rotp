@@ -68,7 +68,7 @@ def parse(args)
     options["verbose"] = false
 
     info = [
-        "Encrypt or decrypt files using a one-time password",
+        "    Encrypt or decrypt files using a one-time password",
         "generated from a passphrase."
     ].join(" ")
 
@@ -77,13 +77,13 @@ def parse(args)
 
         opts.banner = "Usage: #{File.basename($0)} [OPTIONS] <file>"
 
-        opts.on("")
+        opts.on("\n", "DESCRIPTION")
 
-        info.scan(/\S.{0,80}\S(?=\s|$)|\S+/).each do |line|
-            opts.on("#{line}")
+        info.scan(/\S.{0,76}\S(?=\s|$)|\S+/).each do |line|
+            opts.on("    #{line}")
         end
 
-        opts.on("", "OPTIONS")
+        opts.on("\n", "OPTIONS")
 
         opts.on("-a", "--armor", "Create ASCII armored output") do
             options["armor"] = true
