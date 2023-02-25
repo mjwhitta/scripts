@@ -60,11 +60,10 @@ warn() { echo -e "${color:+\e[33m}[-] $*${color:+\e[0m}"; }
 ### Helpers end
 
 godel() {
-    # shellcheck disable=SC2010
-    local use="$(
-        ls -l "$cache/use" 2>/dev/null | \
-        grep -ioPs "\-\>\s+.*\Kv[0-9.]+"
-    )"
+    local use
+
+    use="$(ls -l "$cache/use" 2>/dev/null)"
+    use="${use##*-> }"
 
     rm -fr "$cache/v$1"
 
@@ -120,19 +119,21 @@ gofallback() {
 }
 
 goget() {
-    local tgz="$(
+    local tgz
+
+    tgz="$(
         curl -Ls "$gourl" | \
         grep -ioPs "dl/\Kgo$1\.$os-$arch\.tar\.gz" | sort -u
     )"
 
     [[ -n $tgz ]] || errx 3 "Version $1 not found"
 
-    curl -kLo "$cache/$tgz" -s "$gourl/$tgz"
-    [[ $? -eq 0 ]] || errx 4 "Failed to download tarball"
+    curl -kLo "$cache/$tgz" -s "$gourl/$tgz" || \
+        errx 4 "Failed to download tarball"
 
     if [[ ! -d "$cache/v$1" ]]; then
-        tar -C "$cache" -f "$cache/$tgz" -xz
-        [[ $? -eq 0 ]] || errx 5 "Failed to extract tarball"
+        tar -C "$cache" -f "$cache/$tgz" -xz || \
+            errx 5 "Failed to extract tarball"
 
         mv "$cache/go" "$cache/v$1"
     fi
@@ -160,12 +161,11 @@ golatest() {
 
 gols() {
     local found
-    # shellcheck disable=SC2010
-    local use="$(
-        ls -l "$cache/use" 2>/dev/null | \
-        grep -ioPs "\-\>\s+.*\Kv[0-9.]+.*"
-    )"
+    local use
     local version
+
+    use="$(ls -l "$cache/use" 2>/dev/null)"
+    use="${use##*-> }"
 
     if [[ -d /usr/lib/go ]]; then
         found="true"
@@ -261,8 +261,8 @@ gvmupdate() {
     local repo="https://raw.githubusercontent.com/mjwhitta/scripts"
     local gvm="main/bin/gvm"
 
-    curl -kLo /tmp/gvm -s "$repo/$gvm"
-    [[ $? -eq 0 ]] || errx 3 "Failed to get new gvm"
+    curl -kLo /tmp/gvm -s "$repo/$gvm" || \
+        errx 3 "Failed to get new gvm"
 
     cat /tmp/gvm >"$0"
     rm -f /tmp/gvm
@@ -325,7 +325,7 @@ action="list"
 cache="$HOME/.cache/gvm"
 color="true"
 gourl="https://go.dev/dl"
-version="v1.0.0"
+version="v1.0.1"
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
