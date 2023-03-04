@@ -25,7 +25,7 @@ long_opt() {
         *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
     esac
     echo "$arg"
-    return $shift
+    return "$shift"
 }
 subinfo() { echo -e "${color:+\e[36m}[=] $*${color:+\e[0m}"; }
 warn() { echo -e "${color:+\e[33m}[-] $*${color:+\e[0m}"; }
@@ -45,12 +45,24 @@ getlnk() {
 
 link() {
     local from
+    local lnk
     local to
 
     info "Linking directories and files..."
     for entry in "${files[@]}"; do
-        from="$here/${entry/:*/}"
-        to="$(eval echo "${entry/*:/}")"
+        from="${entry%:*}"
+        to="$(eval echo "${entry##*:}")"
+
+        case "$from" in
+            "c:"*)
+                from="${from#c:}"
+                lnk="cp"
+                [[ -f "$from" ]] || lnk+=" -r"
+                ;;
+            *) lnk="ln -s" ;;
+        esac
+
+        from="$here/$from"
 
         if [[ ! -e "$from" ]]; then
             warn "$from does not exist"
@@ -66,7 +78,7 @@ link() {
             mv "$to" "$to.$backup"
         elif [[ -d "$to" ]]; then
             warn "Removing directory $to"
-            rm -fr "$to"
+            rm -f -r "$to"
         elif [[ -f "$to" ]]; then
             warn "Removing file $to"
             rm -f "$to"
@@ -75,8 +87,11 @@ link() {
             mkdir -p "$(dirname "$to")"
         fi
 
-        good "Symlinking $from to $to"
-        ln -s "$from" "$to"
+        case "$lnk" in
+            "cp"*) good "Copying $from to $to" ;;
+            "ln"*) good "Symlinking $from to $to" ;;
+        esac
+        $lnk "$from" "$to"
     done; unset entry
     info "Successfully linked scripts"
 }
@@ -86,8 +101,14 @@ link_status() {
     local to
 
     for entry in "${files[@]}"; do
-        from="$here/${entry/:*/}"
-        to="$(eval echo "${entry/*:/}")"
+        from="${entry%:*}"
+        to="$(eval echo "${entry##*:}")"
+
+        case "$from" in
+            "c:"*) from="${from#c:}" ;;
+        esac
+
+        from="$here/$from"
 
         if [[ ! -e "$from" ]]; then
             warn "$from does not exist"
@@ -112,8 +133,14 @@ unlink() {
 
     info "Unlinking directories and files..."
     for entry in "${files[@]}"; do
-        from="$here/${entry/:*/}"
-        to="$(eval echo "${entry/*:/}")"
+        from="${entry%:*}"
+        to="$(eval echo "${entry##*:}")"
+
+        case "$from" in
+            "c:"*) from="${from#c:}" ;;
+        esac
+
+        from="$here/$from"
 
         if [[ -L "$to" ]]; then
             if [[ "$(getlnk "$to")" == "$from" ]]; then
@@ -177,7 +204,7 @@ while [[ $# -gt 0 ]]; do
     case "$?" in
         0) ;;
         1) shift ;;
-        *) usage $? ;;
+        *) usage "$?" ;;
     esac
     shift
 done
@@ -193,7 +220,6 @@ case "$(uname -s)" in
     "Linux") deps+=("find") ;;
 esac
 deps+=("grep")
-deps+=("ln")
 check_deps
 
 # Check for valid params

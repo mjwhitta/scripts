@@ -1,3 +1,5 @@
+# These are examples. Prepend "c:" to copy rather than symlink.
+
 bin/gits:$HOME/.local/bin/gits
 bin/gvm:$HOME/.local/bin/gvm
 bin/hexcal:$HOME/.local/bin/hexcal
