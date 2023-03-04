@@ -111,9 +111,8 @@ unset DISPLAY
 
 if [[ -f "$HOME/.vim/autoload/plug.vim" ]]; then
     mkdir -p "$HOME/.vim/plugs"
-    vim -c :PlugUpgrade -c :q
-    [[ $? -ne 0 ]] && exit $?
+    vim -c :PlugUpgrade -c :q || exit "$?"
     rm -f "$HOME/.vim/autoload/plug.vim.old"
-    vim -c :PlugUpdate -c :q -c :q
-    exit $?
+    vim -c :PlugUpdate -c :q -c :q || exit "$?"
+    yes | vim -c :PlugClean -c :q -c :q 2>/dev/null || exit "$?"
 fi
