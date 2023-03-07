@@ -14,10 +14,10 @@ check_deps() {
     done; unset d
     [[ -z $missing ]] || exit 128
 }
-err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+err() { echo -e "${color:+\e[31m}[!] $*${color:+\e[0m}" >&2; }
 errx() { err "${*:2}"; exit "$1"; }
-good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
-info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
+good() { echo -e "${color:+\e[32m}[+] $*${color:+\e[0m}"; }
+info() { echo -e "${color:+\e[37m}[*] $*${color:+\e[0m}"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
@@ -25,10 +25,10 @@ long_opt() {
         *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
     esac
     echo "$arg"
-    return $shift
+    return "$shift"
 }
-subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
-warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
+subinfo() { echo -e "${color:+\e[36m}[=] $*${color:+\e[0m}"; }
+warn() { echo -e "${color:+\e[33m}[-] $*${color:+\e[0m}"; }
 ### Helpers end
 
 usage() {
@@ -39,9 +39,9 @@ DESCRIPTION
     Wrapper for rofi.
 
 OPTIONS
-    -h, --help    Display this help message
-    --no-color    Disable colorized output
-    -s, --ssh     Start SSH tab
+    -h, --help        Display this help message
+        --no-color    Disable colorized output
+    -s, --ssh         Start SSH tab
 
 EOF
     exit "$1"
@@ -64,7 +64,7 @@ while [[ $# -gt 0 ]]; do
     case "$?" in
         0) ;;
         1) shift ;;
-        *) usage $? ;;
+        *) usage "$?" ;;
     esac
     shift
 done
@@ -81,54 +81,22 @@ check_deps
 # Check for valid params
 [[ $# -eq 0 ]] || usage 1
 
-# Ruby
-export GEM_HOME="$HOME/.gem/ruby"
-export GEM_PATH="$GEM_HOME/gems"
-
-# Go
-export GOPATH="$HOME/.go"
-
-# Perl
-export PERL_LOCAL_LIB_ROOT="$HOME/.cpan/perl5"
-
 # PATH
-# Find dirs that should be in PATH
-unset PTH
-for dir in \
-    "$HOME/bin" \
-    "$HOME/.local/bin" \
-    "$GOPATH" \
-    "$GOPATH/bin" \
-    "$GEM_HOME/bin" \
-    "$PERL_LOCAL_LIB_ROOT/bin" \
-    /usr/local/bin \
-    /usr/local/sbin \
-    /usr/bin \
-    /usr/sbin \
-    /bin \
-    /sbin \
-    /usr/bin/core_perl \
-    /usr/bin/vendor_perl \
-    "$HOME/Android/Sdk/emulator" \
-    "$HOME/Android/Sdk/platform-tools" \
-    "$HOME/.rvm/bin"
-do
-    [[ ! -d $dir ]] || PTH="${PTH:+$PTH:}$dir"
-done; unset dir
+declare -a pth
+if [[ -f "$HOME/.cache/rofi_path" ]]; then
+    while read -r dir; do
+        pth+=("$dir")
+    done <"$HOME/.cache/rofi_path"; unset dir
 
-# Find missing from PATH
-while read -r dir; do
-    [[ ! -d $dir ]] || PTH="${PTH:+$PTH:}$dir"
-done < <(echo "${PATH//:/\n}" | grep -Psv "${PTH//:/|}"); unset dir
-
-# Set PATH
-[[ -z $PTH ]] || export PATH="$PTH"
-unset PTH
+    PATH="${pth[*]}"
+    export PATH="${PATH// /:}"
+fi
+unset pth
 
 # SSH agent
-if [[ -n $(command -v ssh-agent) ]] &&
-   [[ -f "$HOME/.ssh/agent" ]]
+if [[ -n $(command -v ssh-agent) ]] && [[ -f "$HOME/.ssh/agent" ]]
 then
+    # shellcheck disable=SC1090
     . "$HOME/.ssh/agent" >/dev/null
 fi
 
