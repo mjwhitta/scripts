@@ -119,9 +119,9 @@ check_deps
 github="https://api.github.com"
 [[ $# -eq 0 ]] || github="$1"
 
-accept="-H \"Accept: application/vnd.github.v3+json\""
-curl="curl $accept -kLs $socks"
-jq="jq -cMrS"
+# shellcheck disable=SC2089
+curl="curl -H \"Accept: application/vnd.github.v3+json\" -kLs $socks"
+jq="jq -c -M -r -S"
 more="1"
 since="0"
 
@@ -149,6 +149,7 @@ while [[ $more -eq 1 ]]; do
 
                     echo "$item"
                 done < <(
+                    # shellcheck disable=SC2090
                     $curl "$url/$i?page=$page&per_page=100$token" | \
                     $jq ".[].html_url" 2>/dev/null
                 ); unset item
@@ -157,9 +158,10 @@ while [[ $more -eq 1 ]]; do
             done; unset page
         done; unset i
     done < <(
+        # shellcheck disable=SC2090
         $curl "$github/users?per_page=100&since=$since$token" | \
         $jq ".[].login" 2>/dev/null | sort -u
-    ) | tee $output; unset username
+    ) | tee "$output"; unset username
 
     ((since+=100))
 done

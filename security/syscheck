@@ -16,10 +16,10 @@ check_deps() {
     done; unset d
     [[ -z $missing ]] || exit 128
 }
-err() { echo -e "${color:+\e[31m}[!] $*\e[0m"; }
+err() { echo -e "${color:+\e[31m}[!] $*${color:+\e[0m}" >&2; }
 errx() { err "${*:2}"; exit "$1"; }
-good() { echo -e "${color:+\e[32m}[+] $*\e[0m"; }
-info() { echo -e "${color:+\e[37m}[*] $*\e[0m"; }
+good() { echo -e "${color:+\e[32m}[+] $*${color:+\e[0m}"; }
+info() { echo -e "${color:+\e[37m}[*] $*${color:+\e[0m}"; }
 long_opt() {
     local arg shift="0"
     case "$1" in
@@ -27,55 +27,59 @@ long_opt() {
         *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
     esac
     echo "$arg"
-    return $shift
+    return "$shift"
 }
-subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
-warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
+subinfo() { echo -e "${color:+\e[36m}[=] $*${color:+\e[0m}"; }
+warn() { echo -e "${color:+\e[33m}[-] $*${color:+\e[0m}"; }
 ### Helpers end
 
 check_bin() {
     local canary="0" # gcc -fstack-protector
     local file="$1"
     local fortify="0" # gcc -D_FORTIFY_SOURCE=2 also BOSC
+    local new_file
     local nx="1" # also XSpace
     local pie="0"
     local relro="0"
     local rpath="5"
     local runpath="5"
 
-    if [[ ! -f $file ]]; then
+    if [[ ! -f "$file" ]]; then
         err "File $1 does not exist"
         return
     fi
 
     # Resolve symlinks
-    while [[ -h $file ]]; do
-        local new_file="$(ls -l $file | awk '{print $NF}')"
-        [[ -f $new_file ]] || new_file="$(dirname $file)/$new_file"
+    while [[ -h "$file" ]]; do
+        # shellcheck disable=SC2012
+        new_file="$(ls -l "$file" | awk '{print $NF}')"
+        if [[ ! -f "$new_file" ]]; then
+            new_file="$(dirname "$file")/$new_file"
+        fi
         file="$new_file"
     done
 
-    if [[ ! -f $file ]]; then
+    if [[ ! -f "$file" ]]; then
         warn "File $1 is a dead symlink"
         return
     fi
-
-    if [[ -z $(file $file | grep -i "elf") ]]; then
+    
+    if ! grep -iq "elf" < <(file "$file"); then
         warn "File $1 is not an ELF file"
         return
     fi
 
-    while read line; do
-        [[ $line =~ "GNU_RELRO" ]] && ((relro |= 2))
-        [[ $line =~ "BIND_NOW" ]] && ((relro |= 1))
-        [[ $line =~ "__stack_chk_fail" ]] && canary="1"
-        [[ $line =~ "GNU_STACK" ]] && [[ $line =~ "RWE" ]] && nx="0"
-        [[ $line =~ "Type:" ]] && [[ $line =~ "DYN (" ]] && pie="4"
-        [[ $line =~ "(DEBUG)" ]] && [[ $pie -eq 4 ]] && pie="1"
-        [[ $line =~ "_chk@" ]] && fortify="1"
-        [[ $line =~ "rpath" ]] && rpath="6"
-        [[ $line =~ "runpath" ]] && runpath="6"
-    done < <(readelf -W -a $file)
+    while read -r line; do
+        [[ $line =~ GNU_RELRO ]] && ((relro |= 2))
+        [[ $line =~ BIND_NOW ]] && ((relro |= 1))
+        [[ $line =~ __stack_chk_fail ]] && canary="1"
+        [[ $line =~ GNU_STACK.+RWE ]] && nx="0"
+        [[ $line =~ Type:.+DYN\ \( ]] && pie="4"
+        [[ $line =~ \(DEBUG\) ]] && [[ $pie -eq 4 ]] && pie="1"
+        [[ $line =~ _chk@ ]] && fortify="1"
+        [[ $line =~ rpath ]] && rpath="6"
+        [[ $line =~ runpath ]] && runpath="6"
+    done < <(readelf -W -a "$file")
 
     # RELRO <= 1 | no GNU_RELRO + BIND_NOW = no protection
     # RELRO == 2 | GNU_RELRO + no BIND_NOW = partial
@@ -103,19 +107,19 @@ check_kernel() {
     local config_file
     local config
 
-    if [[ -f $HOME/proc_config.txt ]]; then
+    if [[ -f "$HOME/proc_config.txt" ]]; then
         config_file="$HOME/proc_config.txt"
-        config="$(cat $config_file 2>/dev/null | grep -Ev "^ *#")"
+        config="$(grep -Esv "^\s*#" "$config_file")"
         config_file="/proc/config.gz"
     elif [[ -f /proc/config.gz ]]; then
         config_file="/proc/config.gz"
-        config="$(zcat $config_file 2>/dev/null | grep -Ev "^ *#")"
-    elif [[ -f /boot/config-$(uname -r) ]]; then
+        config="$(zcat "$config_file" 2>/dev/null | grep -Ev "^\s*#")"
+    elif [[ -f "/boot/config-$(uname -r)" ]]; then
         config_file="/boot/config-$(uname -r)"
-        config="$(cat $config_file 2>/dev/null | grep -Ev "^ *#")"
-    elif [[ -f ${KBUILD_OUTPUT:-/usr/src/linux}/.config ]]; then
+        config="$(grep -Esv "^\s*#" "$config_file")"
+    elif [[ -f "${KBUILD_OUTPUT:-/usr/src/linux}/.config" ]]; then
         config="${KBUILD_OUTPUT:-/usr/src/linux}/.config_file"
-        config="$(cat $config_file 2>/dev/null | grep -Ev "^ *#")"
+        config="$(grep -Esv "^\s*#" "$config_file")"
     else
         err "Kernel config not found"
         return
@@ -229,10 +233,10 @@ print_output() {
 
             for key in $(
                 for i in "${!output[@]}"; do
-                    echo "$i" | sed "s/ /_/g"
+                    echo "${i// /_}"
                 done | sort -f
             ); do
-                key="$(echo "$key" | sed "s/_/ /g")"
+                key="${key//_/ }"
                 one="$one${color:+\e[36m}$key\e[0m|"
                 two="$two${output[$key]}|"
             done
@@ -268,7 +272,7 @@ EOF
 }
 
 declare -a args
-unset directory help kernel procs wide
+unset help kernel procs wide
 aslr="$(
     cat /proc/sys/kernel/randomize_va_space 2>/dev/null || echo "0"
 )"
@@ -291,7 +295,7 @@ while [[ $# -gt 0 ]]; do
     case "$?" in
         0) ;;
         1) shift ;;
-        *) usage $? ;;
+        *) usage "$?" ;;
     esac
     shift
 done
@@ -307,7 +311,7 @@ dep+=("readelf")
 check_deps
 
 # Check for valid params
-[[ $# -ge 1 ]] || [[ -n $directory$kernel$procs ]] || usage 1
+[[ $# -ge 1 ]] || [[ -n $kernel$procs ]] || usage 1
 
 declare -A aslr_clr clr grkern shld
 
@@ -344,16 +348,24 @@ if [[ -n $procs ]]; then
         ps -e -o cmd | awk '{print $1}' | \
         xargs which -- 2>/dev/null | sort -u
     ); do
-        check_bin $bin
+        check_bin "$bin"
         echo
     done
 fi
 
 if [[ $# -gt 0 ]]; then
-    for bin in $(
-        find -L $@ -maxdepth 1 -mindepth 1 -type f -o -type l | sort -u
-    ); do
-        check_bin $bin
-        echo
-    done
+    for arg in "$@"; do
+        if [[ -d "$arg" ]]; then
+            while read -r bin; do
+                check_bin "$bin"
+                echo
+            done < <(
+                find -L "$@" -maxdepth 1 -mindepth 1 \
+                \( -type f -o -type l \) -print | sort -u
+            ); unset bin
+        else
+            check_bin "$arg"
+            echo
+        fi
+    done; unset arg
 fi

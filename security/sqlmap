@@ -88,13 +88,13 @@ mkdir -p "$(dirname "$cache")"
 [[ -z $clear ]] || rm -rf "$cache"
 
 # Get sqlmap if missing
-if [[ ! -d $cache ]]; then
-    git clone https://github.com/sqlmapproject/sqlmap.git "$cache"
-    [[ $? -eq 0 ]] || errx 1 "Failed to download sqlmap"
+if [[ ! -d "$cache" ]]; then
+    git clone https://github.com/sqlmapproject/sqlmap.git "$cache" \
+        || errx 1 "Failed to download sqlmap"
 else
-    git -C "$cache" pull -r >/dev/null
-    [[ $? -eq 0 ]] || errx 1 "Failed to update sqlmap"
+    git -C "$cache" pull -r >/dev/null || \
+        errx 1 "Failed to update sqlmap"
 fi
 
-cd "$cache"
+cd "$cache" || errx 1 "where did sqlmap go?"
 ./sqlmap.py "$@"

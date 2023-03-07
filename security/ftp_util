@@ -34,7 +34,7 @@ warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 ftp_delete() {
     [[ $# -eq 1 ]] || usage 3
 
-    ftp -inv $host <<EOF
+    ftp -inv "$host" <<EOF
 user $user $pass
 delete $1
 bye
@@ -44,7 +44,7 @@ EOF
 ftp_get() {
     [[ $# -eq 1 ]] || usage 4
 
-    ftp -inv $host <<EOF
+    ftp -inv "$host" <<EOF
 user $user $pass
 get $1 $$(basename $1)
 bye
@@ -54,9 +54,9 @@ EOF
 ftp_upload() {
     [[ $# -eq 2 ]] || usage 5
 
-    ftp -inv $host <<EOF
+    ftp -inv "$host" <<EOF
 user $user $pass
-mkdir $(dirname $2)
+mkdir $(dirname "$2")
 bin
 put $1 $2
 bye
@@ -127,7 +127,7 @@ pass="$3"
 shift 3
 
 case "$action" in
-    "delete") ftp_delete $@ ;;
-    "get") ftp_get $@ ;;
-    "upload") ftp_upload $@ ;;
+    "delete") ftp_delete "$@" ;;
+    "get") ftp_get "$@" ;;
+    "upload") ftp_upload "$@" ;;
 esac

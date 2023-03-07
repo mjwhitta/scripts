@@ -3,9 +3,9 @@
 # Make it so anyone can run nmap (or whatever), not just root
 tool="${1:-/usr/bin/nmap}"
 
-if [[ -f $tool ]]; then
+if [[ -f "$tool" ]]; then
     sudo setcap cap_net_admin,cap_net_bind_service,cap_net_raw+eip \
-        $tool
+        "$tool"
 else
     echo "$tool not found"
 fi

@@ -53,7 +53,7 @@ long_opt() {
         *) shift="1"; shift; [[ $# -gt 0 ]] || return 127; arg="$1" ;;
     esac
     echo "$arg"
-    return $shift
+    return "$shift"
 }
 subinfo() { echo -e "${color:+\e[36m}[=] $*${color:+\e[0m}"; }
 warn() { echo -e "${color:+\e[33m}[-] $*${color:+\e[0m}"; }
@@ -81,10 +81,11 @@ scan_host() {
 
     mkdir -p "$output/$host"
 
-    if [[ -f $output/$host/$prot.nmap ]] && [[ -z $force ]]; then
+    if [[ -f "$output/$host/$prot.nmap" ]] && [[ -z $force ]]; then
         warn "Already done, skipping"
     else
         good "${cmd[@]}" | sed -r "s/ +/ /g"
+        # shellcheck disable=SC2068
         ${cmd[@]}
     fi
 
@@ -163,7 +164,7 @@ while [[ $# -gt 0 ]]; do
     case "$?" in
         0) ;;
         1) shift ;;
-        *) usage $? ;;
+        *) usage "$?" ;;
     esac
     shift
 done

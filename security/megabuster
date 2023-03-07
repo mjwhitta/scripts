@@ -788,8 +788,8 @@ if [[ -z $force ]] && [[ -z $simulate ]]; then
             echo "$proxy" | grep -ioPs "proxy .+://(.*@)?\K.+(?=:\d+)"
         )"
     fi
-    ping -c 1 -W 1 "$h" &>/dev/null
-    [[ $? -eq 0 ]] || errx 3 "Target is out of range"
+    ping -c 1 -W 1 "$h" &>/dev/null || \
+        errx 3 "Target is out of range"
     unset h
 fi
 
