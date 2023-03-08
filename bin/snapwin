@@ -182,6 +182,7 @@ replay_snaps() {
     rm -f "$snap_replay"
 }
 
+# shellcheck disable=SC2155
 snap_current_window() {
     # Get unique ID
     local wid="$(xdotool getactivewindow)"
@@ -204,8 +205,9 @@ snap_current_window() {
     # Remove old entries and any blank lines
     sed -r "/^$id\s|^\s*$/d" "$snap_hist" >"$snap_hist.tmp"
     while read -r line; do
-        xdotool getwindowgeometry "${line%% *}" &>/dev/null
-        [[ $? -ne 0 ]] || echo "$line"
+        if xdotool getwindowgeometry "${line%% *}" &>/dev/null; then
+            echo "$line"
+        fi
     done <"$snap_hist.tmp" >"$snap_hist"; unset line
     rm -f "$snap_hist.tmp"
 
