@@ -268,18 +268,18 @@ if [[ -n \$(git -C "\$1" config remote.origin.url) ]]; then
     if [[ -n \$stash ]]; then
         warn "\$1: stashing changes"
         git -C "\$1" stash &>/dev/null
-        [[ \$? -eq 0 ]] || errx 3 "\$1: error ocurred while stashing"
+        [[ \$? -eq 0 ]] || errx 3 "\$1: error occurred while stashing"
     fi
 
     good "\$1: pulling changes"
     git -C "\$1" pull -r &>/dev/null
-    [[ \$? -eq 0 ]] || errx 4 "\$1: error ocurred while pulling"
+    [[ \$? -eq 0 ]] || errx 4 "\$1: error occurred while pulling"
 
     if [[ -n \$stash ]]; then
         warn "\$1: restoring changes"
         git -C "\$1" stash pop &>/dev/null
         if [[ \$? -ne 0 ]]; then
-            errx 5 "\$1: error ocurred while unstashing"
+            errx 5 "\$1: error occurred while unstashing"
         fi
     fi
 else

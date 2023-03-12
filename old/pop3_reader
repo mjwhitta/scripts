@@ -121,8 +121,10 @@ rescue Errno::EPIPE
     # Do nothing. This can happen if piping to another program such as
     # less. Usually if less is closed before we're done with STDOUT.
 rescue Exception => e
-    $stderr.puts "Oops! Looks like an error has occured! Maybe the " \
-        "message below will help. If not,"
+    $stderr.puts [
+        "Oops! Looks like an error has occurred! Maybe the message",
+        "below will help. If not,"
+    ].join(" ")
     $stderr.puts "you can use the --verbose flag to get a backtrace."
 
     $stderr.puts e.message

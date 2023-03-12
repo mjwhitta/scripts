@@ -83,7 +83,7 @@ OPTIONS
     -i, --internal         Use internal IP
     --iface=IFACE          Use specified interface (default: $iface)
     --ip=IP                Compare to specified IP
-    --newip=IP             Use the specifed IP as the new address
+    --newip=IP             Use the specified IP as the new address
     --no-color             Disable colorized output
     -p, --pass=PASSWD      Password for API
     --url=URL              URL that returns just an IP (default: $url)

@@ -665,7 +665,7 @@ OPTIONS
     -p, --proxy=PROXY    Proxy traffic through PROXY
     -r, --resume         Resume from a previous run
     --simulate           Simulate output but do nothing
-    -t, --threads=NUM    Use specied number of threads (default: 32)
+    -t, --threads=NUM    Use specified number of threads (default: 32)
     --timeout=SECS       Use specified curl timeout (default: none)
     --tls                Use TLS connection (https)
     -v, --verbose        Do not hide parallel errors
