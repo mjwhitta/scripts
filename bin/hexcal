@@ -47,7 +47,8 @@ def parse(args)
 
     info = [
         "Wrap the system cal command and output in hex. See the cal",
-        "command help message for valid pass-thru options."
+        "command usage for valid pass-thru options. This may not",
+        "work on distros other than Arch."
     ].join(" ")
 
     parser = OptionParser.new do |opts|

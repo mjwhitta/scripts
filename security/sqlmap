@@ -85,7 +85,7 @@ cache="$HOME/.cache/sqlmap"
 mkdir -p "$(dirname "$cache")"
 
 # Clear cached sqlmap if requested
-[[ -z $clear ]] || rm -rf "$cache"
+[[ -z $clear ]] || rm -f -r "$cache"
 
 # Get sqlmap if missing
 if [[ ! -d "$cache" ]]; then

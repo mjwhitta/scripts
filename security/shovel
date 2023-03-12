@@ -97,7 +97,7 @@ check_resume_file() {
 }
 clean() {
     if [[ ${1:-0} -eq 0 ]] || [[ ${1:-0} -eq 122 ]]; then
-        [[ -z $cache ]] || [[ ! -d "$cache" ]] || rm -rf "$cache"
+        [[ -z $cache ]] || [[ ! -d "$cache" ]] || rm -f -r "$cache"
     fi
     [[ -z $script ]] || [[ ! -f "$script" ]] || rm -f "$script"
     [[ ${1:-0} -eq 125 ]] || [[ -z $cache ]] || rm -f "$cache.lock"
@@ -148,7 +148,7 @@ EOF
 write_resume_file() {
     [[ -n $cache ]] || return
     [[ -n $json ]] || return
-    rm -rf "$cache"
+    rm -f -r "$cache"
     mkdir -p "$cache"
 
     cat >"$json" <<EOF
