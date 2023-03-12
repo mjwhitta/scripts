@@ -96,7 +96,7 @@ unset pth
 # SSH agent
 if [[ -n $(command -v ssh-agent) ]] && [[ -f "$HOME/.ssh/agent" ]]
 then
-    # shellcheck disable=SC1090
+    # shellcheck disable=SC1091
     . "$HOME/.ssh/agent" >/dev/null
 fi
 

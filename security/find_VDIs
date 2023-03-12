@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# shellcheck disable=SC2317
+
 ### Helpers begin
 check_deps() {
     local missing

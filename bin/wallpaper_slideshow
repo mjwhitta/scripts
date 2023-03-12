@@ -60,8 +60,9 @@ warn() { echo -e "${color:+\e[33m}[-] $*${color:+\e[0m}"; }
 ### Helpers end
 
 next_wallpaper() {
-    local ppid="$(pgrep -fo "^\S*sh\s+$0")"
+    local ppid
 
+    ppid="$(pgrep -fo "^\S*sh\s+$0")"
     [[ -z $ppid ]] || pkill -oP "$ppid" sleep
 }
 

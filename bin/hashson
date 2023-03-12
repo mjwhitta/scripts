@@ -106,12 +106,13 @@ undo() {
     while read -r line; do
         h="${line##*_}"
 
+        # shellcheck disable=SC1087
         while read -r f; do
             ext="${f##*.}"
             ext="${ext:+.$ext}"
 
             cp -f "$h$ext" "$f" &
-        done < <(jq -cMrS ".$line[]" "$output"); unset f
+        done < <(jq -c -M -r -S ".$line[]" "$output"); unset f
 
         del+=("$h$ext")
     done < <(jq -cMrS ".|keys[]" "$output"); unset line

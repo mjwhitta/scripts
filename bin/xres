@@ -94,14 +94,14 @@ name="${modeline%% *}"
 modeline="${modeline#* }"
 
 # Add specified resolution if needed
-if [[ -z $(xrandr | grep -Ps "^\s+$name\s+") ]]; then
+if ! xrandr | grep -Pqs "^\s+$name\s+"; then
     xrandr --newmode "$name" "$modeline"
     xrandr --addmode "$display" "$name"
 fi
 
 # Set specified resolution
-xrandr --output "$display" --mode "$name"
-[[ $? -eq 0 ]] || errx 3 "Failed to set resolution"
+xrandr --output "$display" --mode "$name" || \
+    errx 3 "Failed to set resolution"
 
 # Fix some other things
 if [[ -n $(command -v nitrogen) ]] && [[ -n $(pgrep nitrogen) ]]; then
