@@ -112,16 +112,23 @@ check_deps
 
 unset DISPLAY
 
-if [[ -f "$HOME/.vim/autoload/plug.vim" ]]; then
-    mkdir -p "$HOME/.vim/plugs"
-    $vim -c :PlugUpgrade -c :q || exit "$?"
-    rm -f "$HOME/.vim/autoload/plug.vim.old"
-    $vim -c :PlugUpdate -c :q -c :q || exit "$?"
-    echo "y" | vim -c :PlugClean -c :q -c :q 2>/dev/null || exit "$?"
-else
+mkdir -p "$HOME/.vim"/{autoload,plugs}
+
+if [[ ! -f "$HOME/.vim/autoload/plug.vim" ]]; then
     vimplug="https://raw.githubusercontent.com/junegunn/vim-plug"
     vimplug+="/master/plug.vim"
 
-    mkdir -p "$HOME/.vim/autoload"
     curl -Lo "$HOME/.vim/autoload/plug.vim" -s "$vimplug"
 fi
+
+# Update plug.vim
+$vim -c :PlugUpgrade -c :q || exit "$?"
+rm -f "$HOME/.vim/autoload/plug.vim.old"
+
+# Update plugs
+$vim -c :PlugUpdate -c :q -c :q || exit "$?"
+
+# Remove unused plugs
+echo "y" | vim -c :PlugClean -c :q -c :q 2>/dev/null || exit "$?"
+
+exit 0
