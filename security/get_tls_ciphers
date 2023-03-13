@@ -51,25 +51,25 @@ test_ciphers() {
     while read -r c; do
         openssl s_client -cipher "$c" -connect "$1:$port" -tls1 2>&1 \
             <<<""
-    done < <(openssl ciphers "ALL:eNULL" | sed "s/:/\n/g" | sort -u)
+    done < <(openssl ciphers "ALL:eNULL" | sed "s/:/\n/g")
     unset c
 
     while read -r c; do
         openssl s_client -cipher "$c" -connect "$1:$port" -tls1_1 \
             2>&1 <<<""
-    done < <(openssl ciphers "ALL:eNULL" | sed "s/:/\n/g" | sort -u)
+    done < <(openssl ciphers "ALL:eNULL" | sed "s/:/\n/g")
     unset c
 
     while read -r c; do
         openssl s_client -cipher "$c" -connect "$1:$port" -tls1_2 \
             2>&1 <<<""
-    done < <(openssl ciphers "ALL:eNULL" | sed "s/:/\n/g" | sort -u)
+    done < <(openssl ciphers "ALL:eNULL" | sed "s/:/\n/g")
     unset c
 
     while read -r c; do
         openssl s_client -ciphersuites "$c" -connect "$1:$port" \
             -tls1_3 2>&1 <<<""
-    done < <(openssl ciphers "ALL:eNULL" | sed "s/:/\n/g" | sort -u)
+    done < <(openssl ciphers "ALL:eNULL" | sed "s/:/\n/g")
     unset c
 }
 
