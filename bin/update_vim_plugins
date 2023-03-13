@@ -98,10 +98,13 @@ done
 # Help info
 [[ -z $help ]] || usage 0
 
+# Prefer nvim, default to vim
+vim="vim"
+[[ -z $(command -v nvim) ]] || vim="nvim"
 
 # Check for missing dependencies
 declare -a deps
-deps+=("vim")
+deps+=("$vim")
 check_deps
 
 # Check for valid params
@@ -111,8 +114,14 @@ unset DISPLAY
 
 if [[ -f "$HOME/.vim/autoload/plug.vim" ]]; then
     mkdir -p "$HOME/.vim/plugs"
-    vim -c :PlugUpgrade -c :q || exit "$?"
+    $vim -c :PlugUpgrade -c :q || exit "$?"
     rm -f "$HOME/.vim/autoload/plug.vim.old"
-    vim -c :PlugUpdate -c :q -c :q || exit "$?"
-    yes | vim -c :PlugClean -c :q -c :q 2>/dev/null || exit "$?"
+    $vim -c :PlugUpdate -c :q -c :q || exit "$?"
+    echo "y" | vim -c :PlugClean -c :q -c :q 2>/dev/null || exit "$?"
+else
+    vimplug="https://raw.githubusercontent.com/junegunn/vim-plug"
+    vimplug+="/master/plug.vim"
+
+    mkdir -p "$HOME/.vim/autoload"
+    curl -Lo "$HOME/.vim/autoload/plug.vim" -s "$vimplug"
 fi
