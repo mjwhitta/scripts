@@ -75,7 +75,9 @@ done
 
 # Check for missing dependencies
 declare -a deps
+deps+=("grep")
 deps+=("openssl")
+deps+=("sort")
 check_deps
 
 # Check for valid params
@@ -84,12 +86,13 @@ check_deps
 while read -r cipher; do
     r="$(
         echo -n | \
-        openssl s_client -cipher "$cipher" -connect "$1:$port" 2>&1
+        openssl s_client -cipher "$cipher" -connect "$1:$port" 2>&1 | \
+        grep -Eis ":error:|cipher is $cipher"
     )"
 
     case "$r" in
-        *":error:"*) echo "[-] $cipher" ;;
-        *"Cipher is $cipher"*|*"Cipher"*":"*) echo "[+] $cipher" ;;
+        ""|*":error:"*) warn "$cipher" >&2 ;;
+        *"Cipher is $cipher"*) good "$cipher" ;;
     esac
 done < <(openssl ciphers "ALL:eNULL" | sed "s/:/\n/g" | sort -u)
 unset cipher
