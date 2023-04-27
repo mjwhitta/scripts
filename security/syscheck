@@ -63,7 +63,7 @@ check_bin() {
         warn "File $1 is a dead symlink"
         return
     fi
-    
+
     if ! grep -iq "elf" < <(file "$file"); then
         warn "File $1 is not an ELF file"
         return
