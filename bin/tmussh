@@ -110,7 +110,10 @@ done
 
 # Check for missing dependencies
 declare -a deps
+deps+=("head")
+deps+=("ssh")
 deps+=("tmux")
+deps+=("xxd")
 check_deps
 
 # Check for valid params
