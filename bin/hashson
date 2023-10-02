@@ -66,7 +66,15 @@ minimize() {
 
     while read -r line; do
         h="${line%% *}"
-        f="${line##* }"
+        f="${line#* }"
+
+        while :; do
+            case "$f" in
+                " "*) f="${f# }" ;;
+                *" ") f="${f% }" ;;
+                *) break ;;
+            esac
+        done
 
         ext="${f##*.}"
         ext="${ext:+.$ext}"
