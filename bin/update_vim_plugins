@@ -28,6 +28,8 @@
 # SOFTWARE.
 # --------------------------------------------------------------------
 
+# shellcheck disable=2317
+
 ### Helpers begin
 check_deps() {
     local missing
