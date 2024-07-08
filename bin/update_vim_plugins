@@ -131,6 +131,6 @@ rm -f "$HOME/.vim/autoload/plug.vim.old"
 $vim -c :PlugUpdate -c :q -c :q || exit "$?"
 
 # Remove unused plugs
-echo "y" | vim -c :PlugClean -c :q -c :q 2>/dev/null || exit "$?"
+yes | vim -c :PlugClean -c :q -c :q 2>/dev/null || exit "$?"
 
 exit 0
