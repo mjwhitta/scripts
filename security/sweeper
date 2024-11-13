@@ -84,7 +84,7 @@ check_resume_file() {
             case "$a" in
                 "c") clean 0 ;;
                 "n") write_resume_file; break ;;
-                "q") exit 0 ;;
+                "q") clean 123 ;;
                 "y") read_resume_file; resume="--resume"; break ;;
                 *) echo "Invalid response, try again!" ;;
             esac
