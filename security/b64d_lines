@@ -39,14 +39,14 @@ b64decode() {
         "/9j/4A"*) echo "**THIS IS A JPG**" ;;
         "/u3+7QAAAAIAAAA"*)
             # Java keystore
-            tmp="/tmp/$(head -c 8 /dev/random | xxd -p).jks"
+            tmp="/tmp/$(head -c 8 /dev/urandom | xxd -p).jks"
             echo -n "$1" | base64 -d >"$tmp" 2>/dev/null
             echo | keytool -keystore "$tmp" -list -v 2>/dev/null
             rm -f "$tmp"
             ;;
         "3780684"*|"JVBERi0"*) echo "**THIS IS A PDF**" ;;
         "dXN0YXI"*)
-            tmp="/tmp/$(head -c 8 /dev/random | xxd -p).tar"
+            tmp="/tmp/$(head -c 8 /dev/urandom | xxd -p).tar"
             echo -n "$1" | base64 -d >"$tmp" 2>/dev/null
             tar -f "$tmp" -t
             rm -f "$tmp"
@@ -80,7 +80,7 @@ b64decode() {
         "Qlo"*) echo "**THIS IS A BZIP**" ;;
         "U0lNUExF"*) echo "**THIS IS A GIF**" ;;
         "UEsDBBQ"*|"UEsDBAo"*)
-            tmp="/tmp/$(head -c 8 /dev/random | xxd -p).jar"
+            tmp="/tmp/$(head -c 8 /dev/urandom | xxd -p).jar"
             echo -n "$1" | base64 -d >"$tmp" 2>/dev/null
             jar -f "$tmp" -t
             rm -f "$tmp"
