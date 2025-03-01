@@ -276,7 +276,9 @@ ping="$ping"
 
 if [[ -n \$ping ]]; then
     ping -c 1 -W 1 "\$1" >/dev/null 2>&1
-    [[ \$? -ne 0 ]] || good "\$1"
+    success="\$?"
+    [[ \$success -ne 0 ]] || good "\$1"
+    [[ \$success -eq 0 ]] || warn "\$1"
 else
     success="\$(
         nping -c 1 --delay 500ms -p $ports -q --tcp-connect "\$1" \\
@@ -284,6 +286,7 @@ else
     )"
 
     [[ \$success -eq 0 ]] || good "\$1"
+    [[ \$success -ne 0 ]] || warn "\$1"
 fi
 EOF
 chmod 700 "$script"
