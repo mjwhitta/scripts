@@ -38,7 +38,7 @@ Usage: ${0##*/} [OPTIONS]
 DESCRIPTION
     Interact with Blocky API. You should create a config as follows:
 
-    $ echo "http://<host>:<port>" >$HOME/.config/blocky
+    $ echo "http://<host>:<port>" >~/.config/blocky
 
 OPTIONS
     -d, --disable         Disable Blocky filtering
