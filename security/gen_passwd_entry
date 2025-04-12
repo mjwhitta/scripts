@@ -113,11 +113,14 @@ check_deps
 
 [[ -n $passwd ]] || passwd="$1"
 
+export epoch="$(($(date +%s)/60/60/24))"
+
 echo -n "$1"
 if [[ -z $noblock ]];  then
     makepasswd --clearfrom=<(echo "$passwd") --crypt-md5 | \
-        awk '{print ":"$2":0:0:::"}'
+        awk '{print ":"$2":"ENVIRON["epoch"]":0:99999:7:::"}'
 else
     makepasswd --clearfrom=<(echo "$passwd") --crypt-md5 \
-        --randomseed $RANDOM | awk '{print ":"$2":0:0:::"}'
+        --randomseed $RANDOM | \
+        awk '{print ":"$2":"ENVIRON["epoch"]":0:99999:7:::"}'
 fi
