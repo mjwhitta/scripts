@@ -59,25 +59,50 @@ subinfo() { echo -e "${color:+\e[36m}[=] $*\e[0m"; }
 warn() { echo -e "${color:+\e[33m}[-] $*\e[0m"; }
 ### Helpers end
 
+genpasswd() {
+    case "$2" in
+        "x") echo "$1:x:1000:1000::/home/$1:/bin/bash" ;;
+        *) echo "$1:$(makepwd "${2:-$1}"):1000:1000::/home/$1:/bin/bash" ;;
+    esac
+}
+
+genshadow() {
+    local epoch="$(($(date +%s)/60/60/24))"
+
+    case "$2" in
+        "!") echo "$1:!:$epoch:0:99999:7:::" ;;
+        *) echo "$1:$(makepwd "${2:-$1}"):$epoch:0:99999:7:::" ;;
+    esac
+}
+
+makepwd() {
+    if makepasswd -h 2>/dev/null | grep -q -s "GNU"; then
+        makepasswd --clearfrom=<(echo "$1") --crypt-md5 | \
+            awk '{print $2}'
+    else
+        makepasswd -e sha256 -p "$1" | awk '{print $2}'
+    fi
+}
+
 usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTIONS] <username>
 
 DESCRIPTION
-    Generate /etc/passwd entries.
+    Generate /etc/passwd or /etc/shadow entries.
 
 OPTIONS
     -h, --help             Display this help message
-    -n, --no-block         Use non-blocking source of random
     --no-color             Disable colorized output
     -p, --passwd=PASSWD    Use specified password
+    -s, --shadow           Generate shadow file entry
 
 EOF
     exit "$1"
 }
 
 declare -a args
-unset help noblock passwd
+unset help passwd shadow
 color="true"
 
 # Parse command line options
@@ -85,9 +110,9 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         "--") shift; args+=("$@"); break ;;
         "-h"|"--help") help="true" ;;
-        "-n"|"--no-block") noblock="true" ;;
         "--no-color") unset color ;;
         "-p"|"--passwd"*) passwd="$(long_opt "$@")" ;;
+        "-s"|"--shadow") shadow="true" ;;
         *) args+=("$1") ;;
     esac
     case "$?" in
@@ -111,16 +136,9 @@ check_deps
 # Check for valid params
 [[ $# -eq 1 ]] || usage 1
 
-[[ -n $passwd ]] || passwd="$1"
-
-export epoch="$(($(date +%s)/60/60/24))"
-
-echo -n "$1"
-if [[ -z $noblock ]];  then
-    makepasswd --clearfrom=<(echo "$passwd") --crypt-md5 | \
-        awk '{print ":"$2":"ENVIRON["epoch"]":0:99999:7:::"}'
+if [[ -n $shadow ]]; then
+    genshadow "$1" "${passwd:-$1}"
 else
-    makepasswd --clearfrom=<(echo "$passwd") --crypt-md5 \
-        --randomseed $RANDOM | \
-        awk '{print ":"$2":"ENVIRON["epoch"]":0:99999:7:::"}'
+    genpasswd "$1" "${passwd:-$1}"
 fi
+
