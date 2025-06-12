@@ -182,8 +182,13 @@ check_deps
 [[ $# -eq 0 ]] || usage 1
 
 tbls+=("filter")
+tbls+=("nat")
+tbls+=("raw")
 while read -r tbl; do
-    [[ "$tbl" == "filter" ]] || tbls+=("$tbl")
+    case "$tbl" in
+        "filter"|"nat"|"raw") ;;
+        *) tbls+=("$tbl")           ;;
+    esac
 done < <(lsmod 2>/dev/null | grep -ioPs "^${iptables%s}_\K\S+" | sort)
 
 declare -a dignore
