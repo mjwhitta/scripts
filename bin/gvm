@@ -100,7 +100,7 @@ gofallback() {
                 rm -f "$cache/use"
                 ln -s "$version" "$cache/use"
                 if [[ -n $GVMGOPATH ]]; then
-                    mkdir -p "$GVMGOPATH/$version"
+                    mkdir -p "$GVMGOPATH/$version/bin"
                     rm -f "$GVMGOPATH/use"
                     ln -s "$version" "$GVMGOPATH/use"
                 fi
@@ -119,7 +119,7 @@ gofallback() {
                 version="$(
                     /usr/lib/go/bin/go version | awk '{print $3}'
                 )"
-                mkdir -p "$GVMGOPATH/v${version#go}"
+                mkdir -p "$GVMGOPATH/v${version#go}/bin"
                 rm -f "$GVMGOPATH/use"
                 ln -s "v${version#go}" "$GVMGOPATH/use"
             fi
@@ -130,7 +130,7 @@ gofallback() {
                 ln -s "/usr/local/Cellar/go/$version/libexec" \
                     "$cache/use"
                 if [[ -n $GVMGOPATH ]]; then
-                    mkdir -p "$GVMGOPATH/v$version"
+                    mkdir -p "$GVMGOPATH/v$version/bin"
                     rm -f "$GVMGOPATH/use"
                     ln -s "v$version" "$GVMGOPATH/use"
                 fi
@@ -280,7 +280,7 @@ gouse() {
                 rm -f "$cache/use"
                 ln -s "v$1" "$cache/use"
                 if [[ -n $GVMGOPATH ]]; then
-                    mkdir -p "$GVMGOPATH/v$1"
+                    mkdir -p "$GVMGOPATH/v$1/bin"
                     rm -f "$GVMGOPATH/use"
                     ln -s "v$1" "$GVMGOPATH/use"
                 fi
@@ -349,7 +349,7 @@ action="list"
 cache="$HOME/.cache/gvm"
 color="true"
 gourl="https://go.dev/dl"
-version="v1.1.0"
+version="v1.1.1"
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
