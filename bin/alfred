@@ -94,10 +94,10 @@ fi
 unset pth
 
 # SSH agent
-if [[ -n $(command -v ssh-agent) ]] && [[ -f "$HOME/.ssh/agent" ]]
+if [[ -n $(command -v ssh-agent) ]] && [[ -f "$HOME/.ssh/agentrc" ]]
 then
     # shellcheck disable=SC1091
-    . "$HOME/.ssh/agent" >/dev/null
+    . "$HOME/.ssh/agentrc" >/dev/null
 fi
 
 rofi -show $tab

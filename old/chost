@@ -187,9 +187,9 @@ done < <(echo "${PATH//:/\n}" | grep -Psv "${PTH//:/|}"); unset dir
 unset PTH
 
 # SSH agent
-if [[ -n $(command -v ssh-agent) ]] && [[ -f "$HOME/.ssh/agent/env" ]]
+if [[ -n $(command -v ssh-agent) ]] && [[ -f "$HOME/.ssh/agentrc" ]]
 then
-    . "$HOME/.ssh/agent/env" >/dev/null
+    . "$HOME/.ssh/agentrc" >/dev/null
 fi
 
 mkdir -p "$(dirname "$hosts_file")"

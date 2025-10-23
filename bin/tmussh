@@ -123,7 +123,7 @@ check_deps
 wname="tmussh_$(head -c 4 /dev/urandom | xxd -p)"
 tmux new-window -n "$wname"
 
-agent="$HOME/.ssh/agent"
+agent="$HOME/.ssh/agentrc"
 agent_cmd="[[ ! -f \"$agent\" ]] || . \"$agent\" >/dev/null"
 current_pane="$(tmux display -p "#{pane_id}")"
 for host in "$@"; do
