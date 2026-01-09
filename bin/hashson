@@ -132,7 +132,7 @@ undo() {
 
 usage() {
     cat <<EOF
-Usage: ${0##*/} [OPTIONS]
+Usage: ${0##*/} [OPTIONS] [file1]... [fileN]
 
 DESCRIPTION
     Minimize duplicate files by creating a mapping of hash to
@@ -150,7 +150,7 @@ EOF
     exit "$1"
 }
 
-declare -a args
+declare -a args files
 unset help
 action="minimize"
 color="true"
@@ -183,19 +183,31 @@ done
 
 # Check for missing dependencies
 declare -a deps
+deps+=("find")
 deps+=("jq")
 deps+=("md5sum")
 deps+=("sha256sum")
 deps+=("sort")
 check_deps
 
-# Check for valid params
 case "$action" in
-    "minimize") [[ $# -gt 0 ]] || usage 1 ;;
-    "undo") [[ $# -eq 0 ]] || usage 1 ;;
-esac
+    "minimize")
+        if [[ $# -eq 0 ]]; then
+            while read -r file; do
+                [[ "$file" != "$output" ]] || continue
+                files+=("$file")
+            done < <(find . -type f -print); unset file
+        else
+            for file in "$@"; do
+                [[ "$file" != "$output" ]] || continue
+                files+=("$file")
+            done; unset file
+        fi
 
-case "$action" in
-    "minimize") minimize "$@" | tee "$output" ;;
-    "undo") undo ;;
+        minimize "${files[@]}" | tee "$output"
+        ;;
+    "undo")
+        [[ $# -eq 0 ]] || usage 1
+        undo
+        ;;
 esac
