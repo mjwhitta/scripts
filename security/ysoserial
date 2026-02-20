@@ -76,7 +76,9 @@ done
 declare -a deps
 deps+=("curl")
 deps+=("find")
+deps+=("head")
 deps+=("java")
+deps+=("sort")
 check_deps
 
 # Check for valid params
@@ -89,17 +91,27 @@ mkdir -p "$cache"
 [[ -z $clear ]] || find "$cache" -name "*.jar" -exec rm -f {} +
 
 # Get ysoserial if missing
-yso="$(find "$cache" -name "ysoserial.jar")"
+name="ysoserial.jar"
+yso="$(find "$cache" -name "$name" | sort -n -r | head -n 1)"
 if [[ -z $yso ]]; then
-    url="https://jitpack.io"
-    path="/com/github/frohoff/ysoserial/master-SNAPSHOT/"
-    path+="ysoserial-master-SNAPSHOT.jar"
+    url="https://github.com"
+    path="/frohoff/ysoserial/releases"
 
-    name="ysoserial.jar"
-    curl -Lo "$cache/$name" "$url/$path" || \
+    assets="$(
+        curl -L -s "$url$path" | \
+        grep -i -m 1 -o -P -s "expanded_assets/\K[^\"]+"
+    )"
+
+    jar="$(
+        curl -L -s "$url$path/expanded_assets/$assets" | \
+        grep -i -o -P -s "href\=.\K.+ysoserial-all\.jar" | head -n 1
+    )"
+    [[ -n $jar ]] || errx 1 "Failed to find ysoserial jar"
+
+    curl -L -o "$cache/$name" "$url$jar" || \
         errx 1 "Failed to download ysoserial jar"
 
-    yso="$(find "$cache" -name "ysoserial.jar")"
+    yso="$(find "$cache" -name "$name" | sort -n -r | head -n 1)"
 fi
 
 java -jar "$yso" "$@"

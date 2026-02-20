@@ -75,7 +75,10 @@ done
 # Check for missing dependencies
 declare -a deps
 deps+=("curl")
+deps+=("find")
+deps+=("head")
 deps+=("java")
+deps+=("sort")
 check_deps
 
 # Check for valid params
@@ -88,27 +91,28 @@ mkdir -p "$cache"
 [[ -z $clear ]] || find "$cache" -name "*.jar" -exec rm -f {} +
 
 # Get JD-GUI if missing
-jd="$(find "$cache" -name "jd-gui*.jar" | sort -nr | head -n 1)"
+jd="$(find "$cache" -name "jd-gui*.jar" | sort -n -r | head -n 1)"
 if [[ -z $jd ]]; then
     url="https://github.com"
     path="/java-decompiler/jd-gui/releases"
 
     assets="$(
-        curl -Ls "$url$path" | \
-        grep -im 1 -oPs "expanded_assets/\K[^\"]+"
+        curl -L -s "$url$path" | \
+        grep -i -m 1 -o -P -s "expanded_assets/\K[^\"]+"
     )"
 
     jar="$(
-        curl -Ls "$url$path/expanded_assets/$assets" | \
-        grep -ioPs "href\=.\K.+java.+\d+\.\d+\.\d+\.jar" | head -n 1
+        curl -L -s "$url$path/expanded_assets/$assets" | \
+        grep -i -o -P -s "href\=.\K.+java.+\d+\.\d+\.\d+\.jar" | \
+        head -n 1
     )"
     [[ -n $jar ]] || errx 1 "Failed to find jd-gui jar"
 
     name="$(basename "$jar")"
-    curl -Lo "$cache/$name" "$url$jar" || \
+    curl -L -o "$cache/$name" "$url$jar" || \
         errx 1 "Failed to download jd-gui jar"
 
-    jd="$(find "$cache" -name "jd-gui*.jar" | sort -nr | head -n 1)"
+    jd="$(find "$cache" -name "jd-gui*.jar" | sort -n -r | head -n 1)"
 fi
 
 java -jar "$jd" "$@"

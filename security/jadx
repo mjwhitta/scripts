@@ -77,7 +77,10 @@ done
 # Check for missing dependencies
 declare -a deps
 deps+=("curl")
+deps+=("find")
+deps+=("head")
 deps+=("java")
+deps+=("sort")
 deps+=("unzip")
 check_deps
 
@@ -92,28 +95,33 @@ mkdir -p "$cache"
 [[ -z $clear ]] || rm -fr "$cache"/*
 
 # Get JADX if missing
-jadx="$(find "$cache" -name "jadx*.zip" | sort -nr | head -n 1)"
+jadx="$(find "$cache" -name "jadx*.zip" | sort -n -r | head -n 1)"
 if [[ -z $jadx ]]; then
     url="https://github.com"
     path="/skylot/jadx/releases"
 
     assets="$(
-        curl -Ls "$url$path" | \
-        grep -im 1 -oPs "expanded_assets/\K[^\"]+"
+        curl -L -s "$url$path" | \
+        grep -i -m 1 -o -P -s "expanded_assets/\K[^\"]+"
     )"
 
     zip="$(
-        curl -Ls "$url$path/expanded_assets/$assets" | \
-        grep -ioPs "href\=.\K.+jadx.+\d+\.\d+\.\d+\.zip" | head -n 1
+        curl -L -s "$url$path/expanded_assets/$assets" | \
+        grep -i -o -P -s "href\=.\K.+jadx.+\d+\.\d+\.\d+\.zip" | \
+        head -n 1
     )"
     [[ -n $zip ]] || errx 1 "Failed to find JADX zip"
 
     name="$(basename "$zip")"
-    curl -Lo "$cache/$name" "$url$zip" || \
+    curl -L -o "$cache/$name" "$url$zip" || \
         errx 1 "Failed to download JADX zip"
 
-    jadx="$(find "$cache" -name "jadx*.zip" | sort -nr | head -n 1)"
+    jadx="$(find "$cache" -name "jadx*.zip" | sort -n -r | head -n 1)"
+fi
+
+if [[ ! -d "$cache/bin" ]]; then
     unzip -d "$cache" "$jadx"
+    find "$cache/bin" -type f -exec chmod +x {} +
 fi
 
 [[ -z $gui ]] || "$cache/bin/jadx-gui" "$@"
