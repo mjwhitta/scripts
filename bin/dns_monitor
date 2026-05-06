@@ -33,11 +33,12 @@ warn() { echo -e "${color:+\e[33m}[-] $*${color:+\e[0m}"; }
 
 usage() {
     cat <<EOF
-Usage: ${0##*/} [OPTIONS] <file>
+Usage: ${0##*/} [OPTIONS] [file]
 
 DESCRIPTION
-    Monitor configured hosts and log when their IPs change. An input
-    file is a list of key/value pairs. Example below:
+    Monitor configured hosts and log when their IPs change. If no
+    input file is provided, the default is ~/.config/dns_monitor. An
+    input file is a list of key/value pairs. Example below:
 
     # comments ignored
     <name1> <host1>
@@ -45,17 +46,19 @@ DESCRIPTION
     <nameN> <hostN>
 
 OPTIONS
-    -c, --clear        Clear cache first
-    -h, --help         Display this help message
-        --no-color     Disable colorized output
+    -c, --clear       Clear cache first
+    -h, --help        Display this help message
+        --no-color    Disable colorized output
+    -s, --show        Show configured hosts and their logs
 
 EOF
     exit "$1"
 }
 
 declare -a args
-unset clear help
+unset clear help show
 cache="$HOME/.cache/dns_monitor"
+cfg="$HOME/.config/dns_monitor"
 color="true"
 
 # Parse command line options
@@ -65,6 +68,7 @@ while [[ $# -gt 0 ]]; do
         "-c"|"--clear") clear="true" ;;
         "-h"|"--help") help="true" ;;
         "--no-color") unset color ;;
+        "-s"|"--show") show="true" ;;
         *) args+=("$1") ;;
     esac
     case "$?" in
@@ -86,31 +90,42 @@ deps+=("dig")
 check_deps
 
 # Check for valid params
-[[ $# -eq 1 ]] || usage 1
-[[ -f "$1" ]] || errx 1 "file $1 not found"
+[[ $# -le 1 ]] || usage 1
+
+[[ $# -eq 0 ]] || cfg="$1"
+[[ -f "$cfg" ]] || errx 1 "file $cfg not found"
 
 [[ -z $clear ]] || rm -f -r "$cache"
 mkdir -p "$cache"
 
-while read -r line; do
-    case "$line" in
-        *"#"*) continue ;;
-    esac
+if [[ -z $show ]]; then
+    while read -r line; do
+        case "$line" in
+            *"#"*) continue ;;
+        esac
 
-    host="${line##* }"
-    name="${line%% *}"
+        host="${line##* }"
+        name="${line%% *}"
 
-    old="unknown"
-    if [[ -f "$cache/$name" ]]; then
-        old="$(tail -n 1 "$cache/$name")"
-        old="${old%% *}"
-    fi
+        old="unknown"
+        if [[ -f "$cache/$name" ]]; then
+            old="$(tail -n 1 "$cache/$name")"
+            old="${old%% *}"
+        fi
 
-    unset new
-    new="$(dig +short "$host")"
+        unset new
+        new="$(dig +short "$host")"
 
-    if [[ "$new" != "$old" ]]; then
-        echo "IP for $name changed from $old to $new"
-        echo "$new $(date)" >>"$cache/$name"
-    fi
-done <"$1"; unset line
+        if [[ "$new" != "$old" ]]; then
+            echo "IP for $name changed from $old to $new"
+            echo "$new $(date)" >>"$cache/$name"
+        fi
+    done <"$cfg"; unset line
+else
+    for i in "$cache"/*; do
+        info "${i##*/}"
+        while read -r line; do
+            good "$line"
+        done <"$i"
+    done; unset i
+fi
