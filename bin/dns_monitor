@@ -114,7 +114,9 @@ if [[ -z $show ]]; then
         fi
 
         unset new
-        new="$(dig +short "$host")"
+        new="$(dig +short "$host" 2>/dev/null)"
+
+        [[ -n $new ]] || continue
 
         if [[ "$new" != "$old" ]]; then
             echo "IP for $name changed from $old to $new"
