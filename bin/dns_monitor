@@ -114,9 +114,11 @@ if [[ -z $show ]]; then
         fi
 
         unset new
-        new="$(dig +short "$host" 2>/dev/null)"
+        new="$(dig +short +timeout=1 "$host")"
 
-        [[ -n $new ]] || continue
+        case "$new" in
+            ""|*"communications error"*|*"no server"*) continue ;;
+        esac
 
         if [[ "$new" != "$old" ]]; then
             echo "IP for $name changed from $old to $new"
