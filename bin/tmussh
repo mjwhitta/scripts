@@ -110,6 +110,7 @@ done
 
 # Check for missing dependencies
 declare -a deps
+deps+=("awk")
 deps+=("head")
 deps+=("ssh")
 deps+=("tmux")
@@ -126,10 +127,30 @@ tmux new-window -n "$wname"
 agent="$HOME/.ssh/agentrc"
 agent_cmd="[[ ! -f \"$agent\" ]] || . \"$agent\" >/dev/null"
 current_pane="$(tmux display -p "#{pane_id}")"
-for host in "$@"; do
-    case "$host" in
+
+for target in "$@"; do
+    case "$target" in
         "localhost") tmux split-window -h ;;
-        *) tmux split-window -h "$agent_cmd; ssh $host" ;;
+        *)
+            if [[ -n $(command -v nping) ]]; then
+                sshcfg="$(ssh -G $target)"
+                host="$(
+                    echo "$sshcfg" | awk '/^host / {print $2; exit}'
+                )"
+                port="$(
+                    echo "$sshcfg" | awk '/^port / {print $2; exit}'
+                )"
+
+                up="$(
+                    nping -c 1 -H -p "$port" -q --unprivileged \
+                    "$host" | awk '/Failed: 0/ {print}'
+                )"
+
+                [[ -n "$up" ]] || continue
+            fi
+
+            tmux split-window -h "$agent_cmd; ssh $target"
+            ;;
     esac
     tmux select-layout tiled
 done
