@@ -124,13 +124,11 @@ check_deps
 wname="tmussh_$(head -c 4 /dev/urandom | xxd -p)"
 tmux new-window -n "$wname"
 
-agent="$HOME/.ssh/agentrc"
-agent_cmd="[[ ! -f \"$agent\" ]] || . \"$agent\" >/dev/null"
-current_pane="$(tmux display -p "#{pane_id}")"
+declare -a hosts
 
 for target in "$@"; do
     case "$target" in
-        "localhost") tmux split-window -h ;;
+        "localhost") hosts+=("$target") ;;
         *)
             if [[ -n $(command -v nping) ]]; then
                 sshcfg="$(ssh -G $target)"
@@ -149,15 +147,25 @@ for target in "$@"; do
                 [[ -n "$up" ]] || continue
             fi
 
-            tmux split-window -h "$agent_cmd; ssh $target"
+            hosts+=("$target")
             ;;
     esac
+done
+
+agent="$HOME/.ssh/agentrc"
+agent_cmd="[[ ! -f \"$agent\" ]] || . \"$agent\" >/dev/null"
+
+for target in "${hosts[@]}"; do
+    case "$target" in
+        "localhost") tmux split-window -h ;;
+        *) tmux split-window -h "$agent_cmd; ssh $target" ;;
+    esac
+
     tmux select-layout tiled
 done
 
-tmux kill-pane -t "$current_pane"
+tmux kill-pane -t "$(tmux display -p "#{pane_id}")"
 tmux select-layout tiled
-
 tmux select-pane -t 0
 tmux set-option -w synchronize-panes on
 
