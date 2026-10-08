@@ -121,9 +121,6 @@ check_deps
 [[ $# -gt 0 ]] || usage 1
 [[ -n $TMUX ]] || errx 2 "You are not in a tmux session"
 
-wname="tmussh_$(head -c 4 /dev/urandom | xxd -p)"
-tmux new-window -n "$wname"
-
 declare -a hosts
 
 for target in "$@"; do
@@ -140,8 +137,8 @@ for target in "$@"; do
                 )"
 
                 up="$(
-                    nping -c 1 -H -p "$port" -q --unprivileged \
-                    "$host" | awk '/Failed: 0/ {print}'
+                    nping -c 1 -p "$port" -q "$host" 2>/dev/null | \
+                    awk '/Failed: 0/ {print}'
                 )"
 
                 [[ -n "$up" ]] || continue
@@ -154,6 +151,10 @@ done
 
 agent="$HOME/.ssh/agentrc"
 agent_cmd="[[ ! -f \"$agent\" ]] || . \"$agent\" >/dev/null"
+wname="tmussh_$(head -c 4 /dev/urandom | xxd -p)"
+
+tmux new-window -n "$wname"
+current_pane="$(tmux display -p "#{pane_id}")"
 
 for target in "${hosts[@]}"; do
     case "$target" in
@@ -164,7 +165,7 @@ for target in "${hosts[@]}"; do
     tmux select-layout tiled
 done
 
-tmux kill-pane -t "$(tmux display -p "#{pane_id}")"
+tmux kill-pane -t "$current_pane"
 tmux select-layout tiled
 tmux select-pane -t 0
 tmux set-option -w synchronize-panes on
